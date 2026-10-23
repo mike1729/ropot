@@ -59,3 +59,17 @@ See the [analysis module](src/data-pipeline/analyze.py) docstrings for the contr
 The test pool has 1,448 tasks (335 introductory, 1,113 interview); the two qualified
 train tasks remain historical evidence. This report chooses no eligibility cutoff
 or cohorts and does not establish complete-example fit within 2,048 tokens.
+
+Export the test-only dataset for the next stage (standard library only):
+
+```sh
+/opt/homebrew/bin/python3.12 -m src.data-pipeline export-test
+```
+
+Options: `--input-dir` (default `data/01_qualified_pool`) and `--output-dir`
+(default `data/01_test_pool`). This copies all 1,448 test task JSON files unchanged,
+with a new `manifest.json` and the original `qualification-manifest.json` for
+provenance. The active manifest excludes train tasks and preserves the Linux
+verification gate. Existing destinations are refused; publication is atomic.
+The original pool and analysis report remain unchanged. Cohort allocation consumes
+the task paths listed in `data/01_test_pool/manifest.json`.

@@ -39,8 +39,16 @@ meet the same scientific requirements. This document does not authorize model ru
   model generation and Linux verification; content counts do not establish full
   monitor-example fit within 2,048 tokens. See the [analysis module](../src/data-pipeline/analyze.py).
 
+**01_test_pool — materialize the dataset for allocation.**
+
+- Run `export-test` to copy only qualified test task artifacts, preserving their bytes.
+- Publish a test-only `manifest.json` with task hashes and qualification runtime/gate;
+  retain the original manifest as historical `qualification-manifest.json`.
+- Preserve `01_qualified_pool` and `01_pool_analysis`; execute no supplied programs.
+
 **02_cohort — allocate tasks subject to exposure and freeze queues.**
 
+- Read only the task paths listed in `01_test_pool/manifest.json`.
 - Queues are
   construction, development, correction_replay, calibration and evaluation.
 - TODO

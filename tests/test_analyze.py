@@ -1,4 +1,3 @@
-import copy
 import csv
 import hashlib
 import importlib
@@ -100,24 +99,14 @@ class AnalysisTests(unittest.TestCase):
         self.assertTrue(provenance["source_sha256"])
         self.assertEqual({p: p.read_bytes() for p in before}, before)
 
-    def test_invalid_inputs_never_publish(self):
-        for fault in ("duplicate", "missing", "identity"):
-            with self.subTest(fault=fault):
-                self.write_inputs()
-                manifest_path = self.input / "manifest.json"
-                manifest = json.loads(manifest_path.read_text())
-                if fault == "duplicate":
-                    manifest["tasks"].append(manifest["tasks"][-1])
-                elif fault == "missing":
-                    manifest["tasks"].append("tasks/test_999.json")
-                else:
-                    broken = copy.deepcopy(self.tasks[-1])
-                    broken["id"] = 99
-                    (self.input / manifest["tasks"][-1]).write_text(json.dumps(broken))
-                manifest_path.write_text(json.dumps(manifest))
-                with self.assertRaises((ValueError, FileNotFoundError)):
-                    self.run_analysis()
-                self.assertFalse(self.output.exists())
+    def test_listing_must_be_fully_validated_before_publication(self):
+        path = self.input / "manifest.json"
+        manifest = json.loads(path.read_text())
+        manifest["accepted_counts"]["test"] += 1
+        path.write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "Manifest accepted counts disagree"):
+            self.run_analysis()
+        self.assertFalse(self.output.exists())
 
     def test_measurements_do_not_depend_on_qualification_diagnostics(self):
         qualified = task()

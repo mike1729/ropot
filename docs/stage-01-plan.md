@@ -32,6 +32,11 @@ attempts in the audit total, taking 648 seconds. Downstream analysis and allocat
 use only test tasks; retain the train evidence unchanged. The next report is
 `01_pool_analysis`; see the [analysis module](../src/data-pipeline/analyze.py).
 
+Analysis and test export were republished from an immutable archive of commit
+`ababa96`, with identical measurements and task bytes. The run record is
+`data/runs/stage01-republish-ababa96.json`; earlier outputs are preserved under
+`data/archive/stage01-before-ababa96-republish/` with their original provenance.
+
 Batch 2 entry point: pass `screen_task(row, split)` to
 `map_statement_examples_to_cases` in `src/data-pipeline/statement_examples.py`.
 It returns a new candidate with `example_format`,

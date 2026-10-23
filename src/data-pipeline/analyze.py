@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 
 from .download import digest
 from .qualify import OUTPUT as QUALIFIED_POOL, write_json
+from .qualified_tasks import iter_qualified_tasks
 
 
 OUTPUT = QUALIFIED_POOL.parent / "01_pool_analysis"
@@ -102,22 +103,9 @@ def analyze(input_dir=QUALIFIED_POOL, output_dir=OUTPUT, tokenizer=DEFAULT_TOKEN
     manifest = json.loads(manifest_bytes)
     encoder = load_tokenizer(tokenizer)
     from tokenizers import __version__ as tokenizer_version
-    rows, seen, task_hashes, split_counts = [], set(), {}, Counter()
-    for relative in manifest["tasks"]:
-        path = Path(relative)
-        if (path.parts != ("tasks", path.name) or path.suffix != ".json"
-                or not (input_dir / path).resolve().is_relative_to(input_dir.resolve())):
-            raise ValueError(f"Invalid task path: {relative}")
-        raw = (input_dir / path).read_bytes()
-        task = json.loads(raw)
-        split, identifier = task["split"], task["id"]
-        key = (split, identifier)
-        if (split not in ("train", "test") or type(identifier) is not int or key in seen
-                or path.name != f"{split}_{identifier}.json"):
-            raise ValueError(f"Invalid or duplicate task identity: {relative}")
-        seen.add(key)
-        split_counts[split] += 1
-        if split == "train":
+    rows, task_hashes = [], {}
+    for relative, raw, task in iter_qualified_tasks(input_dir, manifest):
+        if task["split"] == "train":
             continue
         if task["difficulty"] not in ("introductory", "interview"):
             raise ValueError(f"Invalid difficulty: {relative}")
@@ -127,15 +115,14 @@ def analyze(input_dir=QUALIFIED_POOL, output_dir=OUTPUT, tokenizer=DEFAULT_TOKEN
             error.add_note(f"While analyzing {relative}")
             raise
         task_hashes[relative] = hashlib.sha256(raw).hexdigest()
-    if any(split_counts[s] != manifest["accepted_counts"].get(s, 0) for s in ("train", "test")):
-        raise ValueError("Manifest accepted counts disagree with listed tasks")
     if not rows:
         raise ValueError("No qualified test tasks")
+    excluded_train = manifest["accepted_counts"].get("train", 0)
     rows.sort(key=lambda row: row["id"])
     distributions = lambda population: {metric: summarize([r[metric] for r in population]) for metric in METRICS}
     difficulties = sorted({r["difficulty"] for r in rows})
     summary = {
-        "schema_version": 1, "selection": {"split": "test", "excluded_train_tasks": split_counts["train"]},
+        "schema_version": 1, "selection": {"split": "test", "excluded_train_tasks": excluded_train},
         "counts": {"tasks": len(rows), "passing_references": 3 * len(rows),
                    "difficulty": dict(sorted(Counter(r["difficulty"] for r in rows).items())),
                    "host": dict(sorted(Counter(r["host"] for r in rows).items())),
@@ -166,7 +153,7 @@ def analyze(input_dir=QUALIFIED_POOL, output_dir=OUTPUT, tokenizer=DEFAULT_TOKEN
         if output_dir.exists() or output_dir.is_symlink():
             raise FileExistsError(output_dir)
         staging.rename(output_dir)
-    print(f"APPS test: {len(rows)} tasks; {split_counts['train']} train tasks excluded")
+    print(f"APPS test: {len(rows)} tasks; {excluded_train} train tasks excluded")
     print("Difficulty:", summary["counts"]["difficulty"], "Hosts:", summary["counts"]["host"])
     print(f"{'Task metric':28} {'median':>10} {'p90':>10} {'p95':>10} {'p99':>10} {'max':>10}")
     for metric in METRICS:

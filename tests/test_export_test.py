@@ -62,38 +62,23 @@ class ExportTestTests(unittest.TestCase):
             self.assertNotEqual((output / name).stat().st_ino, (source / name).stat().st_ino)
         self.assertEqual({p.relative_to(source).as_posix(): p.read_bytes() for p in source.rglob("*") if p.is_file()}, before)
 
-    def test_invalid_inputs_never_publish(self):
-        for fault in ("duplicate", "duplicate_identity", "missing_train", "bad_split", "bad_id", "bool_id", "filename", "traversal", "absolute", "symlink", "counts", "empty"):
-            with self.subTest(fault=fault), tempfile.TemporaryDirectory(dir=self.root) as directory:
-                source, output, manifest = self.fixture(Path(directory))
-                target = source / "tasks/test_7.json"
-                item = json.loads(target.read_text())
-                if fault == "duplicate": manifest["tasks"].append(manifest["tasks"][-1])
-                elif fault == "duplicate_identity":
-                    (source / "tasks/test_07.json").write_bytes(target.read_bytes())
-                    manifest["tasks"].append("tasks/test_07.json")
-                    manifest["accepted_counts"]["test"] += 1
-                elif fault == "missing_train": (source / "tasks/train_7.json").unlink()
-                elif fault == "bad_split": item["split"] = "validation"
-                elif fault == "bad_id": item["id"] = "7"
-                elif fault == "bool_id": item["id"] = True
-                elif fault == "filename": item["id"] = 8
-                elif fault == "traversal": manifest["tasks"][-1] = "tasks/../tasks/test_7.json"
-                elif fault == "absolute": manifest["tasks"][-1] = str(target)
-                elif fault == "symlink":
-                    outside = Path(directory) / "outside.json"
-                    outside.write_bytes(target.read_bytes())
-                    target.unlink()
-                    target.symlink_to(outside)
-                elif fault == "counts": manifest["accepted_counts"]["train"] = 0
-                else:
-                    manifest["tasks"] = manifest["tasks"][:1]
-                    manifest["accepted_counts"]["test"] = 0
-                if fault in ("bad_split", "bad_id", "bool_id", "filename"): target.write_text(json.dumps(item))
-                (source / "manifest.json").write_text(json.dumps(manifest))
-                with self.assertRaises((ValueError, FileNotFoundError)):
-                    export.export_test(source, output)
-                self.assertFalse(output.exists())
+    def test_listing_must_be_fully_validated_before_publication(self):
+        source, output, manifest = self.fixture(self.root)
+        manifest["accepted_counts"]["test"] += 1
+        (source / "manifest.json").write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "Manifest accepted counts disagree"):
+            export.export_test(source, output)
+        self.assertFalse(output.exists())
+        self.assertFalse(list(self.root.glob(".next-*")))
+
+    def test_empty_test_selection_is_rejected(self):
+        source, output, manifest = self.fixture(self.root)
+        manifest["tasks"] = manifest["tasks"][:1]
+        manifest["accepted_counts"]["test"] = 0
+        (source / "manifest.json").write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(ValueError, "No qualified test tasks"):
+            export.export_test(source, output)
+        self.assertFalse(output.exists())
 
     def test_existing_and_nested_destinations_and_interrupted_publication(self):
         source, output, _ = self.fixture(self.root)

@@ -73,3 +73,5 @@ provenance. The active manifest excludes train tasks and preserves the Linux
 verification gate. Existing destinations are refused; publication is atomic.
 The original pool and analysis report remain unchanged. Cohort allocation consumes
 the task paths listed in `data/01_test_pool/manifest.json`.
+Independent copies make that dataset self-contained; qualification artifacts can
+be archived separately without breaking its task paths.

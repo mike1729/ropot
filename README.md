@@ -75,3 +75,15 @@ The original pool and analysis report remain unchanged. Cohort allocation consum
 the task paths listed in `data/01_test_pool/manifest.json`.
 Independent copies make that dataset self-contained; qualification artifacts can
 be archived separately without breaking its task paths.
+
+Stage 02 batch 1 adds the standard-library [cohort policy](src/data-pipeline/cohort.py).
+`load_inputs(input_dir, analysis_dir)` validates the export/analysis join;
+`allocate(loaded["tasks"])` returns frozen ownership, construction phases, ordered
+queue blocks, profile deferrals and quota shortfalls. See the [allocation plan](docs/stage-02-plan.md).
+CLI publication and allocation against the real pool remain for batch 2.
+The loader verifies `summary.json`'s `tasks_csv_sha256` against the CSV bytes;
+older analyses must be regenerated to supply this provenance field.
+Known-use records and coverage load from the sibling `honeypot/data/manifests/`
+directory by default (override with `known_use_records` / `known_use_coverage`).
+The loader checks original-row bindings and retains coverage limitations. Restricted
+uses move from protected queues into construction before its order and phases freeze.

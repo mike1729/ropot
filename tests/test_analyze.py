@@ -91,6 +91,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(summary["distributions"]["overall"]["statement_tokens"]["median"], 5)
         self.assertEqual(json.loads((self.output / "summary.json").read_text()), summary)
         provenance = summary["provenance"]
+        self.assertEqual(provenance["tasks_csv_sha256"], hashlib.sha256((self.output / "tasks.csv").read_bytes()).hexdigest())
         self.assertEqual(provenance["input_manifest_sha256"], hashlib.sha256(before[self.input / "manifest.json"]).hexdigest())
         for path, digest in provenance["task_sha256"].items():
             self.assertEqual(digest, hashlib.sha256(before[self.input / path]).hexdigest())

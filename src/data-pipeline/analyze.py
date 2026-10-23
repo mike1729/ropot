@@ -149,6 +149,7 @@ def analyze(input_dir=QUALIFIED_POOL, output_dir=OUTPUT, tokenizer=DEFAULT_TOKEN
             writer = csv.DictWriter(stream, fieldnames=rows[0].keys())
             writer.writeheader()
             writer.writerows(rows)
+        summary["provenance"]["tasks_csv_sha256"] = digest(staging / "tasks.csv")
         write_json(staging / "summary.json", summary)
         if output_dir.exists() or output_dir.is_symlink():
             raise FileExistsError(output_dir)

@@ -10,9 +10,28 @@ Produce `data/01_qualified_pool/` with tasks that pass static screening, stateme
 example mapping and local reference execution. Qualification here is under the
 declared local runtime; later Inspect verification is a separate required gate.
 
-The static screening module and its regression tests are implemented and under review.
-Example mapping, nonvisible-case validation, the local runner, the qualification
-CLI and export are pending. The existing download command remains unchanged.
+Static screening, English example mapping and the nonvisible-case gate are
+implemented with regression tests. The local runner, qualification CLI and export
+are pending. The existing download command remains unchanged.
+
+Batch 2 entry point: pass `screen_task(row, split)` to
+`map_statement_examples_to_cases` in `src/data-pipeline/statement_examples.py`.
+It returns a new candidate with `example_format`,
+ordered `example_mappings` (sample text, exact answer and all matching original
+case indices), per-case `visible` flags and visible/nonvisible case counts.
+It does not modify the screened candidate; unchanged metadata and source lists
+are shared. Original stored case content and indices are preserved. Catch
+`Rejected` specifically for exclusions; passing these steps is not qualification.
+
+Supported syntax is a single Codeforces `Example`/`Examples` section with alternating
+`Input`/`Output` lines, or AtCoder `Sample Input`/`Sample Output` sections: one
+unnumbered pair or a series with unique matching positive numbers. Mapping input
+and output fields retain raw sample slices, including surrounding whitespace.
+AtCoder output occupies the first paragraph and its following blank separator;
+explanation remains in the original question. A further numeric paragraph is
+rejected as ambiguous. Unsupported labels anywhere in the statement are excluded.
+Unknown sample headings, incomplete pairs and mixed formats are excluded. Inputs
+match by whitespace tokens; answers retain exact spelling, including `-0`.
 
 Defer dataset statement/input/output size thresholds and the definition of
 "short" until the next analysis. Preserve original content and record lengths.

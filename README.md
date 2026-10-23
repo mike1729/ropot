@@ -112,3 +112,24 @@ Construction activation follows `construction_phases`; deferred tasks stay inact
 Accepted-data targets have planned status, separate from observed usable counts.
 Generation and retry ceilings remain pending acquisition decisions; publication does
 not clear the Linux verification gate or establish accepted generated data.
+
+Stage 03 experiments read reviewed tasks through the standard-library
+[study task API](src/data-pipeline/study_tasks.py); see the [Stage 03 plan](docs/stage-03-plan.md):
+
+```python
+import importlib
+
+study = importlib.import_module("src.data-pipeline.study_tasks")
+loaded = study.load_cohort()  # pinned data/02_cohort manifest and its test pool
+activation = study.activate(loaded, ["development_smoke"])
+binding, task = study.load_task(loaded, activation, activation["tasks"][0]["id"])
+record = study.experiment_record(loaded, "smoke-1", activation, {"actor": {"prompt": "draft"}})
+identity = study.candidate_identity("test", task["id"], binding["sha256"], "actor", b"print(0)\n")
+```
+
+`load_cohort` checks the code-pinned cohort digest and the test-pool manifest digest;
+`test_pool_dir` relocates task files without relaxing either check. Activation offers
+only `development_smoke`, `shared_pretraining_probe` and `continuation_probe`, sized
+by the cohort's `candidate_budgets`. `load_task` reads and verifies one activated task.
+Records and identities are fresh JSON values; limits, persistence, model calls and
+program execution belong to later batches, and the Linux reference gate stays pending.

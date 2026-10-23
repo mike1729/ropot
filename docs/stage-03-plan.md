@@ -85,7 +85,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 | 3 | Add the three-reference gate and deterministic candidate verification. Run visible cases before hidden ones, retain all stored cases and test the public-feedback boundary. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
 | 5 | Establish the synthetic runtime using the same small adapter interface. Resolve MLX versus GGUF from observed compatibility, output quality, cost and provenance. |
-| 6 | Implement the experimental generate/verify/repair loop with interruption-safe accounting. Keep generation caching and automatic retries off, and confirm server idleness after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
+| 6 | Implement the experimental generate/verify/repair loop with interruption-safe accounting. Keep generation caching and automatic retries off, and confirm the owned worker group is reaped after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
 | 7 | Publish versioned selections, every activated cell's status, native evidence and yield/cost reports. Resume without replaying spent requests or silently changing selected candidates. |
 | 8 | Run iterative prompt and scaffolding experiments, beginning with the development smoke and construction prefixes. Use the results to choose the next experiment and acquisition scale. |
 
@@ -173,3 +173,25 @@ only `passed`, `failed` or `not_run` for hidden checks. Infrastructure errors re
 only `verification_error`. Native logs contain hidden inputs/answers/streams and are
 private. Reuse is explicit; the experiment journal in batch 6 must account for every
 attempt and prevent selective redispatch of completed verdicts for the same key.
+
+### Actor runtime contract
+
+Batch 4 uses installed MLX-LM's text-only Qwen3.5 path through one isolated worker
+per request. The parent deadline includes artifact hashing, loading and generation;
+cleanup kills the owned process group before reaping. A stdin-EOF watchdog kills
+workers if their parent dies. Cancellation retains an outcome then re-raises.
+There is no persistent server, retry, generation cache or shared prompt cache.
+
+The private request/protocol/stderr/outcome files retain exact messages, rendered
+prompt and IDs, emitted token IDs/text deltas, native counts/finish reason and
+runtime/model provenance. Thinking is explicitly disabled in the template, but
+actual emitted thinking must still be measured. Hashing covers top-level model
+files, the worker and loaded MLX sources, including the installed sampler patch.
+
+The output cap counts delivered tokens including EOS; a stop can reach the cap.
+Length requires the cap and a non-EOS final token. MLX computes a lookahead step;
+interrupted counts are observed lower bounds, and partial decoded text can lag
+behind token IDs. Wall limits bound the owned worker, not unrelated processes.
+
+Outcomes distinguish `stop`, `length`, `timeout`, `worker_error`, `parent_error`
+and `cancelled`; parent/cleanup exceptions propagate after retaining the outcome.

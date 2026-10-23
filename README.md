@@ -154,3 +154,10 @@ the digest from the task's verified artifact bytes; cohort tasks must come throu
 `study.load_task`. `reuse` re-derives explicit native evidence without execution.
 Logs contain hidden data and must stay outside generator prompts and tools.
 See the [verification contract](docs/stage-03-plan.md#verification-contract).
+
+The local actor adapter is `local_generation.generate(request, new_request_dir)`.
+Requests specify a local `model_path`, `messages`, `seed`, `temperature`, `top_p`,
+`max_tokens`, `wall_time_seconds` and `enable_thinking: false`. It uses the existing
+MLX interpreter recorded in `local_generation.INTERPRETER`; each call owns one
+worker and retains `request.json`, `stdout.jsonl`, `stderr.txt`, and `response.json`.
+See the [actor runtime contract](docs/stage-03-plan.md#actor-runtime-contract).

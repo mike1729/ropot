@@ -46,12 +46,21 @@ meet the same scientific requirements. This document does not authorize model ru
   retain the original manifest as historical `qualification-manifest.json`.
 - Preserve `01_qualified_pool` and `01_pool_analysis`; execute no supplied programs.
 
-**02_cohort — allocate tasks subject to exposure and freeze queues.**
+**02_cohort — allocate tasks and freeze queues.**
 
 - Read only the task paths listed in `01_test_pool/manifest.json`.
 - Queues are
   construction, development, correction_replay, calibration and evaluation.
-- TODO
+- The [Stage 02 plan](stage-02-plan.md) proposes a short-task profile, fixed
+  ownership and ordered reserves: start with 8 development tasks, then a 32-task
+  construction probe, targeting 256 usable construction tasks and capping development
+  at 50 tasks total, including the smoke, with an option to expand construction to 512.
+- Preserve the eligible difficulty mix in each queue; retain all stored cases and
+  use a small verification screen before complete checks on surviving programs.
+- Keep queues isolated and preserve source-independent acquisition and the required
+  Inspect Linux reference gate. Final panel sizes and acquisition budgets follow
+  the fixed queue capacities: target 24 calibration and 48 evaluation tasks,
+  with coarse operating points and task-level uncertainty.
 
 
 **03_benigns — generate and verify.**

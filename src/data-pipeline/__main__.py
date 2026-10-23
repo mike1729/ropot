@@ -11,7 +11,7 @@ from .qualify import DESTINATION, MAX_CONCURRENT_CASES, OUTPUT, qualify
 
 
 def main():
-    """Dispatch downloads, qualification, analysis and test-only dataset export."""
+    """Dispatch downloads, qualification, analysis, test export and cohort publication."""
     parser = argparse.ArgumentParser(description="Pilot data pipeline")
     commands = parser.add_subparsers(dest="command", required=True)
     download = commands.add_parser("download", help="Download and verify pinned APPS data")
@@ -30,6 +30,14 @@ def main():
     test_export = commands.add_parser("export-test", help="Export qualified test tasks for the next stage")
     test_export.add_argument("--input-dir", type=Path, default=OUTPUT)
     test_export.add_argument("--output-dir", type=Path, default=TEST_OUTPUT)
+    from .known_use import COVERAGE, RECORDS
+    from .publish_cohort import OUTPUT as COHORT_OUTPUT
+    cohort = commands.add_parser("cohort", help="Freeze and publish cohort allocation without execution")
+    cohort.add_argument("--input-dir", type=Path, default=TEST_OUTPUT)
+    cohort.add_argument("--analysis-dir", type=Path, default=ANALYSIS_OUTPUT)
+    cohort.add_argument("--output-dir", type=Path, default=COHORT_OUTPUT)
+    cohort.add_argument("--known-use-records", type=Path, default=RECORDS)
+    cohort.add_argument("--known-use-coverage", type=Path, default=COVERAGE)
     args = parser.parse_args()
     if args.command == "qualify":
         manifest = qualify(args.input_dir, args.output_dir, args.workers)
@@ -42,6 +50,11 @@ def main():
         from .export_test import export_test
         manifest = export_test(args.input_dir, args.output_dir)
         print(f"Published {len(manifest['tasks'])} test tasks to {args.output_dir}")
+    elif args.command == "cohort":
+        from .publish_cohort import publish_cohort
+        manifest = publish_cohort(args.input_dir, args.analysis_dir, args.output_dir,
+                                  args.known_use_records, args.known_use_coverage)
+        print(f"Published {len(manifest['tasks'])} allocated tasks to {args.output_dir}")
     else:
         args.run()
 

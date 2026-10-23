@@ -138,6 +138,35 @@ Retain every attempt and configuration; repeated variants do not add independent
    `report.json`, refusing an existing destination. Record input hashes, metadata
    coverage, queues/phases, budgets, accepted targets, counts and shortfalls.
 
+Batch 2 implements `python -m src.data-pipeline cohort` and a standard-library
+publisher composing the existing loader and allocator. Both versioned JSON files
+publish together; tasks remain referenced in the test pool. Construction activation
+uses the phase queues, deferred tasks remain inactive, and acquisition retry ceilings
+remain pending. The inherited Linux verification gate still applies before generation.
+
+Publication targets `data/02_cohort_review` during review; canonical publication to
+`data/02_cohort` follows code review and commit, using a committed source archive.
+Record source provenance, analysis refresh and candidate checks in
+`data/runs/stage02-review-cohort-v1.json`, preserving older artifacts in the archive.
+From the committed archive, use the repository's absolute `.venv/bin/python` and
+explicit absolute paths for all five cohort options, including both known-use files.
+If refreshing analysis, use the original `01_qualified_pool` with explicit input,
+output and tokenizer paths. Keep the Stage 03 plan and overview changes in a
+separate documentation commit.
+
+When pipeline source bytes are unchanged, compare both canonical JSON files with
+the review candidate using `cmp`; they must be byte-identical. After both match,
+archive `02_cohort_review` under `data/archive/stage02-reviewed-candidate-v1`.
+Record the committed publication in the new
+`data/runs/stage02-publish-reviewed-cohort-v1.json`; retain the earlier working-tree
+publication record unchanged.
+
+The real review candidate has an initial calibration shortfall of one interview
+task, with 57 fast-profile calibration candidates overall. Known-use handling
+redirects 8 fast-profile tasks (11 including deferred); all 32 known-use tasks
+(25 fast-profile) belong to construction. Phase smoke prefixes are 4 introductory /
+12 interview for the first 16 and 8/24 for the first 32; development smoke is 2/6.
+
 Keep each batch at or below 500 additions plus deletions and stop for review, as
 required by [repository instructions](AGENTS.md). Acquisition, execution and
 training remain in their consuming stages.

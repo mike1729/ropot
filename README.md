@@ -76,14 +76,39 @@ the task paths listed in `data/01_test_pool/manifest.json`.
 Independent copies make that dataset self-contained; qualification artifacts can
 be archived separately without breaking its task paths.
 
-Stage 02 batch 1 adds the standard-library [cohort policy](src/data-pipeline/cohort.py).
+Freeze and publish cohort ownership and ordering (standard library only):
+
+```sh
+.venv/bin/python -m src.data-pipeline cohort
+```
+
+Options: `--input-dir` (default `data/01_test_pool`), `--analysis-dir` (default
+`data/01_pool_analysis`), `--output-dir` (default `data/02_cohort`),
+`--known-use-records` and `--known-use-coverage`. The standard-library
+[cohort policy](src/data-pipeline/cohort.py) supplies the allocation:
 `load_inputs(input_dir, analysis_dir)` validates the export/analysis join;
 `allocate(loaded["tasks"])` returns frozen ownership, construction phases, ordered
 queue blocks, profile deferrals and quota shortfalls. See the [allocation plan](docs/stage-02-plan.md).
-CLI publication and allocation against the real pool remain for batch 2.
-The loader verifies `summary.json`'s `tasks_csv_sha256` against the CSV bytes;
-older analyses must be regenerated to supply this provenance field.
+The loader verifies `summary.json`'s `tasks_csv_sha256` against the CSV bytes.
+Archive an older analysis before refreshing the canonical `data/01_pool_analysis`;
+the ordinary analysis and cohort defaults then use the canonical paths.
+
 Known-use records and coverage load from the sibling `honeypot/data/manifests/`
-directory by default (override with `known_use_records` / `known_use_coverage`).
+directory by default (override with the corresponding CLI flags or loader arguments).
 The loader checks original-row bindings and retains coverage limitations. Restricted
 uses move from protected queues into construction before its order and phases freeze.
+
+Publication writes versioned `manifest.json` and `report.json` together by directory
+rename, retaining input/source fingerprints, known-use coverage, targets, budgets
+and the Linux verification gate. Task files remain in the input dataset.
+Task records contain `split`, `id`, `difficulty`, `path`, `sha256`, `owner`, `block`,
+`defer_reasons` and `known_uses`, with `phase`/`redirected_from` when applicable.
+Measurements remain in the hashed CSV; initial quota shortfalls and sequential
+profile counts live only in the report.
+Existing destinations (including dangling symlinks) and outputs inside either dataset input
+are refused. Inputs must remain stable and publication assumes one publisher;
+rename does not guarantee durability after power loss.
+Construction activation follows `construction_phases`; deferred tasks stay inactive.
+Accepted-data targets have planned status, separate from observed usable counts.
+Generation and retry ceilings remain pending acquisition decisions; publication does
+not clear the Linux verification gate or establish accepted generated data.

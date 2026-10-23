@@ -30,7 +30,14 @@ meet the same scientific requirements. This document does not authorize model ru
 - Publish only fully qualified tasks and their evidence in
   `01_qualified_pool/manifest.json`.
 
-  After the screening check distribution of token sizes, number of reference solutions, etc
+**01_pool_analysis — describe the qualified test pool.**
+
+- Use only `split == "test"` downstream; preserve qualification evidence for both splits.
+- Report statement/reference Qwen tokens, case character/byte sizes, reference
+  availability and recorded execution cost in `tasks.csv` and `summary.json`.
+- Retain original task identities. Defer eligibility cutoffs, cohort allocation,
+  model generation and Linux verification; content counts do not establish full
+  monitor-example fit within 2,048 tokens. See the [analysis module](../src/data-pipeline/analyze.py).
 
 **02_cohort — allocate tasks subject to exposure and freeze queues.**
 

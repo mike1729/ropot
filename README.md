@@ -38,3 +38,24 @@ reference attempts and timings; see the [stage 01 plan](docs/stage-01-plan.md) f
 the full contract. Inspect Linux re-verification is required before generation.
 Tasks excluded after reference execution retain compact diagnostics under
 `reference_rejections/`, including failing-case stderr for dependency analysis.
+
+Analyze the qualified **test split only**, preserving all qualification evidence:
+
+```sh
+/opt/homebrew/bin/python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements-analysis.txt
+.venv/bin/python -m src.data-pipeline analyze
+```
+
+The optional analysis dependency is `tokenizers==0.23.3`. Options: `--input-dir`
+(default `data/01_qualified_pool`), `--output-dir` (default `data/01_pool_analysis`)
+and `--tokenizer` (default
+`/Users/michal/Workspace/models/mlx-community/Qwen3.5-9B-8bit/tokenizer.json`).
+An existing destination is refused. Successful analysis publishes `tasks.csv` and
+`summary.json` with provenance and prints compact tables. It measures Qwen content
+tokens for each statement and three passing references, case characters/bytes,
+reference availability and recorded execution timing; it executes no supplied code.
+See the [analysis module](src/data-pipeline/analyze.py) docstrings for the contract.
+The test pool has 1,448 tasks (335 introductory, 1,113 interview); the two qualified
+train tasks remain historical evidence. This report chooses no eligibility cutoff
+or cohorts and does not establish complete-example fit within 2,048 tokens.

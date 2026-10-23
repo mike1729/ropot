@@ -14,7 +14,7 @@ the decisions reviewed on 2026-10-23, including local execution instead of Docke
 5. Add the qualification CLI and try references until three pass every stored case —
    implemented in batch 4.
 6. Export tasks and provenance atomically, then smoke-test before full qualification —
-   implemented and smoke-tested in batch 4; full qualification has not been run.
+   implemented in batch 4; full qualification completed on 2026-10-23.
 
 ## Goal and current state
 
@@ -25,6 +25,12 @@ declared local runtime; later Inspect verification is a separate required gate.
 Static screening, English example mapping and the nonvisible-case gate are
 implemented with regression tests, as are the local runner, qualification CLI and
 atomic export. The existing download command remains unchanged.
+
+The full run qualified 1,450 tasks: 2 train and 1,448 test (335 introductory,
+1,113 interview in test). It recorded 23 reference rejections and 128,506 case
+attempts in the audit total, taking 648 seconds. Downstream analysis and allocation
+use only test tasks; retain the train evidence unchanged. The next report is
+`01_pool_analysis`; see the [analysis module](../src/data-pipeline/analyze.py).
 
 Batch 2 entry point: pass `screen_task(row, split)` to
 `map_statement_examples_to_cases` in `src/data-pipeline/statement_examples.py`.

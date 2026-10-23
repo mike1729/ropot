@@ -4,6 +4,7 @@ from contextlib import ExitStack
 from hashlib import sha256
 import json
 import math
+import re
 from pathlib import Path
 import subprocess
 from time import monotonic, sleep
@@ -14,7 +15,7 @@ from .study_tasks import snapshot
 INTERPRETER = "/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python"
 WORKER = Path(__file__).with_name("mlx_worker.py").resolve()
 FIELDS = {"model_path", "messages", "seed", "temperature", "top_p", "max_tokens",
-          "wall_time_seconds", "enable_thinking"}
+          "wall_time_seconds", "enable_thinking", "fix_mistral_regex"}
 ENVIRONMENT = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin", "HF_HUB_OFFLINE": "1",
                "TRANSFORMERS_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"}
 
@@ -27,7 +28,9 @@ def require(condition, message):
 def validate(request):
     request = snapshot(request)
     require(type(request) is dict, "Require request object")
+    request.setdefault("fix_mistral_regex", False)
     require(set(request) == FIELDS, "Unexpected request fields")
+    require(type(request["fix_mistral_regex"]) is bool, "Invalid regex control")
     messages = request.get("messages")
     require(type(messages) is list and bool(messages), "Require nonempty messages")
     require(all(type(m) is dict and set(m) == {"role", "content"}
@@ -151,3 +154,46 @@ def generate(request, request_dir):
     if cleanup_failure is not None:
         raise cleanup_failure
     return result
+
+
+PROFILES = {source: {"model_path": f"/Users/michal/Workspace/models/mlx-community/{model}",
+                    "fix_mistral_regex": source == "synthetic", "enable_thinking": False}
+            for source, model in (("actor", "Qwen3.5-9B-8bit"),
+                                  ("synthetic", "Ministral-3-8B-Instruct-2512-8bit"))}
+
+
+def request_for(source, messages, **controls):
+    require(source in PROFILES, "Unknown generator source")
+    require(set(controls) == {"seed", "temperature", "top_p", "max_tokens", "wall_time_seconds"}, "Invalid controls")
+    require(source != "synthetic" or (messages and messages[0].get("role") == "system"),
+            "Synthetic messages require an explicit leading system message")
+    return {**PROFILES[source], "messages": snapshot(messages), **controls}
+
+
+def extract_program(text):
+    """Keep raw source or a sole Python fence body byte-exact; compile is format only."""
+    require(type(text) is str and bool(text.strip()), "Empty program")
+    fences = re.findall(r"^[ \t]*```", text, re.M)
+    if fences:
+        match = re.fullmatch(r"\s*```(?:python|py)?[ \t]*\r?\n(.*?)^[ \t]*```[ \t]*\s*", text, re.S | re.M)
+        require(len(fences) == 2 and match is not None, "Require a sole Python fence")
+        text = match[1]
+    require(bool(text.strip()), "Empty program")
+    try:
+        program = text.encode("utf-8")
+        compile(program, "candidate.py", "exec", dont_inherit=True)
+    except (SyntaxError, ValueError) as error:
+        raise ValueError("Invalid Python format") from error
+    return program
+
+
+def reference_prompts(tokenizer_path, histories):
+    """Render synthetic fixtures with the installed offline fixed-regex tokenizer."""
+    code = ("import json,sys; from transformers import AutoTokenizer; "
+            "p,h=json.load(sys.stdin); t=AutoTokenizer.from_pretrained(p,local_files_only=True,"
+            "fix_mistral_regex=True,trust_remote_code=False); "
+            "print(json.dumps([dict(prompt=t.apply_chat_template(m,tokenize=False,add_generation_prompt=True),"
+            "ids=t.apply_chat_template(m,tokenize=True,return_dict=False,add_generation_prompt=True)) for m in h]))")
+    result = subprocess.run([INTERPRETER, "-I", "-B", "-c", code], env=ENVIRONMENT,
+        input=json.dumps([str(tokenizer_path), histories]).encode(), capture_output=True, check=True, timeout=60)
+    return json.loads(result.stdout)

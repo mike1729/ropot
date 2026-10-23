@@ -51,6 +51,8 @@ def main():
     from mlx_lm.sample_utils import make_sampler
 
     tokenizer_config = {"local_files_only": True}
+    if request["fix_mistral_regex"]:
+        tokenizer_config["fix_mistral_regex"] = True
     model, tokenizer, config = load(str(model_path), tokenizer_config=tokenizer_config,
                                    lazy=False, return_config=True, trust_remote_code=False)
     template_options = {"add_generation_prompt": True, "enable_thinking": request["enable_thinking"]}
@@ -62,7 +64,7 @@ def main():
     sources = {}
     for name, module in sorted(list(sys.modules.items())):
         path = getattr(module, "__file__", None)
-        if name.split(".", 1)[0] in ("mlx", "mlx_lm") and path and Path(path).is_file():
+        if name.split(".", 1)[0] in ("mlx", "mlx_lm", "transformers", "tokenizers") and path and Path(path).is_file():
             path = str(Path(path).resolve())
             if path not in sources:
                 sources[path] = file_sha256(path)

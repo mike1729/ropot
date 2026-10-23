@@ -76,6 +76,8 @@ class LocalGenerationTests(unittest.TestCase):
             ("model_path", "."), ("model_path", str(self.root / "missing")),
             ("enable_thinking", True), ("messages", []),
             ("top_k", 4), ("messages", [{"role": "user", "content": "\ud800"}]),
+            ("fix_mistral_regex", 1), ("fix_mistral_regex", "true"), ("fix_mistral_regex", None),
+            ("tokenizer_config", {"trust_remote_code": True}),
             ("messages", [{"role": "assistant", "content": "x"}]),
             ("messages", [{"role": "user", "content": "x", "extra": 1}]),
             ("messages", [{"role": "user", "content": 7}])]
@@ -99,6 +101,56 @@ class LocalGenerationTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 self.api.generate(self.request(mode), directory)
             self.assertEqual((directory / "request.json").read_bytes(), before)
+
+    def test_regex_normalization_and_source_profiles(self):
+        for value in (False, True):
+            self.assertIs(self.api.validate(self.request(fix_mistral_regex=value))["fix_mistral_regex"], value)
+        self.assertIs(self.api.validate(self.request())["fix_mistral_regex"], False)
+        _, directory = self.invoke(fix_mistral_regex=True)
+        self.assertIs(json.loads((directory / "request.json").read_text())["fix_mistral_regex"], True)
+        messages = [{"role": "system", "content": "Return Python."}, {"role": "user", "content": "Square n."}]
+        controls = {key: self.request()[key] for key in
+                    ("seed", "temperature", "top_p", "max_tokens", "wall_time_seconds")}
+        for source in ("actor", "synthetic"):
+            request = self.api.request_for(source, messages, **controls)
+            self.assertEqual(request["model_path"], self.api.PROFILES[source]["model_path"])
+            self.assertIs(request["fix_mistral_regex"], source == "synthetic")
+            self.assertIs(request["enable_thinking"], False)
+            self.assertEqual(request["messages"], messages)
+            self.assertNotIn("source", request)
+        with self.assertRaises(ValueError):
+            self.api.request_for("synthetic", messages[1:], **controls)
+        with self.assertRaises(ValueError):
+            self.api.request_for("actor", messages, **{**controls, "top_k": 7})
+
+    def test_extraction_preserves_raw_or_sole_fenced_program_bytes(self):
+        for text, expected in (("# café\r\nprint(1)\r\n", "# café\r\nprint(1)\r\n".encode()),
+                               ("x='```'\n", b"x='```'\n"),
+                               (" \n```python\nprint(1)\n```\n ", b"print(1)\n"),
+                               ("```py\r\nprint(2)\r\n```", b"print(2)\r\n")):
+            with self.subTest(text=text):
+                self.assertEqual(self.api.extract_program(text), expected)
+        for text in ("", " \n", "print(\n", "Explanation\n```python\npass\n```", "\ud800",
+                     "```python\npass\n```\n```python\npass\n```", "```javascript\npass\n```"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                self.api.extract_program(text)
+
+    @unittest.skipUnless(os.environ.get("ROPOT_MLX_TESTS") == "1", "set ROPOT_MLX_TESTS=1 for real tokenizers")
+    def test_official_and_mlx_tokenizers_match_three_fixture_histories(self):
+        official = "/Users/michal/Workspace/models/mistralai/Ministral-3-8B-Instruct-2512/5b26027e7b19eeb4b7352e1fed3926375dd2cb4d"
+        runtime = "/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python"
+        system = {"role": "system", "content": "Return only a Python 3 program, without explanation or Markdown."}
+        square = [system, {"role": "user", "content": "Read integer n and print its square."}]
+        distinct = [system, {"role": "user", "content": "Read integers and print the count of distinct values."}]
+        repair = [*square, {"role": "assistant", "content": "print(int(input()))"},
+                  {"role": "user", "content": "Visible input 3 expected 9, observed 3. Correct the program."}]
+        with mock.patch.object(self.api, "INTERPRETER", runtime):
+            expected = self.api.reference_prompts(official, [square, distinct, repair])
+            actual = self.api.reference_prompts(self.api.PROFILES["synthetic"]["model_path"], [square, distinct, repair])
+        self.assertEqual(actual, expected)
+        for prompt in actual:
+            self.assertEqual((prompt["ids"][0], prompt["ids"].count(1)), (1, 1))
+            self.assertNotIn("Le Chat", prompt["prompt"])
 
     def test_malformed_or_incomplete_protocol_never_succeeds(self):
         for mode in ("badjson", "badhash", "gap", "count", "duplicate_ready", "missing_done", "exit3", "tail", "nan",

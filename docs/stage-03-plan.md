@@ -195,3 +195,18 @@ behind token IDs. Wall limits bound the owned worker, not unrelated processes.
 
 Outcomes distinguish `stop`, `length`, `timeout`, `worker_error`, `parent_error`
 and `cancelled`; parent/cleanup exceptions propagate after retaining the outcome.
+
+### Synthetic runtime contract
+
+Batch 5 adds a boolean `fix_mistral_regex` control (default false), explicit source
+profiles, and shared raw/sole-fence extraction preserving exact program bytes.
+Synthetic prompts require a leading system message to avoid the template's default
+Le Chat instructions. Sources share visible program conventions and verification.
+
+`python -m experiments.compare_synthetic` freezes a two-fixture/four-reply plan per
+route before comparing the local MLX conversion with official Q8 GGUF. Prompt IDs,
+cache settings, native completion/counts, binary/model hashes and server cleanup
+are retained. The routes have different conversions/quantization; this operational
+smoke does not establish acquisition yield. Each route has 600 seconds including
+startup, four replies capped at 256 tokens and 120 seconds per reply. Verification
+runs after inference ends; the 50-task experiment remains behind batch 6's journal.

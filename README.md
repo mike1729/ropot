@@ -161,3 +161,9 @@ Requests specify a local `model_path`, `messages`, `seed`, `temperature`, `top_p
 MLX interpreter recorded in `local_generation.INTERPRETER`; each call owns one
 worker and retains `request.json`, `stdout.jsonl`, `stderr.txt`, and `response.json`.
 See the [actor runtime contract](docs/stage-03-plan.md#actor-runtime-contract).
+
+Synthetic requests use `request_for("synthetic", messages, **controls)` with an
+explicit leading system message and the fixed-regex tokenizer setting. The bounded
+[backend comparison](experiments/compare_synthetic.py) runs with
+`.venv/bin/python -m experiments.compare_synthetic`; see the
+[synthetic runtime contract](docs/stage-03-plan.md#synthetic-runtime-contract).

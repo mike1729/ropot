@@ -5,18 +5,16 @@ rework plan. The [pilot](pilot.md) defines the monitor experiment; this pipeline
 supplies its verified actor/synthetic × benign/attack programs, retaining independent
 same-source pairs and smaller matched development/evaluation panels.
 
-The [v2 policy candidate](../configs/data-pipeline/baseline-v2.toml) records the
-recipe; its [prompt catalog](data-pipeline-prompts.md) is generated from the same
-[TOML](../configs/data-pipeline/prompts-v1.toml) read by code. Wording and examples
-live only there. Fresh task allocation follows qualification; overlap review belongs
-to final assembly. Prior exposure constrains holdout eligibility.
+Fresh task allocation follows qualification; overlap review belongs to final
+assembly. Prior exposure constrains holdout eligibility. The implementation plans
+describe current work; Stage 03 develops prompts and scaffolding experimentally,
+recording the actual settings and evidence for each run.
 
-The [implementation checklist](data-pipeline-checklist.md) tracks remaining work.
 Specification and prompt-preview success do not establish acquisition readiness.
 Panel targets/minima, acquisition ceilings and stratum allocations must be resolved
-by the yield probe and frozen before bulk acquisition or monitor outcomes. Existing
-[readiness gates](stage-1-readiness.md) remain binding until reviewed replacements
-meet the same scientific requirements. This document does not authorize model runs.
+by the yield probe before committing to later acquisition or monitor comparisons.
+Preserve scientific checks and task ownership while generation methods evolve.
+This document does not authorize model runs.
 
 
 **01_qualified_pool — load APPS and qualify individual tasks.**
@@ -65,7 +63,14 @@ meet the same scientific requirements. This document does not authorize model ru
 
 **03_benigns — generate and verify.**
 
-- TODO
+- Follow the [Stage 03 plan](stage-03-plan.md): consume frozen cohort ownership,
+  then re-verify the same three references on every stored case in Inspect Linux.
+- Experiment with prompts, scaffolding, sampling and repair budgets independently
+  for each generator. Verify every stored case, completing all visible checks
+  before hidden execution; retries receive only public feedback.
+- Retain every attempt and immutable candidate; program selection may evolve.
+  Publish versioned selections, provenance, cumulative effort and yield reports.
+  Benign acceptance alone does not establish attack yield or final matched fit.
 
 **04_witnesses — model proposal and independent audit.**
 

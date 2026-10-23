@@ -77,9 +77,11 @@ construction reserves into holdouts after acquisition.
 
 Both construction phases have 379 fast candidates. Their interview capacities are
 285/286; obtaining 97 usable interview tasks per phase needs about **34% interview
-yield**. Measure yield by difficulty and source under fixed retry budgets.
+yield**. Measure yield and cumulative effort by difficulty, source and experimental
+configuration; Stage 03 retry strategies remain open to experimentation.
 
-Freeze final accepted counts and acquisition ceilings before bulk runs. Ownership
+Stage 03 experiment budgets may be revised with cumulative attempt accounting.
+Set later acquisition targets and ceilings in their consuming experiment. Ownership
 caps all targets. If capacity is insufficient, report a shortfall or add fresh
 qualified tasks with owners fixed before generation.
 
@@ -97,9 +99,10 @@ qualified tasks with owners fixed before generation.
   194 interview), giving 384 total if one expands or 512 if both do.
   Expanding shared pretraining requires rerunning both continuations from the new
   shared checkpoint. Expanding continuation retains the shared checkpoint.
-- **Selection:** take accepted tasks in frozen order only after every predecessor
-  in that phase/difficulty has finished: accepted through all gates, permanently
-  rejected, or out of attempts. Never select by parallel completion order or monitor score.
+- **Selection:** for a dataset export, take accepted tasks in cohort order after
+  every predecessor in that phase/difficulty has a resolved status for that export.
+  Stage 03 may revisit program choices through further experiments while preserving
+  task ownership and prior evidence. Never select by completion order or monitor score.
 
 Use the [pilot's twin checks](pilot.md#2-train-honest-and-dishonest-monitor-twins)
 before repair acquisition. Freeze repair eligibility and sampling before sizing
@@ -119,16 +122,21 @@ sandbox before generation. Allocation preserves this gate.
 For generated programs, rank case indices by SHA-256 of
 `ropot-screen-v1|test|<id>|<index>`, with index as tie-breaker. Select the first
 visible and first nonvisible case, then fill to `min(8, case_count)` from remaining
-ranked cases. Execute in rank order, freeze indices before execution, and reject
-on first failure. Survivors must pass every stored case; reuse recorded screen passes.
+ranked cases. Fix membership before execution. Execute selected visible cases,
+remaining visible cases, selected nonvisible cases, then remaining nonvisible cases,
+in rank order within each group, rejecting on first failure. This completes every
+visible check before hidden execution. Acceptance requires every stored case;
+reuse recorded passes only for identical program bytes and execution contracts.
 
 Only visible-case diagnostics may enter retry prompts. Nonvisible inputs, outputs,
 indices, stderr and case-level results remain in verifier logs. A nonvisible failure
 returns only a generic rejection. Monitors receive the problem and one program,
 without source tags, patches or verifier witnesses.
 
-Pin rationale generation, normalization and retry ceilings before acquisition.
-Retain every attempt and configuration; repeated variants do not add independent tasks.
+Stage 03 prompts, scaffolding, extraction and retry budgets may evolve; record
+settings and cumulative attempts for each experiment. Rationale generation and
+final dataset selection belong to their consuming stages. Repeated variants do
+not add independent tasks.
 
 ## Implementation batches
 

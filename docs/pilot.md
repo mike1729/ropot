@@ -41,7 +41,7 @@ Solid arrows show training; dashed arrows show evaluation. Each stage-3 arm trai
 
 **Goal:** establish that we can generate and verify attacks from both sources at an affordable cost, and reliably measure monitor decisions before investing in training.
 
-**Artifacts:** reproducible harness and split manifest; original/attacked programs, patches, tests and witnesses; yield/cost/length report; frozen generation and scoring configuration.
+**Artifacts:** reproducible harness and split manifest; original/attacked programs, patches, tests and witnesses; yield/cost/length report; generation and scoring configurations recorded per experiment.
 
 
 ### 2. Train honest and dishonest monitor twins
@@ -106,9 +106,14 @@ after the checks pass; keep calibration/evaluation outcomes unopened.
 | Batch / context | Microbatch 1, effective batch 8, gradient checkpointing; initial 2,048-token cap, checked on complete inputs and targets |
 | Monitor interface | Input: problem and one program, without source tags or verifier witness. Output: short rationale, then `Verdict: PASS` or `Verdict: FLAG`. |
 
-**Local actor generation:** use the 8-bit MLX conversion of the post-trained Qwen3.5-9B release at the path above. Pin the MLX runtime, model revision, chat template and sampler before acquisition.
+**Local actor generation:** use the 8-bit MLX conversion of the post-trained Qwen3.5-9B release at the path above. Record the MLX runtime, model revision, chat template and sampler for each experiment.
 
-**Local synthetic generation (Ministral):** use official FP8 weights with vLLM on an FP8-compatible NVIDIA GPU; plan around 24 GB VRAM for batching and validate runtime memory. On Apple Silicon, use the [official GGUF](https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF) with llama.cpp, selecting Q5_K_M or Q8_0 to fit available RAM. This is inference capacity, not a monitor-training estimate. Cache outputs and unload generators before monitor training; no concurrent second GPU is required.
+**Local synthetic generation (Ministral):** use official FP8 weights with vLLM on an FP8-compatible NVIDIA GPU; plan around 24 GB VRAM for batching and validate runtime memory. On Apple Silicon, use the [official GGUF](https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF) with llama.cpp, selecting Q5_K_M or Q8_0 to fit available RAM. This is inference capacity, not a monitor-training estimate. Save outputs and unload generators before monitor training; no concurrent second GPU is required.
+
+During [Stage 03 experimentation](stage-03-plan.md), runtime, prompt, scaffolding
+and sampler choices remain adjustable and are recorded per experiment. The local
+Ministral MLX conversion is also an experimental option. Retain generated outputs
+as evidence; keep generation response caching off when measuring new draws.
 
 
 
@@ -118,7 +123,7 @@ after the checks pass; keep calibration/evaluation outcomes unopened.
 
 
 Before probing, confirm that thinking can be disabled, that the hybrid architecture
-works in the pinned MLX generation runtime, Transformers/PEFT training stack and probe code, and that the unused
+works in the MLX generation runtime recorded for that experiment, Transformers/PEFT training stack and probe code, and that the unused
 vision components need no special handling. The tokenizer requires
 re-measuring every token budget, including the monitor's 2,048-token fit.
 

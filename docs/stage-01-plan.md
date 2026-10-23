@@ -4,6 +4,19 @@ This file records implementation details for `01_qualified_pool`. Keep the
 [pipeline overview](data-pipeline-overview.md) high-level. This plan incorporates
 the decisions reviewed on 2026-10-23, including local execution instead of Docker.
 
+## Steps at a glance
+
+1. Verify and load pinned APPS splits — download verification exists; qualification
+   integration is pending in batch 4.
+2. Screen tasks and deduplicate reference candidates — implemented in batch 1.
+3. Map English examples and require a nonvisible stored case — implemented in batch 2.
+4. Implement local Python 3.12 execution with deadlines, output caps and cleanup —
+   implemented in batch 3.
+5. Add the qualification CLI and try references until three pass every stored case —
+   pending in batch 4.
+6. Export tasks and provenance atomically, then smoke-test before full qualification —
+   pending in batch 4.
+
 ## Goal and current state
 
 Produce `data/01_qualified_pool/` with tasks that pass static screening, statement
@@ -11,8 +24,8 @@ example mapping and local reference execution. Qualification here is under the
 declared local runtime; later Inspect verification is a separate required gate.
 
 Static screening, English example mapping and the nonvisible-case gate are
-implemented with regression tests. The local runner, qualification CLI and export
-are pending. The existing download command remains unchanged.
+implemented with regression tests, as is the local subprocess runner. Qualification
+CLI and export are pending in batch 4. The existing download command remains unchanged.
 
 Batch 2 entry point: pass `screen_task(row, split)` to
 `map_statement_examples_to_cases` in `src/data-pipeline/statement_examples.py`.
@@ -32,6 +45,8 @@ explanation remains in the original question. A further numeric paragraph is
 rejected as ambiguous. Unsupported labels anywhere in the statement are excluded.
 Unknown sample headings, incomplete pairs and mixed formats are excluded. Inputs
 match by whitespace tokens; answers retain exact spelling, including `-0`.
+
+Batch 3 API: `LocalRunner` in `src/data-pipeline/local_runner.py` (see its docstrings).
 
 Defer dataset statement/input/output size thresholds and the definition of
 "short" until the next analysis. Preserve original content and record lengths.
@@ -98,7 +113,7 @@ Run each reference/case with this interpreter command, without a shell:
 - Use a fresh process, source file and temporary working directory for every case.
   Supply original stdin through a pipe and only this environment: `PATH=/usr/bin:/bin`,
   `LANG=C`, `LC_ALL=C`, and a case-specific `TMPDIR`.
-- Use `start_new_session=True` and at most four concurrent tasks. Local process
+- Use `start_new_session=True` and at most six concurrent tasks. Local process
   execution is not a sandbox. Apply no memory limit and record
   `memory_limit_bytes: null`; do not claim Docker's former CPU/PID/network/filesystem
   controls. `-I` does not exclude system site-packages.
@@ -127,7 +142,7 @@ failure handling or Docker test fixtures.
 ## Command and artifact contract
 
 Add `qualify` with `--input-dir`, `--output-dir` and `--workers`, defaulting to
-`data/raw/apps`, `data/01_qualified_pool` and four workers. No new Python dependency
+`data/raw/apps`, `data/01_qualified_pool` and six workers. No new Python dependency
 is needed for this implementation.
 
 - Write one `tasks/<split>_<id>.json` per locally qualified task, containing original

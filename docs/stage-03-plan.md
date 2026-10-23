@@ -81,7 +81,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 | Batch | Outcome |
 | --- | --- |
 | 1 | Load the published cohort, pin its reviewed manifest hash in code, and define a minimal experiment record, task activation and candidate identity. Preserve ownership and provenance. |
-| 2 | Establish Inspect Linux execution using one sample/sandbox per program, with fresh case processes and directories. Check limits, output completeness, cleanup, writable-state exposure and supervisor isolation. |
+| 2 | Establish Inspect Linux execution with one fresh sample/sandbox per program and fresh case processes/directories. Check sample failure isolation, output completeness and limits; use native teardown and document shared writable state/background processes within a program. |
 | 3 | Add the three-reference gate and deterministic candidate verification. Run visible cases before hidden ones, retain all stored cases and test the public-feedback boundary. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
 | 5 | Establish the synthetic runtime using the same small adapter interface. Resolve MLX versus GGUF from observed compatibility, output quality, cost and provenance. |
@@ -92,6 +92,44 @@ concrete design and checks when starting it; the rows below describe its purpose
 Use public [Inspect sandboxing](https://inspect.aisi.org.uk/sandboxing.html) and
 [logging/retry facilities](https://inspect.aisi.org.uk/eval-logs.html), with small
 adapters for experimental rules. Avoid building a general scheduler or inference server.
+
+### Inspect execution contract
+
+Batch 2's `src/data-pipeline/inspect_runner.py` exposes
+`run(programs, log_dir, *, concurrent_inference=False)`, returning Inspect logs.
+Each program is `{"program": bytes, "cases": [{"index": int, "input": str}]}`;
+case indices must be distinct integers (excluding booleans) within each program,
+validated before Docker starts. Runtime provenance is probed before case execution.
+`async run_case(program: bytes, stdin: str, case_index: int) -> dict` runs inside
+an active sample and returns status, streams, exit code and host elapsed time.
+Expected answers stay on the host; comparison and the Linux reference gate belong
+to batch 3. A mock model runs the fixtures without inference.
+
+- Pin Inspect to `0.3.283` and explicitly set `max_sandboxes=4`. Record that setting,
+  Docker VM resources, concurrent inference, image identity, actual Python patch
+  version/UTF-8 mode and execution settings in the native `.eval` evidence.
+- Use the pinned Python 3.12 image as an unprivileged user with no capabilities or
+  network, read-only root, 1 CPU, 512 MiB RAM without extra swap, 32 PIDs and 64 MiB
+  scratch. CPU quotas do not reserve physical cores, which MLX inference also uses.
+- Execute exact source bytes using `/usr/bin/env -i` with only `PATH=/usr/bin:/bin`,
+  `LANG=C`, `LC_ALL=C`, `TMPDIR=<case dir>`, then `/usr/local/bin/python3 -I -B
+  -X int_max_str_digits=0 program.py`.
+- Request a five-second timeout with retries disabled; Inspect allows five seconds
+  of termination grace and uses a 15-second host timeout. Distinguish program and
+  host timeouts through the pinned exception chain; host/unknown timeouts and
+  `SandboxUnavailableError` abort the sample as infrastructure errors. Other samples
+  continue; any sample error marks the final eval errored. Exit 124 is a program timeout.
+- Override exec capture explicitly to 10 MiB. Check completed stdout/stderr against
+  inclusive 1 MiB/64 KiB acceptance limits; reject replacement characters in numeric
+  stdout. Ambiguous provider overflow is `output_limit`; identified streams use
+  `stdout_limit`/`stderr_limit`. Timeout/overflow results omit streams and retain
+  diagnostics of at most 4 KiB, potentially from a truncated capture's tail. Native
+  Inspect events retain provider captures. Post-run stderr checks can classify a
+  flooding loop as timeout.
+- A fresh directory provides ordinary case separation. Writable state and background
+  descendants may persist, sharing the program's CPU/PID limits; late child output
+  can be lost after capture ends. Fixed case order does not guarantee deterministic
+  execution. Inspect tears down the sandbox after each program attempt.
 
 ## Experiment progression
 

@@ -1,6 +1,8 @@
-"""Local reference execution (not a sandbox); see docs/stage-01-plan.md.
+"""Execute supplied Python references locally on macOS, one fresh process per case.
 
-Enter LocalRunner on the main thread; infrastructure/cleanup failures must abort.
+LocalRunner checks individual sources against all cases supplied by its caller;
+selection of the three passing references belongs to qualification orchestration.
+Execution is not sandboxed. See docs/stage-01-plan.md for the runtime contract.
 """
 
 from contextlib import closing, ExitStack
@@ -23,7 +25,7 @@ from .screen import output_matches
 INTERPRETER = "/opt/homebrew/bin/python3.12"
 FLAGS = ["-I", "-B", "-X", "int_max_str_digits=0"]
 TIMEOUT_SECONDS = 5
-MAX_CONCURRENT_CASES = 6
+MAX_CONCURRENT_CASES = 8
 STDOUT_LIMIT_BYTES = 1024 * 1024
 STDERR_LIMIT_BYTES = 64 * 1024
 ENVIRONMENT = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"}
@@ -87,11 +89,16 @@ def _exited(process):
 
 
 class LocalRunner:
-    """Share up to MAX_CONCURRENT_CASES subprocess slots across concurrent callers.
+    """Share a bounded pool of case subprocesses among callers of one instance.
 
-    Enter once on the main thread; callers schedule tasks and reference cases are
-    sequential. Process creation/I/O run on workers. Signals cancel them before
-    raising, also outside runner calls. Exit joins cleanup and restores handlers.
+    Construction preflights the explicit Python 3.12 interpreter. Enter once on
+    the main thread; blocking run_case/run_reference calls may come from task
+    threads. Each run_reference call visits its cases sequentially, while other
+    callers may use the remaining slots (currently eight per runner instance).
+
+    SIGINT/SIGTERM request cancellation and raise on the main thread. Context exit
+    waits for case cleanup, cancels queued cases and restores the signal handlers;
+    cancellation also applies when the main thread is outside a runner call.
     """
 
     def __init__(self, interpreter=INTERPRETER):
@@ -132,14 +139,22 @@ class LocalRunner:
                 signal.signal(sig, handler)
 
     def run_case(self, source, stdin, answer):
-        """Run one case, block for completion and require one exact output token.
+        """Run one source/stdin pair in a fresh process and return its case result.
 
-        ``source`` and ``stdin`` are original text; ``answer`` is the expected token.
-        Return status, bounded stdout/stderr text, returncode and elapsed_seconds.
-        Status is passed, wrong_answer, nonzero_exit, timeout, stdout_limit,
-        stderr_limit or invalid_stdout; stderr uses UTF-8 replacement. Case timing
-        includes startup and I/O, excluding queue wait, file preparation and cleanup.
-        Infrastructure errors and interruptions propagate instead of returning a status.
+        Supply original text for ``source``/``stdin`` and a caller-validated exact
+        answer token. Passing requires exit zero and valid UTF-8 stdout containing
+        exactly that one whitespace-delimited token. Stderr alone is diagnostic.
+
+        Return status, stdout, stderr, returncode and elapsed_seconds. Status is
+        passed, wrong_answer, nonzero_exit, timeout, stdout_limit, stderr_limit or
+        invalid_stdout. Captured stdout/stderr are bounded in bytes; reaching
+        either cap fails the case. Invalid diagnostic bytes use replacement text.
+
+        The per-case five-second deadline and elapsed_seconds cover process
+        creation, execution and pipe I/O, including inherited pipes. They exclude
+        queue wait, source/input preparation, final decoding/checking and cleanup,
+        so the blocking call can take longer. Infrastructure/cleanup errors and
+        interruptions propagate instead of becoming reference-failure statuses.
         """
         self._check_cancelled()
         if self._pool is None:
@@ -217,11 +232,17 @@ class LocalRunner:
             return None, buffers["stdout"], buffers["stderr"]
 
     def run_reference(self, source, cases):
-        """Run one source against cases sequentially, stopping at the first failure.
+        """Check one source against every supplied case, stopping at its first failure.
 
-        Each case supplies index/input/answer; preserve supplied order and indices.
-        Return passed (false for no cases), attempted cases, max_case_seconds and
-        wall_seconds. Total wall time includes queue waits, preparation and cleanup.
+        Each case supplies index/input/answer. Preserve their order and original
+        indices; each attempted case gets a fresh process via run_case. ``passed``
+        is true only for nonempty cases with complete coverage and no failures.
+
+        Return passed, the attempted-case results, max_case_seconds and wall_seconds.
+        Failed attempts include the first failing case and omit the remaining cases.
+        max_case_seconds is the largest case elapsed_seconds; wall_seconds also
+        includes queue waits, preparation, validation and cleanup across the reference.
+        Infrastructure errors and interruptions propagate without a partial result.
         """
         started, results = monotonic(), []
         for case in cases:

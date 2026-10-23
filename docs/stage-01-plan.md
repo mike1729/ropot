@@ -6,16 +6,15 @@ the decisions reviewed on 2026-10-23, including local execution instead of Docke
 
 ## Steps at a glance
 
-1. Verify and load pinned APPS splits — download verification exists; qualification
-   integration is pending in batch 4.
+1. Verify and load pinned APPS splits — implemented in batch 4.
 2. Screen tasks and deduplicate reference candidates — implemented in batch 1.
 3. Map English examples and require a nonvisible stored case — implemented in batch 2.
 4. Implement local Python 3.12 execution with deadlines, output caps and cleanup —
    implemented in batch 3.
 5. Add the qualification CLI and try references until three pass every stored case —
-   pending in batch 4.
+   implemented in batch 4.
 6. Export tasks and provenance atomically, then smoke-test before full qualification —
-   pending in batch 4.
+   implemented and smoke-tested in batch 4; full qualification has not been run.
 
 ## Goal and current state
 
@@ -24,8 +23,8 @@ example mapping and local reference execution. Qualification here is under the
 declared local runtime; later Inspect verification is a separate required gate.
 
 Static screening, English example mapping and the nonvisible-case gate are
-implemented with regression tests, as is the local subprocess runner. Qualification
-CLI and export are pending in batch 4. The existing download command remains unchanged.
+implemented with regression tests, as are the local runner, qualification CLI and
+atomic export. The existing download command remains unchanged.
 
 Batch 2 entry point: pass `screen_task(row, split)` to
 `map_statement_examples_to_cases` in `src/data-pipeline/statement_examples.py`.
@@ -47,6 +46,24 @@ Unknown sample headings, incomplete pairs and mixed formats are excluded. Inputs
 match by whitespace tokens; answers retain exact spelling, including `-0`.
 
 Batch 3 API: `LocalRunner` in `src/data-pipeline/local_runner.py` (see its docstrings).
+
+Batch 4 API: `qualify` in `src/data-pipeline/qualify.py` verifies both pinned files,
+streams rows through bounded task workers and publishes only after every task has
+been processed. `qualify_task` composes screening, example mapping and reference
+execution; only `Rejected` counts as an exclusion. Exported tasks retain the full
+`original_row` alongside decoded data and verification attempts. The manifest
+hashes current pipeline sources, including uncommitted changes.
+Tasks with insufficient passing references also retain source indices, attempt
+counts/timings and each reference's first failure (including bounded stdout/stderr) in
+`reference_rejections/`, listed in the manifest. This records actual dependency
+failures without installing packages. Diagnostic streams can include source
+excerpts; full rejected task records are not copied.
+
+Real-data smoke on 2026-10-23: both pinned splits passed size/SHA-256, 5,000-row
+and unique-ID checks. Train tasks 1605 (59 cases) and 1607 (43 cases) each qualified
+with source indices 0, 1 and 2 under Python 3.12.13/macOS arm64. All 306 case runs
+passed; maximum case time was below 0.026 seconds. JSON round-trips preserved their
+original rows. Temporary smoke artifacts were removed; no partial pool was published.
 
 Defer dataset statement/input/output size thresholds and the definition of
 "short" until the next analysis. Preserve original content and record lengths.
@@ -113,7 +130,7 @@ Run each reference/case with this interpreter command, without a shell:
 - Use a fresh process, source file and temporary working directory for every case.
   Supply original stdin through a pipe and only this environment: `PATH=/usr/bin:/bin`,
   `LANG=C`, `LC_ALL=C`, and a case-specific `TMPDIR`.
-- Use `start_new_session=True` and at most six concurrent tasks. Local process
+- Use `start_new_session=True` and at most eight concurrent tasks. Local process
   execution is not a sandbox. Apply no memory limit and record
   `memory_limit_bytes: null`; do not claim Docker's former CPU/PID/network/filesystem
   controls. `-I` does not exclude system site-packages.
@@ -142,7 +159,7 @@ failure handling or Docker test fixtures.
 ## Command and artifact contract
 
 Add `qualify` with `--input-dir`, `--output-dir` and `--workers`, defaulting to
-`data/raw/apps`, `data/01_qualified_pool` and six workers. No new Python dependency
+`data/raw/apps`, `data/01_qualified_pool` and eight workers. No new Python dependency
 is needed for this implementation.
 
 - Write one `tasks/<split>_<id>.json` per locally qualified task, containing original
@@ -159,6 +176,9 @@ is needed for this implementation.
 - Build under a temporary sibling directory and publish by rename only after a
   successful complete run. Refuse an existing destination. Do not publish a partial
   qualified pool or add resume/cache infrastructure in this version.
+
+This version assumes a single publisher and stable input files. Rename provides
+atomic visibility, without a power-loss durability guarantee.
 
 ## Deferred verification: stages 03 and 05
 

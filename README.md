@@ -132,17 +132,25 @@ identity = study.candidate_identity("test", task["id"], binding["sha256"], "acto
 only `development_smoke`, `shared_pretraining_probe` and `continuation_probe`, sized
 by the cohort's `candidate_budgets`. `load_task` reads and verifies one activated task.
 Records and identities are fresh JSON values; generation limits, persistence and
-model calls belong to later batches, and the Linux reference gate stays pending.
+model calls belong to later batches. The Linux reference gate is an explicit step below.
 
 Install the optional Inspect execution dependency and run its Docker fixtures:
 
 ```sh
 .venv/bin/python -m pip install -r requirements-execution.txt
-ROPOT_INSPECT_TESTS=1 .venv/bin/python -m unittest discover -s tests -p 'test_inspect_runner.py'
+ROPOT_INSPECT_TESTS=1 .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 The [Inspect runner](src/data-pipeline/inspect_runner.py) runs fixture programs in
 fresh Linux sandboxes and retains native `.eval` logs. See the
 [execution contract](docs/stage-03-plan.md#inspect-execution-contract) for its API,
-limits and differences from local execution. The cohort's Linux reference gate
-remains pending batch 3; these fixtures run no models or cohort acquisition jobs.
+limits and differences from local execution. These fixtures run no models or cohort acquisition jobs; each task still needs
+its own Linux reference gate before generation.
+
+Stage 03's [verifier](src/data-pipeline/verification.py) provides
+`reference_gate(task, task_sha256, log_dir)` for the same three qualified references
+and `verify(task, task_sha256, program_bytes, log_dir)` for one candidate. Obtain
+the digest from the task's verified artifact bytes; cohort tasks must come through
+`study.load_task`. `reuse` re-derives explicit native evidence without execution.
+Logs contain hidden data and must stay outside generator prompts and tools.
+See the [verification contract](docs/stage-03-plan.md#verification-contract).

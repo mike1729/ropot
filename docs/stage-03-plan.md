@@ -102,8 +102,8 @@ case indices must be distinct integers (excluding booleans) within each program,
 validated before Docker starts. Runtime provenance is probed before case execution.
 `async run_case(program: bytes, stdin: str, case_index: int) -> dict` runs inside
 an active sample and returns status, streams, exit code and host elapsed time.
-Expected answers stay on the host; comparison and the Linux reference gate belong
-to batch 3. A mock model runs the fixtures without inference.
+Expected answers stay on the host; batch 3 adds checked cases and the Linux
+reference gate below. A mock model runs the fixtures without inference.
 
 - Pin Inspect to `0.3.283` and explicitly set `max_sandboxes=4`. Record that setting,
   Docker VM resources, concurrent inference, image identity, actual Python patch
@@ -151,3 +151,25 @@ to assess usable-task yield; benign yield alone cannot establish that feasibilit
 
 This plan schedules implementation and experimentation. This documentation change
 runs no models, supplied programs or training jobs.
+
+### Verification contract
+
+Batch 3 adds optional canonical `answer` and boolean `visible` fields to runner
+cases (all cases in a checked program must supply both). Answers stay in the host
+solver. Candidates and the same three qualified references use Stage 02's four
+ranked groups, completing every visible case even after visible failures. Hidden
+execution starts only if all visible cases passed, then stops at its first failure.
+Acceptance requires complete stored-case coverage with exact integer-token matching.
+
+`verification.py` derives fresh and reused verdicts from native sample captures,
+checking full request identity, ordered coverage and observed Linux/Python/image.
+The source-independent key binds task artifact bytes, program bytes and a contract
+covering Inspect, runner/verifier/comparator sources, compose, actual image identity
+and Docker platform. Runtime probes, VM resources and concurrency remain evidence.
+A sample error has no correctness verdict; other completed samples remain usable.
+
+Public feedback contains visible inputs, answers, statuses and diagnostics, plus
+only `passed`, `failed` or `not_run` for hidden checks. Infrastructure errors return
+only `verification_error`. Native logs contain hidden inputs/answers/streams and are
+private. Reuse is explicit; the experiment journal in batch 6 must account for every
+attempt and prevent selective redispatch of completed verdicts for the same key.

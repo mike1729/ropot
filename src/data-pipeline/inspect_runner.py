@@ -1,7 +1,8 @@
 """Minimal Inspect Linux execution; see docs/stage-03-plan.md for its limitations.
 
 ``run`` gives each program a fresh sandbox and preserves caller case order, stopping
-at the first execution failure. It checks no answers and clears no reference gate.
+at the first execution failure in unchecked mode. Checked mode completes the visible
+phase before hidden execution; expected answers stay in the host solver.
 ``run_case`` is also usable by a solver inside one program's active Docker sample.
 """
 
@@ -18,6 +19,9 @@ from inspect_ai.dataset import Sample
 from inspect_ai.solver import solver
 from inspect_ai.util import OutputLimitExceededError, override_sandbox_output_limit, sandbox
 from inspect_ai.util import subprocess as host_exec
+import yaml
+
+from .screen import integer_answer, output_matches
 
 
 INSPECT_VERSION = "0.3.283"
@@ -107,20 +111,48 @@ def execute_programs():
         results = []
         state.store.set("cases", results)
         program = base64.b64decode(state.metadata["program_base64"])
-        for case in state.metadata["cases"]:
+        cases = state.metadata["cases"]
+        checked = bool(cases) and "answer" in cases[0]
+        for offset, case in enumerate(cases):
             result = await run_case(program, case["input"], case["index"])
+            if checked and result["status"] == "completed":
+                result["status"] = "passed" if output_matches(result["stdout"], case["answer"]) else "wrong_answer"
             results.append({"index": case["index"], **result})
             state.store.set("cases", results)
-            if result["status"] != "completed":
+            if checked:
+                if not case["visible"] and result["status"] != "passed":
+                    break
+                if (case["visible"] and offset + 1 < len(cases) and not cases[offset + 1]["visible"]
+                        and any(r["status"] != "passed" for r in results)):
+                    break
+            elif result["status"] != "completed":
                 break
         return state
     return execute
+
+
+def contract():
+    """Compute the execution/review key before dispatch; runtime probes remain evidence."""
+    if version("inspect-ai") != INSPECT_VERSION:
+        raise RuntimeError(f"Execution requires inspect-ai=={INSPECT_VERSION}")
+    info = json.loads(subprocess.run(["docker", "info", "--format", "{{json .}}"],
+        capture_output=True, check=True, timeout=15).stdout)
+    image = yaml.safe_load(COMPOSE.read_text())["services"]["default"]["image"]
+    observed = json.loads(subprocess.run(["docker", "image", "inspect", image.split("@", 1)[1]],
+        capture_output=True, check=True, timeout=15).stdout)[0]
+    return {"inspect_ai": INSPECT_VERSION, "compose_sha256": sha256(COMPOSE.read_bytes()).hexdigest(),
+            "sources": {name: sha256(Path(__file__).with_name(name).read_bytes()).hexdigest()
+                        for name in ("inspect_runner.py", "verification.py", "screen.py")},
+            "image": {key: observed[key] for key in ("Id", "Architecture", "Os")},
+            "docker_platform": {key: info[key] for key in ("Architecture", "OSType")}}
 
 
 def run(programs, log_dir, *, concurrent_inference=False):
     """Return native logs for program/cases dictionaries; no model requests occur.
 
     Each entry has ``program: bytes`` and ``cases: [{index: int, input: str}]``.
+    Checked cases also supply canonical ``answer`` and boolean ``visible`` fields;
+    optional ``verification`` metadata passes through to the native sample.
     ``concurrent_inference`` is caller-declared experimental context, not a probe.
     Infrastructure failures stop their sample; other samples finish. Inspect marks
     the final eval as errored if any sample errored; inspect each sample's error/results.
@@ -132,9 +164,20 @@ def run(programs, log_dir, *, concurrent_inference=False):
         indices = [case["index"] for case in item["cases"]]
         if any(type(index) is not int for index in indices) or len(set(indices)) != len(indices):
             raise ValueError("Case indices must be distinct integers within each program")
+        checked = ["answer" in case for case in item["cases"]]
+        if any(checked):
+            if not all(checked) or not checked:
+                raise ValueError("Answers must be present for every case")
+            for case in item["cases"]:
+                if (type(case["answer"]) is not str or integer_answer(case["answer"]) != case["answer"]
+                        or type(case.get("visible")) is not bool):
+                    raise ValueError("Checked cases require canonical answers and boolean visibility")
+            visible = [case["visible"] for case in item["cases"]]
+            if visible != sorted(visible, reverse=True):
+                raise ValueError("Visible cases must precede hidden cases")
     info = json.loads(subprocess.run(["docker", "info", "--format", "{{json .}}"],
         capture_output=True, check=True, timeout=15).stdout)
-    metadata = {"inspect_ai": INSPECT_VERSION, "max_sandboxes": MAX_SANDBOXES,
+    metadata = {"contract": contract(), "inspect_ai": INSPECT_VERSION, "max_sandboxes": MAX_SANDBOXES,
                 "concurrent_inference": concurrent_inference,
                 "docker": {key: info[key] for key in ("NCPU", "MemTotal", "ServerVersion")},
                 "source_sha256": sha256(Path(__file__).read_bytes()).hexdigest(),
@@ -142,7 +185,8 @@ def run(programs, log_dir, *, concurrent_inference=False):
                 "timeout_seconds": TIMEOUT_SECONDS, "capture_bytes": CAPTURE_BYTES, "diagnostic_bytes": DIAGNOSTIC_BYTES,
                 "stdout_limit_bytes": STDOUT_LIMIT_BYTES, "stderr_limit_bytes": STDERR_LIMIT_BYTES}
     samples = [Sample(id=index, input="Execute supplied program; no model calls.", metadata={
-        "program_base64": base64.b64encode(item["program"]).decode("ascii"), "cases": item["cases"]})
+        "program_base64": base64.b64encode(item["program"]).decode("ascii"), "cases": item["cases"],
+        "verification": item.get("verification")})
         for index, item in enumerate(programs)]
     task = Task(name="linux_execution", dataset=samples, solver=execute_programs(),
                 sandbox=("docker", str(COMPOSE)), metadata=metadata)

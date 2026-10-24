@@ -2,6 +2,7 @@
 
 import fcntl
 from hashlib import sha256
+import importlib
 import json
 import math
 import os
@@ -79,6 +80,8 @@ def _clearance_payload(events, outcome):
 
 
 def generation_resources_cleared(events, outcome):
+    if "session_seq" in outcome:
+        return False  # J1a has no batch executor or resource-closure evidence.
     markers = [e for e in events if e["kind"] == "generation_resources_cleared"
                and e["reservation_seq"] == outcome["reservation_seq"]]
     if not markers:
@@ -86,6 +89,103 @@ def generation_resources_cleared(events, outcome):
     payload = _clearance_payload(events, outcome)
     require(encoded({k: markers[0][k] for k in payload}) == encoded(payload), "Generation resource clearance differs")
     return True
+
+
+def _batch_method(method, campaign=None):
+    require(type(method) is dict and set(method) == {"method", "source", "admission", "prompt_ceiling_tokens", "qualification"}
+            and method["method"] == "program-wave-v1" and method["source"] in SOURCES, "Invalid batch method")
+    authority, reference = method["admission"], method["qualification"]
+    require(type(reference) is dict and set(reference) == {"path", "response_sha256"}
+            and precision._sha(reference["response_sha256"])
+            and reference["path"] == "qualifications/" + reference["response_sha256"], "Invalid batch qualification reference")
+    require(type(authority) is dict and authority["inputs"]["response.json"]["sha256"] == reference["response_sha256"]
+            and type(method["prompt_ceiling_tokens"]) is int
+            and 0 < method["prompt_ceiling_tokens"] <= authority["prompt_ceiling_tokens"], "Batch authority differs")
+    controls = authority["request_controls"]
+    require(generation._profile(controls)["source"] == method["source"]
+            and controls["max_tokens"] == 2048 and controls["wall_time_seconds"] == 240, "Batch controls differ")
+    if campaign is not None:
+        path = campaign.root / reference["path"]
+        require(path.resolve() == path, "Batch qualification path differs")
+        host = importlib.import_module("experiments.batch_throughput")
+        retained, _ = host.read_qualification(path, reference["response_sha256"])
+        require(encoded(retained) == encoded(authority), "Batch qualification authority differs")
+
+
+def _batch_rows(rows, method, events, campaign=None):
+    loop = importlib.import_module("src.data-pipeline.experiment_loop")
+    records = {e["experiment_id"]: e["record"] for e in events if e["kind"] == "experiment"}
+    selected = set()
+    for row in rows:
+        source, item, request = row["source"], row["attempt"], row["request"]
+        record = records.get(row["experiment_id"])
+        require(record is not None and type(record.get("schema_version")) is int and record["schema_version"] == 3
+                and set(record.get("generation_method", {})) == set(record["recipes"])
+                and source == method["source"] and source in record["recipes"]
+                and encoded(record["generation_method"][source]) == encoded(method), "Registered batch method differs")
+        profiles = precision.check_profiles(record["profiles"], record["recipes"], campaign=campaign)
+        require(encoded(request["precision_profile"]["descriptor"]) == encoded(profiles[source]["descriptor"]), "Batch profile differs")
+        require(type(item) is dict and set(item) == {"split", "id", "task_sha256", "reply_index"}
+                and type(item["id"]) is int and type(item["reply_index"]) is int, "Invalid batch attempt")
+        task = next((t for t in record["activation"]["tasks"] if t["id"] == item["id"]
+                     and t["id"] in record["assigned_task_ids"]), None)
+        require(task is not None and (item["split"], item["task_sha256"]) == (task["split"], task["sha256"]), "Batch task binding differs")
+        cell = (row["experiment_id"], source, item["split"], item["id"])
+        require(cell not in selected, "Duplicate batch cell")
+        selected.add(cell)
+        cells, results = loop._history(events, record)
+        slots, recipe = cells.get((source, item["id"]), []), record["recipes"][source]
+        require(type(recipe["max_replies"]) is int and type(recipe["seeds"]) is list
+                and len(recipe["seeds"]) == recipe["max_replies"] and item["reply_index"] == len(slots) < recipe["max_replies"]
+                and (not slots or results.get(slots[-1]["seq"], {}).get("status") in ("format_failed", "verification_failed")), "Batch reply history differs")
+        require(all(request[k] == recipe[k] for k in ("temperature", "top_p", "max_tokens", "wall_time_seconds"))
+                and type(recipe["seeds"][item["reply_index"]]) is int
+                and request["seed"] == recipe["seeds"][item["reply_index"]], "Batch recipe differs")
+
+
+def _batch_groups(events):
+    batches, members = {}, set()
+    host = None
+    for index, event in enumerate(events):
+        if event["kind"] != "batch_reserved":
+            continue
+        require(set(event) == {"seq", "kind", "method_spec", "job_text", "job_sha256", "rows"}
+                and type(event["job_text"]) is str and type(event["rows"]) is list and event["rows"], "Invalid batch reservation group")
+        _batch_method(event["method_spec"])
+        job = snapshot(json.loads(event["job_text"]))
+        host = host or importlib.import_module("experiments.batch_throughput")
+        require(host._raw(job).decode() == event["job_text"]
+                and sha256(event["job_text"].encode()).hexdigest() == event["job_sha256"], "Batch job digest differs")
+        host._shape(job, historical=True)
+        require(job["schema_version"] == 3 and encoded(job["admission"]) == encoded(event["method_spec"]["admission"])
+                and job["prompt_ceiling_tokens"] == event["method_spec"]["prompt_ceiling_tokens"]
+                and len(event["rows"]) == len(job["rows"]), "Batch job authority differs")
+        rows = []
+        for offset, (binding, retained) in enumerate(zip(event["rows"], job["rows"])):
+            seq = event["seq"] + offset + 1
+            require(type(binding) is dict and set(binding) == {"reservation_seq", "row_id", "request_sha256"}
+                    and type(binding["reservation_seq"]) is int and binding == dict(reservation_seq=seq,
+                        row_id=f"batch-{event['seq']}-{offset}", request_sha256=retained["request_sha256"])
+                    and binding["row_id"] == retained["row_id"] and index + offset + 1 < len(events), "Batch row linkage differs")
+            row = events[index + offset + 1]
+            require(set(row) == {"seq", "kind", "experiment_id", "source", "request_text", "request_sha256", "attempt", "session_seq", "row_index"}
+                    and row["kind"] == "generation_reserved" and row["seq"] == seq
+                    and type(row["session_seq"]) is int and row["session_seq"] == event["seq"]
+                    and type(row["row_index"]) is int and row["row_index"] == offset
+                    and row["request_text"] == retained["request_text"] and row["request_sha256"] == retained["request_sha256"], "Batch row reservation differs")
+            rows.append({k: row[k] for k in ("experiment_id", "source", "attempt")})
+            rows[-1]["request"] = json.loads(row["request_text"])
+            members.add(seq)
+        _batch_rows(rows, event["method_spec"], events[:index])
+        limits, totals = Campaign.totals(events[:index + len(rows) + 1])
+        require(all(totals[s][u] <= limits[s][u] for s in SOURCES for u in UNITS), "Batch reservation exceeds budget")
+        batches[event["seq"]] = event
+    require(all((e["seq"] in members) == ("session_seq" in e) for e in events if e["kind"] == "generation_reserved")
+            and not any(e["kind"] == "generation_done" and e["reservation_seq"] in members for e in events), "Invalid batch reservation membership")
+    if batches:
+        require(len(batches) == 1 and not any(e["seq"] > min(batches) and e["kind"] in ("native_intent", "batch_reserved", "generation_reserved")
+                and e["seq"] not in members for e in events), "Work follows unresolved batch")
+    return batches
 
 
 class Campaign:
@@ -183,6 +283,7 @@ class Campaign:
                 if event["kind"] == "native_closed":
                     require(event["operation_id"] not in closed, "Duplicate native closure")
                     closed.add(event["operation_id"])
+        _batch_groups(events)
         return events
 
     def _append(self, kind, **payload):
@@ -193,6 +294,20 @@ class Campaign:
             return {"seq": seq, "kind": kind, **snapshot(payload)}
         except BaseException:
             self.close()
+            raise
+
+    def _append_group(self, entries):
+        try:
+            self.db.execute("BEGIN IMMEDIATE")
+            first = self.db.execute("SELECT COALESCE(MAX(seq),0)+1 FROM events").fetchone()[0]
+            require([e["seq"] for e in entries] == list(range(first, first + len(entries))), "Batch transaction sequence differs")
+            for event in entries:
+                self.db.execute("INSERT INTO events(seq,body) VALUES (?,?)",
+                                (event["seq"], encoded({k: v for k, v in event.items() if k != "seq"})))
+            self.db.execute("COMMIT")
+            return snapshot(entries)
+        except BaseException:
+            self.close()  # A failed/uncertain COMMIT never proceeds to any dispatch.
             raise
 
     def register(self, record):
@@ -232,19 +347,60 @@ class Campaign:
 
     def require_native_clear(self):
         events = self.events
+        require(not any(e["kind"] == "batch_reserved" for e in events), "Unresolved batch generation resources")
         require({e["operation_id"] for e in events if e["kind"] == "native_intent"}
                 == {e["operation_id"] for e in events if e["kind"] == "native_closed"},
                 "Reconcile pending native operations before dispatch")
+
+    def reserve_batch(self, rows, method_spec):
+        try:
+            self.require_native_clear()
+            rows, method = snapshot(rows), snapshot(method_spec)
+            require(type(rows) is list and rows and all(type(r) is dict
+                    and set(r) == {"experiment_id", "source", "request", "attempt"}
+                    and type(r["experiment_id"]) is str and type(r["source"]) is str for r in rows), "Invalid batch rows")
+            _batch_method(method, self)
+            events = self.events
+            reserved = [e for e in events if e["kind"] == "generation_reserved"]
+            require({e["seq"] for e in reserved} == {e["reservation_seq"] for e in events if e["kind"] == "generation_done"},
+                    "Reconcile pending generations before dispatch")
+            require(all(generation_resources_cleared(events, self.outcome(e["seq"])) for e in reserved),
+                    "Unresolved generation cleanup failure")
+            session = events[-1]["seq"] + 1
+            worker = importlib.import_module("experiments.mlx_batch_throughput")
+            host = importlib.import_module("experiments.batch_throughput")
+            job = worker.build_wave([dict(row_id=f"batch-{session}-{i}", request=r["request"]) for i, r in enumerate(rows)],
+                                    method["admission"], prompt_ceiling_tokens=method["prompt_ceiling_tokens"])
+            for row, retained in zip(rows, job["rows"]):
+                row["request"] = json.loads(retained["request_text"])
+            _batch_rows(rows, method, events, self)
+            bindings, entries = [], []
+            for i, (row, retained) in enumerate(zip(rows, job["rows"])):
+                seq = session + i + 1
+                bindings.append(dict(reservation_seq=seq, row_id=retained["row_id"], request_sha256=retained["request_sha256"]))
+                entries.append(dict(seq=seq, kind="generation_reserved", experiment_id=row["experiment_id"], source=row["source"],
+                    request_text=retained["request_text"], request_sha256=retained["request_sha256"], attempt=row["attempt"], session_seq=session, row_index=i))
+            limits, totals = self.totals(events + entries)
+            require(all(totals[s][u] <= limits[s][u] for s in SOURCES for u in UNITS), "Campaign budget exhausted")
+            raw = host._raw(job)
+            intent = dict(seq=session, kind="batch_reserved", method_spec=method, job_text=raw.decode(),
+                          job_sha256=sha256(raw).hexdigest(), rows=bindings)
+            _batch_groups(events + [intent] + entries)
+            return self._append_group([intent] + entries)[0]
+        except BaseException:
+            self.close()
+            raise
 
     def generate(self, experiment_id, source, request, *, attempt=None):
         try:
             attempt = snapshot(attempt)
             self.require_native_clear()
             request = snapshot(request)
-            prepared, raw = generation.prepare_request(request)
             events = self.events
             record = next((e["record"] for e in events if e["kind"] == "experiment" and e["experiment_id"] == experiment_id), None)
             require(source in SOURCES and record is not None, "Require registered experiment/source")
+            require("generation_method" not in record and record.get("schema_version") != 3, "Batch record requires batch admission")
+            prepared, raw = generation.prepare_request(request)
             require(("precision_profile" in prepared) == ("profiles" in record), "Registered profile direction differs")
             if "profiles" in record:
                 profiles = precision.check_profiles(record["profiles"], record["recipes"], campaign=self)
@@ -303,6 +459,9 @@ class Campaign:
     def _finish(self, seq, events=None):
         events = self.events if events is None else events
         intent = next(e for e in events if e["seq"] == seq and e["kind"] == "generation_reserved")
+        if "session_seq" in intent:
+            return dict(reservation_seq=seq, session_seq=intent["session_seq"], row_index=intent["row_index"],
+                        method="program-wave-v1", status="pending", eligible=False, response=None)
         raw = intent["request_text"].encode()
         require(sha256(raw).hexdigest() == intent["request_sha256"], "Reserved request digest differs")
         request = snapshot(json.loads(raw))  # Reconciliation never needs the model directory to still exist.

@@ -627,3 +627,10 @@ and the decoded-file hash bound by the worker's terminal event. It returns one
 process/wall record and every planned row, including unadmitted rows and partial
 token lower bounds. Rows become eligible only after the entire session completes
 with proven cleanup. Campaign reservation and cohort orchestration remain separate.
+
+Campaign program-wave admission reserves one session and all ordered row requests
+in one transaction. `reserve_batch` checks each frozen method/profile, task slot
+and recipe before charging every row's reply, token and wall caps. Pending sessions
+remain inspectable on reopen and block scalar generation, batch admission and
+native dispatch. This admission prerequisite launches no generation; session
+execution and atomic settlement belong to the following batch.

@@ -120,7 +120,7 @@ def setup(campaign, loaded, plan_id, receipt_path, receipt_sha256, mechanics_aud
     events = campaign.events
     previous = [e for e in events if e["kind"] == "collection_setup" and e["payload"]["plan_id"] == plan_id]
     J.require(len(previous) <= 1, "Duplicate collection setup")
-    J.require(not previous or not any(e["kind"] == "collection_setup" and e["seq"] > previous[0]["seq"] for e in events), "Collection superseded")
+    J.require(not previous or not any(e["kind"] in ("collection_setup", "wave_setup") and e["seq"] > previous[0]["seq"] for e in events), "Collection superseded")
     producers = fingerprint()
     if previous: J.require(previous[0]["payload"]["producer_sources"] == producers, "Producer sources changed")
     J.require({e["seq"] for e in events if e["kind"] == "generation_reserved"}
@@ -209,7 +209,7 @@ def _retained(campaign, loaded, plan_id):
     payload = setup_event["payload"]
     J.require(set(payload) == {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
               and type(payload["schema_version"]) is int and payload["schema_version"] == 1, "Collection binding differs")
-    J.require(not any(e["kind"] == "collection_setup" and e["seq"] > setup_event["seq"] for e in events), "Collection superseded")
+    J.require(not any(e["kind"] in ("collection_setup", "wave_setup") and e["seq"] > setup_event["seq"] for e in events), "Collection superseded")
     _producer_guard(campaign, payload)
     plan = _one(events, "paired_plan", plan_id)
     J.require(setup_event["seq"] < plan["seq"] and payload["plan_sha256"] == plan["payload_sha256"], "Collection binding differs")

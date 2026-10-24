@@ -660,3 +660,10 @@ Repairs receive only the existing visible feedback projection. Failed batch peer
 cannot supply candidates, and shared session status determines failure categories.
 Candidate files remain real row-local artifacts. The separately frozen collector
 owns wave ordering and the tuning/fresh-data barrier.
+
+Resident collection setup uses paired_wave_collection with qualified schema 3
+records and a frozen finite opportunity schedule. The wave protocol amendment
+binds the retained base protocol and replaces cold ordering and wall accounting.
+Setup copies all four qualifications, registers the full metadata matrix, and
+freezes funding before extension. Actual acquisition waits for reviewed report,
+executor and confirmation consumers; no setup command alone starts model work.

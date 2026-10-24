@@ -327,7 +327,7 @@ print(json.dumps(sorted(files-set(c.PRODUCERS))))
         historical = copy.deepcopy(events); event = next(e for e in historical if e["kind"] == "collection_setup")
         event["payload"]["producer_sources"]["src/data-pipeline/paired_collection.py"] = "0" * 64; event["payload_sha256"] = self.C.digest(event["payload"])
         self.protocol.unlink(); shutil.rmtree(self.original / "models"); shutil.rmtree(self.root / "runtime")
-        with mock.patch.object(self.C, "_producer_guard", side_effect=AssertionError("live producer guard")), mock.patch.object(self.P, "check_runtime", side_effect=AssertionError("live runtime")):
+        with mock.patch.object(self.C.study, "load_cohort", return_value=self.loaded), mock.patch.object(self.C, "_producer_guard", side_effect=AssertionError("live producer guard")), mock.patch.object(self.P, "check_runtime", side_effect=AssertionError("live runtime")):
             for prefix in (historical, historical[:-1]):
                 with mock.patch.object(type(campaign), "events", new_callable=mock.PropertyMock, return_value=prefix): snapshot = self.R.snapshot(campaign)
                 self.assertEqual(snapshot["files"][item["path"]]["sha256"], item["sha256"])

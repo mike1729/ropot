@@ -1,0 +1,227 @@
+"""Freeze metadata and finite resident-wave opportunities; setup does not acquire."""
+
+import argparse
+from hashlib import sha256
+import json
+import os
+from pathlib import Path
+import tempfile
+from experiments import batch_throughput as H
+from . import paired_collection as PC
+from .paired_collection import J, L, P, V, study, digest
+
+PROTOCOL = PC.ROOT / "docs/stage-03-wave-protocol.md"
+BASE_PROTOCOL_SHA256 = "1202470310562c5c3369228c7a065d779a49657ab5432fff2febb3017de15e1f"
+PRODUCERS = PC.PRODUCERS + ("src/data-pipeline/paired_wave_collection.py",
+    "experiments/batch_throughput.py", "experiments/mlx_batch_throughput.py")
+
+
+def _opportunities(activation, members, methods):
+    tasks = activation["tasks"]
+    groups = [[t for t in tasks if t["group"] == g] for g in study.GROUPS]
+    blocks = (groups[0], groups[1][:16], groups[2][:16], groups[1][16:], groups[2][16:])
+    ordinals = {t["id"]: i for i, t in enumerate(tasks)}
+    names = {(m["task"]["id"], m["bits"]): m["experiment_id"] for m in members}
+    capacities = {s: methods[8][s]["admission"]["config"]["batch_size"] for s in study.SOURCES}
+    size, result, group = max(capacities.values()), [], 0
+    for block_index, (block, selected) in enumerate(zip(("dev", "A_tune", "B_tune", "A_fresh", "B_fresh"), blocks)):
+        parity = [[t for t in selected if ordinals[t["id"]] % 2 == p] for p in (0, 1)]
+        chunks = [[rows[i:i + size] for i in range(0, len(rows), size)] for rows in parity]
+        for index in range(max(map(len, chunks))):
+            for p in (block_index % 2, 1 - block_index % 2):
+                if index >= len(chunks[p]): continue
+                rows = chunks[p][index]
+                for bits in ((8, 16) if p == 0 else (16, 8)):
+                    for source in study.SOURCES:
+                        for reply in range(PC.RECIPE["max_replies"]):
+                            for offset in range(0, len(rows), capacities[source]):
+                                result.append(dict(id=len(result), block=block, group=group, bits=bits,
+                                    source=source, reply_index=reply, experiment_ids=[names[t["id"], bits]
+                                        for t in rows[offset:offset + capacities[source]]]))
+                group += 1
+    return result
+
+
+def build(loaded, plan_id, profiles, methods, contract_sha256):
+    J.require(set(methods) == {8, 16} and all(set(m) == set(study.SOURCES) for m in methods.values()), "Wave methods differ")
+    for source in study.SOURCES:
+        pair = [methods[b][source] for b in (8, 16)]
+        for method in pair: J._batch_method(method)
+        a, b = [m["admission"] for m in pair]
+        J.require(J.encoded(a["config"]) == J.encoded(b["config"])
+            and ("cache_limit_bytes" in a) == ("cache_limit_bytes" in b)
+            and a.get("cache_limit_bytes") == b.get("cache_limit_bytes")
+            and type(a["config"]["batch_size"]) is int and 1 <= a["config"]["batch_size"] <= 8
+            and all(m["prompt_ceiling_tokens"] == min(a["prompt_ceiling_tokens"], b["prompt_ceiling_tokens"]) for m in pair), "Common wave method differs")
+    built = PC.build(loaded, plan_id, profiles, contract_sha256)
+    for index, (record, member) in enumerate(zip(built["records"], built["plan"]["records"])):
+        record = L.run_record(loaded, record["experiment_id"], list(study.GROUPS), record["recipes"],
+            record["assigned_task_ids"], profiles=record["profiles"], construction_per_phase=32,
+            generation_method=methods[member["bits"]])
+        built["records"][index], member["record_sha256"] = record, digest(record)
+    built["plan"]["opportunities"] = _opportunities(built["activation"], built["plan"]["records"], methods)
+    return built
+
+
+def _methods(campaign, qualifications=None, records=None):
+    if records is not None:
+        methods = {b: next(r["generation_method"] for r in records if r["profiles"]["actor"]["descriptor"]["bits"] == b) for b in (8, 16)}
+        for bound in methods.values():
+            for method in bound.values():
+                J._batch_method(method, campaign); H.current_source_compatible(method["admission"])
+        return methods
+    J.require(type(qualifications) is dict and set(qualifications) == {8, 16}
+        and all(type(q) is dict and set(q) == set(study.SOURCES) for q in qualifications.values()), "Require four qualifications")
+    methods = {8: {}, 16: {}}
+    directory = campaign.root / "qualifications"
+    J.require(directory.resolve() == directory, "Qualification directory differs")
+    directory.mkdir(exist_ok=True)
+    J.sync_directory(campaign.root)
+    for bits, bound in qualifications.items():
+        for source, reference in bound.items():
+            J.require(type(reference) is dict and set(reference) == {"path", "response_sha256"}, "Qualification input differs")
+            identity = reference["response_sha256"]
+            admission, files = H.read_qualification(reference["path"], identity)
+            final = directory / identity
+            if not os.path.lexists(final):
+                with tempfile.TemporaryDirectory(prefix=".copy-", dir=directory) as temporary:
+                    H.copy_qualification(files, Path(temporary) / "owned", identity)
+                    os.rename(Path(temporary) / "owned", final)
+                J.sync_directory(directory)
+            J.require(final.resolve() == final, "Qualification directory differs")
+            retained, copied = H.read_qualification(final, identity)
+            J.require(copied == files and J.encoded(retained) == J.encoded(admission), "Owned qualification differs")
+            H.current_source_compatible(retained)
+            methods[bits][source] = dict(method="program-wave-v1", source=source, admission=retained,
+                prompt_ceiling_tokens=retained["prompt_ceiling_tokens"], qualification=dict(path="qualifications/" + identity, response_sha256=identity))
+    for source in study.SOURCES:
+        ceiling = min(methods[b][source]["prompt_ceiling_tokens"] for b in (8, 16))
+        for bits in (8, 16): methods[bits][source]["prompt_ceiling_tokens"] = ceiling
+    return methods
+
+
+def fingerprint():
+    return {name: sha256((PC.ROOT / name).read_bytes()).hexdigest() for name in PRODUCERS}
+
+
+def _producer_guard(campaign, payload):
+    J.require(payload["producer_sources"] == fingerprint(), "Producer sources changed")
+    J.require(sha256(PC.PROTOCOL.read_bytes()).hexdigest() == BASE_PROTOCOL_SHA256, "Base protocol changed")
+    J.require(PC._reference(campaign, dict(path=f"audits/{BASE_PROTOCOL_SHA256}-paired-protocol.md", sha256=BASE_PROTOCOL_SHA256, bytes=len(PC.PROTOCOL.read_bytes())), "paired-protocol.md") == PC.PROTOCOL.read_bytes(), "Base protocol copy changed")
+    J.require(PC._reference(campaign, payload["protocol"], "wave-protocol.md") == PROTOCOL.read_bytes(), "Protocol source changed")
+
+
+def _member_work(events, built):
+    names = {r["experiment_id"] for r in built["records"]}
+    hashes = {t["sha256"] for t in built["activation"]["tasks"]}
+    registered = [e["seq"] for e in events if e["kind"] == "experiment" and e["experiment_id"] in names]
+    reservations = {e["seq"] for e in events if e["kind"] == "generation_reserved" and e["experiment_id"] in names}
+    return [e for e in events if e["seq"] in reservations or e["kind"] == "native_intent" and
+        (e.get("reservation_seq") in reservations or registered and e["seq"] > min(registered)
+         and e["task_sha256"] in hashes and e["contract_sha256"] == built["plan"]["contract_sha256"])]
+
+
+def setup(campaign, loaded, plan_id, receipt_path, receipt_sha256, mechanics_audit_path, qualifications):
+    J.require(type(plan_id) is str and PC.PLAN_ID.fullmatch(plan_id), "Invalid plan ID")
+    J.require(sha256(PC.PROTOCOL.read_bytes()).hexdigest() == BASE_PROTOCOL_SHA256, "Base protocol changed")
+    events = campaign.events
+    previous = [e for e in events if e["kind"] == "wave_setup" and e["payload"]["plan_id"] == plan_id]
+    J.require(len(previous) <= 1, "Duplicate wave setup")
+    if previous:
+        built, anchor = _retained(campaign, loaded, plan_id, incomplete=True)
+    else:
+        J.require(not any(e["kind"] == "collection_setup" and e["payload"]["plan_id"] == plan_id for e in events), "Plan ID belongs to cold collection")
+        J.require({e["seq"] for e in events if e["kind"] == "generation_reserved"}
+            == {e["reservation_seq"] for e in events if e["kind"] == "generation_done"}, "Pending generations")
+        campaign.require_native_clear()
+        J.require(all(J.generation_resources_cleared(events, campaign.outcome(e["seq"])) for e in events if e["kind"] == "generation_reserved"), "Unresolved generation cleanup failure")
+        audit_raw = Path(mechanics_audit_path).read_bytes()
+        J.require(sha256(audit_raw).hexdigest() == PC.AUDIT_SHA256, "Mechanics audit differs")
+        PC._copy(campaign, PC.PROTOCOL.read_bytes(), "paired-protocol.md")
+        audit, protocol = PC._copy(campaign, audit_raw, "mechanics.txt"), PC._copy(campaign, PROTOCOL.read_bytes(), "wave-protocol.md")
+        reference = P.freeze(campaign, receipt_path, receipt_sha256)
+        profiles = {b: {s: dict(reference=reference, descriptor=P.resolve(campaign, reference, s, b)) for s in study.SOURCES} for b in (8, 16)}
+        methods = _methods(campaign, qualifications)
+        contract = V.runner.contract()
+        built = build(loaded, plan_id, profiles, methods, V.digest(contract))
+        PC._event(campaign, "panel", built["panel"], early=True)
+        PC._event(campaign, "mechanics_baseline", dict(sources=PC.BASELINE_SOURCES, combined={u: sum(v[u] for v in PC.BASELINE_SOURCES.values())
+            for u in PC.BASELINE_SOURCES["actor"]}, audit=audit, inventory_sha256=PC.INVENTORY_SHA256, limitations=PC.BASELINE_LIMITATIONS), early=True)
+        J.require(not _member_work(events, built), "Member work precedes wave plan")
+        for record in built["records"]:
+            campaign.register(record)
+            context = dict(experiment_id=record["experiment_id"], contract=contract, contract_sha256=built["plan"]["contract_sha256"])
+            prior = [e for e in campaign.events if e["kind"] == "execution_context" and e["experiment_id"] == record["experiment_id"]]
+            J.require(len(prior) <= 1 and (not prior or J.encoded({k: prior[0][k] for k in context}) == J.encoded(context)), "Execution context differs")
+            if not prior: campaign._append("execution_context", **context)
+        limits, reserved = J.Campaign.totals(campaign.events)
+        bound = {s: dict(zip(J.UNITS, (432, 884736, 103680))) for s in study.SOURCES}
+        funding = dict(reserved_before=reserved, bound=bound, limits={s: {u: max(limits[s][u], reserved[s][u] + bound[s][u]) for u in J.UNITS} for s in study.SOURCES})
+        anchor = PC._event(campaign, "wave_setup", dict(schema_version=1, plan_id=plan_id, plan_sha256=digest(built["plan"]),
+            producer_sources=fingerprint(), protocol=protocol, funding=funding))
+    current, _ = campaign._accounting()
+    campaign.extend({s: {u: max(current[s][u], anchor["payload"]["funding"]["limits"][s][u]) for u in J.UNITS} for s in study.SOURCES})
+    event = PC._event(campaign, "wave_plan", built["plan"])
+    _retained(campaign, loaded, plan_id)
+    return event
+
+
+def _retained(campaign, loaded, plan_id, *, incomplete=False):
+    J.require(type(plan_id) is str and PC.PLAN_ID.fullmatch(plan_id), "Invalid plan ID")
+    events = campaign.events
+    anchor = PC._one(events, "wave_setup", plan_id)
+    payload = anchor["payload"]
+    J.require(set(payload) == {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
+        and type(payload["schema_version"]) is int and payload["schema_version"] == 1, "Wave binding differs")
+    J.require(not any(e["kind"] in ("collection_setup", "wave_setup") and e["seq"] > anchor["seq"] for e in events), "Collection superseded")
+    _producer_guard(campaign, payload)
+    registered = {e["experiment_id"]: e for e in events if e["kind"] == "experiment"}
+    J.require(len(registered) == sum(e["kind"] == "experiment" for e in events), "Duplicate experiment record")
+    records = [e["record"] for e in registered.values() if e["experiment_id"].rsplit("-", 3)[0] == plan_id]
+    J.require(len(records) == 144, "Wave members differ")
+    methods = _methods(campaign, records=records)
+    profiles = {b: next(r["profiles"] for r in records if r["profiles"]["actor"]["descriptor"]["bits"] == b) for b in (8, 16)}
+    for bound in profiles.values(): P.check_profiles(bound, study.SOURCES, campaign=campaign)
+    contract = V.runner.contract()
+    built = build(loaded, plan_id, profiles, methods, V.digest(contract))
+    J.require(digest(built["plan"]) == payload["plan_sha256"], "Wave plan differs")
+    for record in built["records"]:
+        old = registered.get(record["experiment_id"])
+        contexts = [e for e in events if e["kind"] == "execution_context" and e["experiment_id"] == record["experiment_id"]]
+        J.require(old is not None and old["record_sha256"] == digest(old["record"]) == digest(record)
+            and len(contexts) == 1 and max(old["seq"], contexts[0]["seq"]) < anchor["seq"]
+            and J.encoded(contexts[0]["contract"]) == J.encoded(contract) and contexts[0]["contract_sha256"] == built["plan"]["contract_sha256"], "Wave member differs")
+    panel, baseline = PC._one(events, "panel"), PC._one(events, "mechanics_baseline")
+    audit = baseline["payload"]["audit"]
+    expected = dict(sources=PC.BASELINE_SOURCES, combined={u: sum(v[u] for v in PC.BASELINE_SOURCES.values()) for u in PC.BASELINE_SOURCES["actor"]},
+        audit=audit, inventory_sha256=PC.INVENTORY_SHA256, limitations=PC.BASELINE_LIMITATIONS)
+    J.require(panel["payload_sha256"] == digest(built["panel"]) and baseline["payload_sha256"] == digest(expected)
+        and sha256(PC._reference(campaign, audit, "mechanics.txt")).hexdigest() == PC.AUDIT_SHA256
+        and all(a["seq"] < e["seq"] for a in (panel, baseline) for e in events if e["kind"] in ("generation_reserved", "native_intent")), "Global anchors differ")
+    limits, reserved = J.Campaign.totals(events[:anchor["seq"] - 1])
+    bound = {s: dict(zip(J.UNITS, (432, 884736, 103680))) for s in study.SOURCES}
+    expected = dict(reserved_before=reserved, bound=bound, limits={s: {u: max(limits[s][u], reserved[s][u] + bound[s][u]) for u in J.UNITS} for s in study.SOURCES})
+    J.require(digest(expected) == digest(payload["funding"]), "Wave funding differs")
+    plans = [e for e in events if e["kind"] == "wave_plan" and e["payload"]["plan_id"] == plan_id]
+    if not incomplete or plans:
+        plan = PC._one(events, "wave_plan", plan_id)
+        current, _ = campaign._accounting()
+        J.require(anchor["seq"] < plan["seq"] and plan["payload_sha256"] == digest(built["plan"])
+            and all(current[s][u] >= expected["limits"][s][u] for s in study.SOURCES for u in J.UNITS), "Wave binding differs")
+    J.require(all(plans and e["seq"] > plans[0]["seq"] for e in _member_work(events, built)), "Member work precedes wave plan")
+    return built, anchor
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ("campaign", "plan-id", "receipt", "receipt-sha256", "mechanics-audit", "qualifications"):
+        parser.add_argument("--" + name, required=True)
+    args = parser.parse_args(argv)
+    with J.Campaign(args.campaign) as campaign:
+        retained = any(e["kind"] == "wave_setup" and e["payload"]["plan_id"] == args.plan_id for e in campaign.events)
+        qualifications = None if retained else {int(b): q for b, q in json.loads(Path(args.qualifications).read_text()).items()}
+        print(J.encoded(setup(campaign, study.load_cohort(), args.plan_id, args.receipt, args.receipt_sha256, args.mechanics_audit, qualifications)))
+
+
+if __name__ == "__main__":
+    main()

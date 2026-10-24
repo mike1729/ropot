@@ -650,3 +650,13 @@ each proven owned session wall once and each unknown session once. Cleanup is
 already included in that wall. Session costs retain source, precision and profile
 identity. Records with no replies still export their owned qualification; scalar
 reports preserve their existing fields and values.
+
+Schema 3 loop records freeze each source's complete qualified generation method.
+Scalar traversal rejects these records before native work. prepare_cell replays
+one selected cell and returns its next raw request without spending a reply;
+settle_cell verifies an existing eligible reply and records its result without
+creating a new slot. Both preserve the prior reference gate and exact own history.
+Repairs receive only the existing visible feedback projection. Failed batch peers
+cannot supply candidates, and shared session status determines failure categories.
+Candidate files remain real row-local artifacts. The separately frozen collector
+owns wave ordering and the tuning/fresh-data barrier.

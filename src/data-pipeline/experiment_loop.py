@@ -31,12 +31,18 @@ def policy_sha256():
     return sha256(encoded(sources).encode("utf-8")).hexdigest()
 
 
-def run_record(loaded, experiment_id, groups, recipes, assigned, *, profiles=None, construction_per_phase=None):
+def run_record(loaded, experiment_id, groups, recipes, assigned, *, profiles=None,
+               construction_per_phase=None, generation_method=None):
     activation = study.activate(loaded, groups, construction_per_phase=construction_per_phase)
     record = study.experiment_record(loaded, experiment_id, activation, study.snapshot(recipes))
     if profiles is not None:
         profiles = precision.check_profiles(study.snapshot(profiles), record["recipes"])
         record.update(schema_version=2, profiles=profiles)
+    if generation_method is not None:
+        generation_method = study.snapshot(generation_method)
+        require(profiles is not None and type(generation_method) is dict and bool(generation_method)
+                and set(generation_method) == set(record["recipes"]), "Batch method sources differ")
+        record.update(schema_version=3, generation_method=generation_method)
     for source, recipe in record["recipes"].items():
         require(set(recipe) == RECIPE_FIELDS, "Unexpected recipe fields")
         require(all(type(recipe[k]) is str and recipe[k].strip() for k in ("system", "instruction")),
@@ -44,9 +50,15 @@ def run_record(loaded, experiment_id, groups, recipes, assigned, *, profiles=Non
         require(type(recipe["max_replies"]) is int and recipe["max_replies"] > 0, "Invalid reply cap")
         require(type(recipe["seeds"]) is list and len(recipe["seeds"]) == recipe["max_replies"], "Invalid seeds")
         for seed in recipe["seeds"]:
-            generation.prepare_request(generation.request_for(source, [{"role": "system", "content": "Validate"},
+            checked, _ = generation.prepare_request(generation.request_for(source, [{"role": "system", "content": "Validate"},
                 {"role": "user", "content": "Validate"}], profile=profiles[source]["descriptor"] if profiles is not None else None, seed=seed, **{k: recipe[k] for k in
                 ("temperature", "top_p", "max_tokens", "wall_time_seconds")}))
+        if generation_method is not None:
+            method = generation_method[source]
+            journal._batch_method(method)
+            require(method["source"] == source and encoded(method["admission"]["request_controls"])
+                    == encoded({k: v for k, v in checked.items() if k not in ("messages", "seed")}),
+                    "Batch method profile or recipe differs")
     assigned = study.snapshot(assigned)
     require(type(assigned) is list and assigned and all(type(i) is int for i in assigned)
             and len(set(assigned)) == len(assigned), "Require distinct integer assigned IDs")
@@ -60,7 +72,8 @@ def validate_run(loaded, record):
     try:
         rebuilt = run_record(loaded, record["experiment_id"], record["activation"]["groups"],
                              record["recipes"], record["assigned_task_ids"], profiles=record.get("profiles"),
-                             construction_per_phase=record["activation"].get("construction_per_phase"))
+                             construction_per_phase=record["activation"].get("construction_per_phase"),
+                             generation_method=record.get("generation_method"))
     except (KeyError, TypeError):
         raise ValueError("Invalid run record") from None
     require(encoded(rebuilt) == encoded(record), "Run differs from its canonical record or current policy")
@@ -246,11 +259,11 @@ def _proof(campaign, task, task_sha256, contract_sha256, program, seq, dispatch)
     return intent, native.reuse_native(campaign, intent, task, programs)
 
 
-def _cell(campaign, task, binding, source, record, contract_sha256, dispatch):
+def _cell(campaign, task, binding, source, record, contract_sha256, dispatch, mode="scalar"):
     recipe = record["recipes"][source]
     histories, results = _history(campaign.events, record)
     slots = list(histories.get((source, task["id"]), []))
-    if not slots and (not dispatch or not _affordable(campaign.events, source, recipe)):
+    if not slots and (mode == "settle" or not dispatch or not _affordable(campaign.events, source, recipe)):
         return
     gate, verdict = _proof(campaign, task, binding["sha256"], contract_sha256, None, None, dispatch)
     if gate is None or verdict is None or verdict["status"] != "passed":
@@ -258,33 +271,47 @@ def _cell(campaign, task, binding, source, record, contract_sha256, dispatch):
         return
     previous, feedback = None, None
     for index in range(recipe["max_replies"]):
+        if index >= len(slots) and mode == "settle": return
         request = generation.request_for(source, messages(task, recipe, previous, feedback),
             profile=record["profiles"][source]["descriptor"] if "profiles" in record else None, seed=recipe["seeds"][index],
             **{k: recipe[k] for k in ("temperature", "top_p", "max_tokens", "wall_time_seconds")})
-        _, raw = generation.prepare_request(request)
+        if index < len(slots) or mode == "scalar":
+            _, raw = generation.prepare_request(request)
         if index < len(slots):
             reservation = slots[index]
             require(reservation["request_text"].encode() == raw, "Retained request differs from replay")
             outcome = campaign.outcome(reservation["seq"])
         else:
             if not dispatch or not _affordable(campaign.events, source, recipe): return
-            outcome = campaign.generate(record["experiment_id"], source, request, attempt={
-                "split": binding["split"], "id": task["id"], "task_sha256": binding["sha256"], "reply_index": index})
+            attempt = {"split": binding["split"], "id": task["id"], "task_sha256": binding["sha256"], "reply_index": index}
+            if mode == "prepare":
+                return dict(experiment_id=record["experiment_id"], source=source, request=request, attempt=attempt)
+            outcome = campaign.generate(record["experiment_id"], source, request, attempt=attempt)
             reservation = next(e for e in campaign.events if e["seq"] == outcome["reservation_seq"])
             slots.append(reservation)
         seq = reservation["seq"]
         payload = {"reservation_seq": seq, "candidate_sha256": None, "operation_id": None, "sample_id": None, "reused": False}
         feedback = None
         if outcome["status"] not in ("stop", "length"):
-            status = "interrupted" if outcome["status"] in ("interrupted", "cancelled", "parent_error") else "generation_timeout" if outcome["status"] == "timeout" else "generation_error"
+            failed = outcome["status"]
+            if "session_seq" in outcome:
+                require(journal.generation_resources_cleared(campaign.events, outcome), "Unresolved generation cleanup failure")
+                failed = next(e["shared"]["status"] for e in campaign.events if e["kind"] == "batch_done"
+                              and e["seq"] == outcome["batch_done_seq"])
+            status = "interrupted" if failed in (None, "interrupted", "cancelled", "parent_error") else "generation_timeout" if failed == "timeout" else "generation_error"
         else:
-            previous = outcome["response"]["text"]
+            previous = outcome["text"] if "session_seq" in outcome else outcome["response"]["text"]
             try:
                 program = generation.extract_program(previous)
             except ValueError:
                 status = "format_failed"
             else:
-                publish_candidate(campaign.root / "requests" / f"{seq:06d}", program)
+                directory = campaign.root / "requests" / f"{seq:06d}"
+                require(directory.resolve() == directory, "Invalid candidate directory")
+                directory.mkdir(parents=True, exist_ok=True)
+                sync_directory(directory.parent)
+                sync_directory(campaign.root)
+                publish_candidate(directory, program)
                 intent, proof = _proof(campaign, task, binding["sha256"], contract_sha256, program, seq, dispatch)
                 if intent is None:
                     require(seq not in results, "Missing recorded native intent")
@@ -305,14 +332,16 @@ def _cell(campaign, task, binding, source, record, contract_sha256, dispatch):
             return
 
 
-def run(campaign, loaded, record):
-    native.reconcile_native(campaign)
+def _enter(campaign, loaded, record):
     record = validate_run(loaded, record)
     if "profiles" in record: precision.check_profiles(record["profiles"], record["recipes"], campaign=campaign)
+    if "generation_method" in record:
+        for method in record["generation_method"].values(): journal._batch_method(method, campaign)
     events = campaign.events
     for event in events:
         if event["kind"] == "generation_reserved":
             outcome = campaign.outcome(event["seq"])
+            events = campaign.events
             require(journal.generation_resources_cleared(events, outcome), "Unresolved generation cleanup failure")
             if event["experiment_id"] == record["experiment_id"]: journal.require_profile_outcome(outcome)
     current = verification.runner.contract()
@@ -322,10 +351,18 @@ def run(campaign, loaded, record):
             and contexts[0]["contract_sha256"] == digest)), "Execution context changed; use a new experiment")
     require(contexts or not any(e["kind"] == "generation_reserved" and e["experiment_id"] == record["experiment_id"]
                                for e in events), "Dispatched experiment lacks execution context")
+    if "generation_method" in record: native.reconcile_native(campaign)
     campaign.register(record)
     if not contexts:
         campaign._append("execution_context", experiment_id=record["experiment_id"], contract=current, contract_sha256=digest)
     _history(campaign.events, record)
+    return record, digest
+
+
+def run(campaign, loaded, record):
+    require("generation_method" not in record and record.get("schema_version") != 3, "Batch record requires cell adapters")
+    native.reconcile_native(campaign)
+    record, digest = _enter(campaign, loaded, record)
     tasks = [study.load_task(loaded, record["activation"], i) for i in record["assigned_task_ids"]]
     for dispatch in (False, True):
         for binding, task in tasks:
@@ -333,3 +370,23 @@ def run(campaign, loaded, record):
                 if source in record["recipes"]:
                     _cell(campaign, task, binding, source, record, digest, dispatch)
     return cell_states(campaign.events, record)
+
+
+def _selected(campaign, loaded, record, source, task_id, mode):
+    require(record.get("schema_version") == 3 and "generation_method" in record, "Require batch run record")
+    require(type(source) is str and source in record["recipes"] and type(task_id) is int
+            and task_id in record["assigned_task_ids"], "Require selected assigned cell")
+    record, digest = _enter(campaign, loaded, record)
+    binding, task = study.load_task(loaded, record["activation"], task_id)
+    for dispatch in (False, True):
+        prepared = _cell(campaign, task, binding, source, record, digest, dispatch, mode)
+    if mode == "prepare": return prepared
+    return next(c for c in cell_states(campaign.events, record) if c["source"] == source and c["id"] == task_id)
+
+
+def prepare_cell(campaign, loaded, record, source, task_id):
+    return _selected(campaign, loaded, record, source, task_id, "prepare")
+
+
+def settle_cell(campaign, loaded, record, source, task_id):
+    return _selected(campaign, loaded, record, source, task_id, "settle")

@@ -14,6 +14,7 @@ from . import experiment_loop as loop, local_generation as generation, native_re
 from . import study_tasks as study, verification
 from . import precision_profiles as precision
 from . import paired_report
+from . import generation_journal as journal
 from .generation_journal import Campaign, encoded, require, sync_directory, limits_checked
 
 RUN_FIELDS = {"schema_version", "experiment_id", "cohort", "activation", "reference_gate",
@@ -64,14 +65,51 @@ def panel_joint(tasks, selections):
     return {"numerator": count, "denominator": 50, "target_met": count >= 15}
 
 
-def _observed(reservations, outcomes):
+def _session_costs(events, reservations, outcomes):
+    batches = {e["seq"]: e for e in events if e["kind"] == "batch_reserved"}
+    ledger = []
+    for done in (e for e in events if e["kind"] == "batch_done"):
+        intent, shared = batches[done["session_seq"]], done["shared"]
+        members = [reservations[r["reservation_seq"]] for r in intent["rows"]]
+        descriptor = intent["method_spec"]["admission"]["request_controls"]["precision_profile"]["descriptor"]
+        timing = {k: shared[k] for k in ("elapsed_seconds", "work_seconds", "cleanup_seconds")}
+        try:
+            known = shared["resources_closed"] is True and all(type(v) in (int, float) and math.isfinite(v) and v >= 0
+                for v in timing.values()) and timing["work_seconds"] <= timing["elapsed_seconds"] and timing["cleanup_seconds"] <= timing["elapsed_seconds"]
+        except OverflowError:
+            known = False
+        ledger.append(dict(session_seq=intent["seq"], batch_done_seq=done["seq"], job_sha256=intent["job_sha256"],
+            source=intent["method_spec"]["source"], bits=descriptor["bits"], precision_profile=profile_identity(descriptor),
+            reservation_seqs=[e["seq"] for e in members], experiment_ids=sorted({e["experiment_id"] for e in members}),
+            status=shared["status"], eligible=done["eligible"], resources_closed=shared["resources_closed"], reported_timing=timing,
+            owned_elapsed_seconds=timing["elapsed_seconds"] if known else None,
+            observed_generation_tokens=sum(outcomes[e["seq"]]["observed_generation_tokens"] for e in members)))
+    return ledger
+
+
+def _observed(reservations, outcomes, *, batch=False, sessions=None):
     values = [outcomes[e["seq"]] for e in reservations]
-    return {"observed_generation_tokens": sum(v["observed_generation_tokens"] for v in values),
-            "lower_bound_requests": sum(v["status"] not in ("stop", "length") or v["response"] is None
-                or not v["response"]["complete"] or v["response"]["cleanup_error"] is not None for v in values),
-            "unknown_response_requests": sum(v["response"] is None for v in values),
-            "known_elapsed_seconds": math.fsum(v["elapsed_seconds"] for v in values if v["elapsed_seconds"] is not None),
-            "unknown_elapsed_requests": sum(v["elapsed_seconds"] is None for v in values)}
+    batches = [v for v in values if "session_seq" in v]
+    refs = sorted({v["session_seq"] for v in batches})
+    tokens = sum(v["observed_generation_tokens"] for v in values)
+    if batch:
+        require(len(batches) == len(values), "Scalar outcome in batch run")
+        return dict(observed_generation_tokens=tokens, lower_bound_requests=sum(not v["eligible"] for v in values),
+            admitted_rows=sum(v["uid"] is not None for v in values), terminal_rows=sum(v["finish_reason"] in ("stop", "length") for v in values),
+            generation_session_seqs=refs, shared_wall_allocation="unallocated")
+    scalar = [v for v in values if "session_seq" not in v]
+    owned = [s for s in sessions or [] if s["session_seq"] in refs]
+    result = dict(observed_generation_tokens=tokens, lower_bound_requests=sum(not v["eligible"] for v in batches) + sum(
+        v["status"] not in ("stop", "length") or v["response"] is None or not v["response"]["complete"]
+        or v["response"]["cleanup_error"] is not None for v in scalar),
+        unknown_response_requests=sum(v["response"] is None for v in scalar),
+        known_elapsed_seconds=math.fsum([v["elapsed_seconds"] for v in scalar if v["elapsed_seconds"] is not None]
+            + [s["owned_elapsed_seconds"] for s in owned if s["owned_elapsed_seconds"] is not None]),
+        unknown_elapsed_requests=sum(v["elapsed_seconds"] is None for v in scalar))
+    if batches:
+        require(len(owned) == len(refs), "Missing generation session costs")
+        result.update(generation_session_seqs=refs, unknown_elapsed_sessions=sum(s["owned_elapsed_seconds"] is None for s in owned))
+    return result
 
 
 def snapshot(campaign, *, selections=None):
@@ -141,10 +179,14 @@ def snapshot(campaign, *, selections=None):
                 and collections[name]["payload"]["plan_sha256"] == event["payload_sha256"]
                 for name, event in plans.items()), "Unbound paired plan")
     reservations = {e["seq"]: e for e in events if e["kind"] == "generation_reserved"}
+    batches = {e["seq"]: e for e in events if e["kind"] == "batch_reserved"}
+    completions = {e["session_seq"]: e for e in events if e["kind"] == "batch_done"}
     for event in events:
-        if event["kind"] == "generation_done":
+        if event["kind"] == "generation_done" and "session_seq" not in event:
             for name, evidence in event["evidence"].items():
                 add(f"requests/{event['reservation_seq']:06d}/{name}", evidence["sha256"], evidence["bytes"])
+        elif event["kind"] == "batch_done":
+            for name, evidence in event["evidence"].items(): add(name, evidence["sha256"], evidence["bytes"])
     intents = {e["operation_id"]: e for e in events if e["kind"] == "native_intent"}
     closed = {e["operation_id"] for e in events if e["kind"] == "native_closed"}
     verdicts, proofs, native_tasks = {}, {}, {}
@@ -177,16 +219,37 @@ def snapshot(campaign, *, selections=None):
         if event["kind"] != "experiment": continue
         record, name = event["record"], event["experiment_id"]
         require(type(record.get("schema_version")) is int and ((record["schema_version"] == 1 and set(record) == RUN_FIELDS)
-                or (record["schema_version"] == 2 and set(record) == RUN_FIELDS | {"profiles"}))
+                or (record["schema_version"] == 2 and set(record) == RUN_FIELDS | {"profiles"})
+                or (record["schema_version"] == 3 and set(record) == RUN_FIELDS | {"profiles", "generation_method"}))
                 and name not in records, "Require unique loop run record")
+        batched = record["schema_version"] == 3
         if "profiles" in record:
             precision.check_profiles(record["profiles"], record["recipes"], campaign=campaign)
             for entry in record["profiles"].values():
                 reference = entry["reference"]
                 raw = precision._metadata(campaign.root / reference["path"], reference["receipt_sha256"])[0]
                 for filename, content in raw.items(): add(reference["path"] + "/" + filename, sha256(content).hexdigest(), len(content))
+        if batched:
+            methods = record["generation_method"]
+            require(type(methods) is dict and set(methods) == set(record["recipes"]) == set(record["profiles"]), "Run batch method sources differ")
+            for source, method in methods.items():
+                require(method["source"] == source and digest(method["admission"]["request_controls"]["precision_profile"]["descriptor"])
+                        == digest(record["profiles"][source]["descriptor"]) and all(method["admission"]["request_controls"][k]
+                            == record["recipes"][source][k] for k in ("temperature", "top_p", "max_tokens", "wall_time_seconds")), "Run batch method profile/controls differ")
+                raw = journal._batch_method(method, campaign)
+                for filename, content in raw.items(): add(method["qualification"]["path"] + "/" + filename, sha256(content).hexdigest(), len(content))
         for reservation in (e for e in reservations.values() if e["experiment_id"] == name):
             request = json.loads(reservation["request_text"])
+            require(("session_seq" in reservation) == batched, "Request method direction differs")
+            if batched:
+                require(reservation["source"] in record["generation_method"], "Request batch source differs")
+                batch_intent, outcome = batches[reservation["session_seq"]], outcomes[reservation["seq"]]
+                require(digest(batch_intent["method_spec"]) == digest(record["generation_method"][reservation["source"]])
+                        and digest({k: v for k, v in request.items() if k not in ("messages", "seed")})
+                            == digest(batch_intent["method_spec"]["admission"]["request_controls"])
+                        and outcome.get("session_seq") == reservation["session_seq"] and outcome.get("row_index") == reservation["row_index"]
+                        and outcome.get("request_sha256") == reservation["request_sha256"]
+                        and outcome.get("job_sha256") == batch_intent["job_sha256"], "Request batch binding differs")
             require(("precision_profile" in request) == ("profiles" in record), "Request profile direction differs")
             if "profiles" in record:
                 source = reservation["source"]
@@ -218,8 +281,13 @@ def snapshot(campaign, *, selections=None):
                     continue
                 program = add(f"requests/{seq:06d}/candidate.py", result["candidate_sha256"])
                 outcome = outcomes[seq]
+                if batched:
+                    shared = completions[outcome["session_seq"]]
+                    require(outcome["eligible"] is True and shared["eligible"] is True and outcome["batch_done_seq"] == shared["seq"]
+                            and outcome["job_sha256"] == shared["job_sha256"]
+                            and generation.extract_program(outcome["text"]) == program, "Batch candidate lacks eligible source reply")
                 require(outcome["status"] in ("stop", "length") and (record["policy_sha256"] != current_policy
-                        or generation.extract_program(outcome["response"]["text"]) == program),
+                        or batched or generation.extract_program(outcome["response"]["text"]) == program),
                         "Candidate differs from source reply")
                 opid, gate_id = result["operation_id"], cell["gate_operation_id"]
                 require(opid in closed and opid in intents, "Candidate lacks closed operation")
@@ -250,6 +318,8 @@ def snapshot(campaign, *, selections=None):
                     "sample_id": result["sample_id"], "reference_identical": intent["reference_indices"] is not None,
                     "program_bytes": len(program), "observed_generation_tokens": outcome["observed_generation_tokens"],
                     "reply_index": reservations[seq]["attempt"]["reply_index"],
+                    **({"session_seq": outcome["session_seq"], "batch_done_seq": outcome["batch_done_seq"],
+                        "generation_method_sha256": digest(record["generation_method"][cell["source"]])} if batched else {}),
                     **({"precision_profile": profile_identity(record["profiles"][cell["source"]]["descriptor"])} if "profiles" in record else {})})
     require(all(e["experiment_id"] in records for e in reservations.values()), "Reservation lacks loop run")
     chosen = {}
@@ -294,10 +364,15 @@ def snapshot(campaign, *, selections=None):
                 {k: recipe[k] for k in ("max_replies", "max_tokens", "wall_time_seconds")}, contexts[name]]),
                 assigned=len(assigned), verified=len({_key(e) for e in passes}), status_counts=dict(Counter(c["status"] for c in cells)),
                 reserved=Campaign.totals(budget_events + own_reserved)[1][source],
-                observed=_observed([e for e in own_reserved if e["source"] == source], outcomes),
+                observed=_observed([e for e in own_reserved if e["source"] == source], outcomes, batch=record["schema_version"] == 3),
                 initial_passes=sum(e["reply_index"] == 0 for e in passes), repair_passes=sum(e["reply_index"] > 0 for e in passes),
                 reference_identical=sum(e["reference_identical"] for e in passes))
             if "profiles" in record: row["precision_profile"] = profile_identity(record["profiles"][source]["descriptor"])
+            if record["schema_version"] == 3:
+                method = record["generation_method"][source]
+                row["generation_method"] = dict(method=method["method"], sha256=digest(method), qualification=method["qualification"],
+                    config=method["admission"]["config"], prompt_ceiling_tokens=method["prompt_ceiling_tokens"])
+                row["comparison_sha256"] = digest([row["comparison_sha256"], digest(method)])
             own_source = [e for e in own_reserved if e["source"] == source]
             row["generation_status_counts"] = dict(Counter(outcomes[e["seq"]]["status"] for e in own_source))
             row["attempt_status_counts"] = dict(Counter(results[e["seq"]]["status"] for e in own_source if e["seq"] in results))
@@ -313,12 +388,14 @@ def snapshot(campaign, *, selections=None):
                 for d in sorted({t["difficulty"] for t in assigned})]
             run["sources"].append(row)
     limits, reserved = Campaign.totals(events)
+    sessions = _session_costs(events, reservations, outcomes)
     elapsed = [e["elapsed_seconds"] for e in verdicts.values() if e["elapsed_seconds"] is not None]
     costs = dict(limits=limits, reserved=reserved, observed_by_source={s: _observed(
-        [e for e in reservations.values() if e["source"] == s], outcomes) for s in study.SOURCES}, native=dict(
+        [e for e in reservations.values() if e["source"] == s], outcomes, sessions=sessions) for s in study.SOURCES}, native=dict(
         operations=len(intents), gates=sum(e["reference_indices"] is not None for e in intents.values()),
         candidates=sum(e["reference_indices"] is None for e in intents.values()), known_elapsed_seconds=math.fsum(elapsed),
         unknown_elapsed_operations=len(intents)-len(elapsed), reuses=sum(e["reused"] for e in results.values())))
+    if batches: costs["generation_sessions"] = sessions
     report = dict(runs=runs, cumulative=cumulative, panel_joint=None if panel is None else panel_joint(panel["tasks"], selected),
                   costs=costs, mechanics_baseline=baseline)
     if any(e["kind"] == "paired_plan" for e in events):

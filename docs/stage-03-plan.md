@@ -642,3 +642,11 @@ session inventory, copied qualification and decoded proof. Unknown cleanup block
 all further dispatch; a proven closed failure remains ineligible. Row outcomes hold
 text, raw tokens and latency with shared-session references; the session owns wall
 and process evidence once. Shared export and the cohort driver remain separate.
+
+Snapshots export shared generation evidence once per session. Batch rows retain
+their own delivered tokens, outcomes and native candidate proofs; per-record wall
+is explicitly unallocated with session references. The global source ledger counts
+each proven owned session wall once and each unknown session once. Cleanup is
+already included in that wall. Session costs retain source, precision and profile
+identity. Records with no replies still export their owned qualification; scalar
+reports preserve their existing fields and values.

@@ -557,3 +557,9 @@ output, resource samples, timeout/cancellation and cleanup evidence; failures do
 refund diagnostic costs. Run files and profile metadata live under private `data/`.
 A separate resident worker supplies numerical batching qualification and timed grids;
 its throughput method remains separate from the archived per-request cold run.
+Use `python -m experiments.mlx_batch_throughput --run` with `--profiles`, `--source`,
+`--bits`, `--configs` (JSON), `--output`, `--lock` and optional `--wall`.
+Each owned job qualifies unequal-prompt greedy batching, EOS/cap handling, fresh
+insertion and seeded sampler independence, then warms once and measures two repeats.
+Aggregate throughput uses raw tokens divided by synchronized whole-window wall;
+native MLX rates and process/resource observations retain their separate time bases.

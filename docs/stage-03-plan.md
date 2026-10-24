@@ -480,3 +480,6 @@ prefix and activation shape. The nested marker canonically binds the choice and
 requires a construction group. Construction uses metadata only; execution loads
 assigned tasks individually. The loop source change requires new execution IDs;
 historical reports retain recorded activations without current-policy rebuilding.
+
+Use `python -m src.data-pipeline.paired_collection setup --help` to freeze a paired
+trial; [its protocol](stage-03-paired-protocol.md) binds methods before collection.

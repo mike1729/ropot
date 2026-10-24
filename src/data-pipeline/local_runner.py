@@ -17,7 +17,7 @@ import signal
 import subprocess
 import tempfile
 import threading
-from time import monotonic
+from time import monotonic, sleep
 
 from .screen import output_matches
 
@@ -62,15 +62,24 @@ def _kill_group(process):
     """Kill before reaping; on Darwin exit EPERM, only probe the group after waiting."""
     try:
         os.killpg(process.pid, signal.SIGKILL)
-    except PermissionError:
+    except PermissionError as error:
         try:
             process.wait(timeout=0.1)
-            os.killpg(process.pid, 0)
-        except ProcessLookupError:
-            return
         except subprocess.TimeoutExpired:
             process.kill()
-        raise
+            raise error
+        deadline = monotonic() + 5
+        while True:
+            try:
+                os.killpg(process.pid, 0)
+            except ProcessLookupError:
+                return
+            except PermissionError:
+                pass
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                raise error
+            sleep(min(0.02, remaining))
     except ProcessLookupError:
         pass
     except OSError:

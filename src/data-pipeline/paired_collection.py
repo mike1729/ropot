@@ -128,8 +128,8 @@ def setup(campaign, loaded, plan_id, receipt_path, receipt_sha256, mechanics_aud
     campaign.require_native_clear()
     for event in events:
         if event["kind"] == "generation_reserved":
-            response = campaign.outcome(event["seq"])["response"]
-            J.require(response is None or response["cleanup_error"] is None, "Unresolved generation cleanup failure")
+            outcome = campaign.outcome(event["seq"])
+            J.require(J.generation_resources_cleared(events, outcome), "Unresolved generation cleanup failure")
     contract = V.runner.contract()
     audit = Path(mechanics_audit_path).read_bytes()
     J.require(sha256(audit).hexdigest() == AUDIT_SHA256, "Mechanics audit differs")

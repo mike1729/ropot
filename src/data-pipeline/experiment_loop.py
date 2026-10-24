@@ -313,8 +313,7 @@ def run(campaign, loaded, record):
     for event in events:
         if event["kind"] == "generation_reserved":
             outcome = campaign.outcome(event["seq"])
-            response = outcome["response"]
-            require(response is None or response["cleanup_error"] is None, "Unresolved generation cleanup failure")
+            require(journal.generation_resources_cleared(events, outcome), "Unresolved generation cleanup failure")
             if event["experiment_id"] == record["experiment_id"]: journal.require_profile_outcome(outcome)
     current = verification.runner.contract()
     digest = verification.digest(current)

@@ -61,6 +61,33 @@ def require_profile_outcome(outcome):
     if reason is not None: raise ProfileControlError(outcome["reservation_seq"], reason)
 
 
+def _clearance_payload(events, outcome):
+    response = outcome["response"]
+    evidence = outcome.get("evidence", {}).get("response.json", {})
+    require(outcome.get("status") == "worker_error" and outcome.get("finish_reason") in ("stop", "length")
+            and outcome.get("profile_guarded") is True and outcome.get("profile_failure") is None
+            and outcome.get("protocol_error") is None and type(response) is dict and response["complete"] is True
+            and type(response["returncode"]) is int and response["returncode"] == 0
+            and response["parent_error"] is None and type(response["cleanup_error"]) is str and response["cleanup_error"]
+            and type(response["pid"]) is int and response["pid"] > 0 and precision._sha(evidence.get("sha256")),
+            "Generation is not eligible for resource clearance")
+    done = [e for e in events if e["kind"] == "generation_done" and e["reservation_seq"] == outcome["reservation_seq"]]
+    require(len(done) == 1 and encoded({k: outcome[k] for k in done[0] if k not in ("kind", "seq")})
+            == encoded({k: v for k, v in done[0].items() if k not in ("kind", "seq")}),
+            "Generation is not eligible for resource clearance")
+    return dict(reservation_seq=outcome["reservation_seq"], response_sha256=evidence["sha256"], pid=response["pid"])
+
+
+def generation_resources_cleared(events, outcome):
+    markers = [e for e in events if e["kind"] == "generation_resources_cleared"
+               and e["reservation_seq"] == outcome["reservation_seq"]]
+    if not markers:
+        return outcome["response"] is None or outcome["response"]["cleanup_error"] is None
+    payload = _clearance_payload(events, outcome)
+    require(encoded({k: markers[0][k] for k in payload}) == encoded(payload), "Generation resource clearance differs")
+    return True
+
+
 class Campaign:
     @classmethod
     def create(cls, root, limits):
@@ -129,7 +156,7 @@ class Campaign:
                 and events[0]["kind"] == "initial" and sum(e["kind"] == "initial" for e in events) == 1,
                 "Invalid campaign history")
         limits_checked(events[0]["limits"])
-        reserved, done, native, closed = set(), set(), set(), set()
+        reserved, done, native, closed, cleared = set(), set(), set(), set(), set()
         for event in events:
             if event["kind"] == "experiment":
                 require(event["record"]["experiment_id"] == event["experiment_id"]
@@ -141,6 +168,13 @@ class Campaign:
                 seq = event["reservation_seq"]
                 require(seq in reserved and seq not in done, "Invalid or duplicate completion")
                 done.add(seq)
+            elif event["kind"] == "generation_resources_cleared":
+                seq = event.get("reservation_seq")
+                require(set(event) == {"seq", "kind", "reservation_seq", "response_sha256", "pid"}
+                        and type(seq) is int and seq in done and seq not in cleared
+                        and precision._sha(event["response_sha256"]) and type(event["pid"]) is int and event["pid"] > 0,
+                        "Invalid generation resource clearance")
+                cleared.add(seq)
             elif event["kind"] == "native_intent":
                 require(event["operation_id"] not in native, "Duplicate native operation")
                 native.add(event["operation_id"])
@@ -240,6 +274,28 @@ class Campaign:
     def outcome(self, seq):
         try:
             return self._finish(seq)
+        except BaseException:
+            self.close()
+            raise
+
+    def clear_generation_resources(self, seq):
+        try:
+            require(type(seq) is int and any(e["kind"] == "generation_reserved" and e["seq"] == seq for e in self.events),
+                    "Generation is not eligible for resource clearance")
+            outcome = self.outcome(seq)
+            events = self.events
+            payload = _clearance_payload(events, outcome)
+            prior = [e for e in events if e["kind"] == "generation_resources_cleared" and e["reservation_seq"] == seq]
+            if prior:
+                generation_resources_cleared(events, outcome)
+                return prior[0]
+            for probe, name in ((os.kill, "process"), (os.killpg, "group")):
+                try:
+                    probe(payload["pid"], 0)
+                except ProcessLookupError:
+                    continue
+                raise ValueError(f"Generation {name} is still present")
+            return self._append("generation_resources_cleared", **payload)
         except BaseException:
             self.close()
             raise

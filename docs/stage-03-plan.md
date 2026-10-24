@@ -510,3 +510,16 @@ with invalid reasons and existing costs. Usable completion requires durable guar
 generation and native proof at the relevant prefix, never later reconciliation.
 Freshness is campaign-local through the decision; cohort restrictions cover prior
 cross-campaign use. This slice adds no paired yield, cost comparison or target claim.
+
+Darwin teardown may observe an exiting group for up to five seconds after reaping;
+only ESRCH proves group absence. This shared cleanup grace also affects local
+case and diagnostic workers; local-case elapsed excludes cleanup, generation
+parent elapsed includes it. No nonzero signal is sent after the successful reap.
+For a completed, positively guarded request whose only error was cleanup,
+`Campaign.clear_generation_resources(seq)` can record resource clearance after
+BOTH its retained PID and equal PGID independently return ESRCH to signal zero.
+Unknown/live resources remain blocked. Exact retry reuses that bound marker
+without probing a possibly reused PID. The pure historical checker releases only
+the global setup/run resource barrier; the original worker_error, evidence,
+candidate eligibility and cumulative charges stay unchanged. A producer fix
+requires a new plan/member IDs in the same campaign; do not rewrite old history.

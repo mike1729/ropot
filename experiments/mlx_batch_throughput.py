@@ -95,6 +95,88 @@ def long_stress(job, ready_fixtures, completed_rows):
         prompt_token_ceiling=min(prompts), max_tokens=2048, raw_generation_tokens=batch * 2048)
 
 
+def build_wave(rows, admission, *, prompt_ceiling_tokens=None):
+    B = importlib.import_module("experiments.batch_throughput")
+    admission = B.G.snapshot(admission); B.current_source_compatible(admission)
+    B.G.require(type(rows) is list and 1 <= len(rows) <= admission["config"]["batch_size"], "Wave row count differs")
+    retained, fixtures, requests = [], [], []
+    for row in rows:
+        B.G.require(type(row) is dict and set(row) == {"row_id", "request"}, "Raw wave row differs")
+        request, raw = B.G.prepare_request(row["request"])
+        retained.append(dict(row_id=row["row_id"], request_text=raw.decode("utf-8"), request_sha256=sha256(raw).hexdigest()))
+        fixtures.append(dict(id=row["row_id"], messages=request["messages"], seed=request["seed"]))
+        requests.append(request)
+    window = dict(id="wave", mode="generate", config=admission["config"], rows=[dict(fixture_id=f["id"], seed=f["seed"],
+        cap=2048, sampling="sample", after_row_index=None) for f in fixtures])
+    job = dict(schema_version=3, request=requests[0], fixtures=fixtures, windows=[window], worker=str(Path(__file__).resolve()),
+        wall_seconds=240, source_hashes=admission["source_hashes"], rows=retained, admission=admission,
+        prompt_ceiling_tokens=admission["prompt_ceiling_tokens"] if prompt_ceiling_tokens is None else prompt_ceiling_tokens)
+    if "cache_limit_bytes" in admission: job["cache_limit_bytes"] = admission["cache_limit_bytes"]
+    B._shape(job)
+    return B.G.snapshot(job)
+
+
+def project_wave(job, stdout_raw, response_raw, decoded_raw, *, qualification_files):
+    B = importlib.import_module("experiments.batch_throughput")
+    B._shape(job, historical=True)
+    errors, response, decoded, resources_closed = [], {}, None, False
+    try:
+        B.G.require(type(response_raw) is bytes and len(response_raw) <= B.STDOUT_LIMIT, "Wave response unavailable")
+        response = B.G.snapshot(json.loads(response_raw)); B.G.require(type(response) is dict, "Wave response differs")
+    except (ValueError, TypeError) as error: errors.append(str(error)); response = {}
+    pid = response.get("pid")
+    parsed = B.validate_events(stdout_raw if type(stdout_raw) is bytes else b"", job, pid if type(pid) is int and pid > 0 else None)
+    try:
+        parent = set("job_sha256 status pid returncode elapsed_seconds cleanup_seconds group_absent cleanup_error parent_error telemetry telemetry_complete work_seconds".split())
+        B.G.require(set(response) == set(parsed) | parent and response["job_sha256"] == sha256(B._raw(job)).hexdigest()
+            and type(pid) is int and pid > 0 and parsed["events"] and parsed["events"][0]["pid"] == pid
+            and type(response["returncode"]) is int and response["group_absent"] is True and response["cleanup_error"] is None
+            and B.G.P.digest({k: response[k] for k in parsed}) == B.G.P.digest(parsed), "Wave parent/closure proof incomplete")
+        resources_closed = True
+    except (ValueError, KeyError, TypeError) as error: errors.append(str(error))
+    try:
+        authority = B.qualification_checked(qualification_files)
+        B.G.require(B.G.P.digest(authority) == B.G.P.digest(job["admission"]), "Wave qualification authority differs")
+        B.G.require(resources_closed and response["returncode"] == 0 and response["status"] == "passed" and parsed["complete"]
+            and all(response[k] is None for k in ("cleanup_error", "parent_error", "protocol_error")), "Wave shared proof incomplete")
+        B.G.require(B._number(response["work_seconds"]) and 0 < response["work_seconds"] <= 240
+            and B._number(response["elapsed_seconds"]) and response["elapsed_seconds"] >= response["work_seconds"]
+            and B._number(response["cleanup_seconds"]) and response["cleanup_seconds"] <= response["elapsed_seconds"]
+            and response["telemetry_complete"] is True, "Wave shared timing/resource proof differs")
+        counters = {"t_seconds", "cpu_seconds", "rss_bytes", "available_bytes", "swap_bytes"}
+        B.G.require(type(response["telemetry"]) is list and response["telemetry"] and all(type(s) is dict and counters <= set(s)
+            and "error" not in s and all(B._number(s[k]) for k in counters) for s in response["telemetry"]), "Wave telemetry incomplete")
+    except (ValueError, KeyError, TypeError) as error: errors.append(str(error))
+    observations = {s["row_index"]: s for s in parsed["observations"]}
+    try:
+        B.G.require(type(decoded_raw) is bytes and len(decoded_raw) <= B.STDOUT_LIMIT
+            and sha256(decoded_raw).hexdigest() == parsed["decoded_sha256"], "Wave decoded output unavailable or changed")
+        lines = [B.G.snapshot(json.loads(line)) for line in decoded_raw.splitlines()]
+        B.G.require(len(lines) == 1 and set(lines[0]) == {"job_sha256", "window", "rows"} and lines[0]["window"] == "wave"
+            and lines[0]["job_sha256"] == sha256(B._raw(job)).hexdigest() and len(lines[0]["rows"]) == len(job["rows"]), "Wave decoded binding differs")
+        for i, row in enumerate(lines[0]["rows"]):
+            native = observations.get(i, {})
+            B.G.require(type(row) is dict and set(row) == {"tokens", "text", "finish_reason"} and type(row["text"]) is str
+                and B.G.P.digest(row["tokens"]) == B.G.P.digest(native.get("tokens"))
+                and row["finish_reason"] == native.get("finish_reason") and row["finish_reason"] in ("stop", "length"), "Wave decoded row differs")
+        decoded = lines[0]["rows"]
+    except (ValueError, KeyError, TypeError, IndexError) as error: errors.append(str(error))
+    shared = {k: response.get(k) for k in ("pid", "returncode", "status", "group_absent", "cleanup_error", "parent_error", "elapsed_seconds", "work_seconds", "cleanup_seconds")}
+    raw_files = {"job.json": B._raw(job), "stdout.jsonl": stdout_raw, "response.json": response_raw, "decoded.jsonl": decoded_raw}
+    shared.update(job_sha256=sha256(raw_files["job.json"]).hexdigest(), complete=not errors and parsed["complete"], resources_closed=resources_closed, errors=errors,
+        evidence={name: dict(sha256=sha256(raw).hexdigest(), bytes=len(raw)) if type(raw) is bytes else None for name, raw in raw_files.items()})
+    shared.update(protocol_error=parsed["protocol_error"], profile_guarded=any(e["event"] == "controls_checked" for e in parsed["events"]),
+        ready=any(e["event"] == "ready" for e in parsed["events"]))
+    shared["evidence"]["qualification"] = job["admission"]["inputs"]
+    views = []
+    for i, row in enumerate(job["rows"]):
+        state = observations.get(i, {})
+        views.append(dict(row_id=row["row_id"], request_sha256=row["request_sha256"], uid=state.get("uid"), tokens=state.get("tokens", []),
+            text=decoded[i]["text"] if decoded is not None else None, finish_reason=state.get("finish_reason"),
+            **{k: state.get(k) for k in ("admit_seconds", "first_seconds", "finish_seconds")}, eligible=shared["complete"]))
+    return dict(shared=shared, rows=views)
+
+
 def configure_cache(job, identity):
     if "cache_limit_bytes" not in job: return
     requested = job["cache_limit_bytes"]
@@ -208,7 +290,7 @@ def run_job(job, identity, emit):
     for source, digest in job["source_hashes"].items():
         if M.file_sha256(source) != digest:
             raise M.Control("guard", "Benchmark source changed")
-    request, long = job["request"], job["schema_version"] == 2
+    request, long, wave = job["request"], job["schema_version"] == 2, job["schema_version"] == 3
     guard = M.load_guard(request)
     descriptor = request["precision_profile"]["descriptor"]
     model_files = M.inventory(Path(request["model_path"]), guard, descriptor)
@@ -234,35 +316,39 @@ def run_job(job, identity, emit):
         options = dict(add_generation_prompt=True, enable_thinking=False)
         prompt = tokenizer.apply_chat_template(fixture["messages"], tokenize=False, **options)
         ids = tokenizer.apply_chat_template(fixture["messages"], tokenize=True, **options)
-        if not 0 < len(ids) <= (4096 if long else 1536):
+        if not wave and not 0 < len(ids) <= (4096 if long else 1536):
             raise RuntimeError("Fixture prompt outside token bound")
         fixtures.append(dict(id=fixture["id"], prompt=prompt, prompt_ids=ids))
     if long and len(fixtures[1]["prompt_ids"]) <= 2826:
         raise RuntimeError("Long fixture does not cover the exposed prompt envelope")
-    if len(fixtures[0]["prompt_ids"]) == len(fixtures[1 if long else 4]["prompt_ids"]):
+    if not wave and len(fixtures[0]["prompt_ids"]) == len(fixtures[1 if long else 4]["prompt_ids"]):
         raise RuntimeError("Qualification requires unequal prompts")
     M.observe(sources, descriptor["expected_runtime"]["sources"])
     emit("ready", fixtures=fixtures, eos_token_ids=sorted(tokenizer.eos_token_ids), hash_seconds=hash_seconds + monotonic() - started,
          load_seconds=load_seconds, provenance=dict(precision_controls=proof, precision_postload=post, sources=sources))
-    rng_ok, draws = rng_check()
-    with Path("qualification-rng.json").open("x") as output:
-        json.dump(dict(job_sha256=identity, temperature=.2, top_p=.95, draws=draws, passed=rng_ok), output)
-        output.flush()
-        os.fsync(output.fileno())
+    if wave:
+        if not all(0 < len(f["prompt_ids"]) <= job["prompt_ceiling_tokens"] for f in fixtures):
+            raise RuntimeError("Wave prompt exceeds qualified ceiling before admission")
+    else:
+        rng_ok, draws = rng_check()
+        with Path("qualification-rng.json").open("x") as output:
+            json.dump(dict(job_sha256=identity, temperature=.2, top_p=.95, draws=draws, passed=rng_ok), output)
+            output.flush()
+            os.fsync(output.fileno())
     results = {}
     with Path("decoded.jsonl").open("x") as decoded:
         for window in job["windows"]:
             results[window["id"]] = run_window(model, tokenizer, {f["id"]: f for f in fixtures}, window, emit,
-                **({"window_seconds": 240} if long else {}))
+                **({"window_seconds": 240} if long or wave else {}))
             decoded.write(json.dumps(dict(job_sha256=identity, window=window["id"], rows=results[window["id"]]), ensure_ascii=False) + "\n")
             decoded.flush()
             os.fsync(decoded.fileno())
-            if window["id"] == ("qlong" if long else "q4"):
+            if not wave and window["id"] == ("qlong" if long else "q4"):
                 checks = qualification_checks(results, rng_ok)
                 emit("qualification", checks=checks, **({"stress": long_stress(job, fixtures, results["qlong"])} if long else {}))
                 if not all(checks.values()):
                     raise RuntimeError("Numerical batching qualification failed")
-    emit("done")
+    emit("done", **({"decoded_sha256": sha256(Path("decoded.jsonl").read_bytes()).hexdigest()} if wave else {}))
 
 
 def main():

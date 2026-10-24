@@ -616,3 +616,14 @@ and minimum stress-context bound. Historical validation needs only retained byte
 new launches separately require the entire qualified source map to match current
 files. Qualification copies preserve exact job, raw output, parent receipt and
 optional cache-control bytes. These helpers authorize no cohort dispatch by themselves.
+
+Schema 3 program waves use `build_wave` and the existing owned parent with copied
+qualification bytes. Requests retain exact canonical bytes, row IDs and seeds; a
+partial final wave keeps its qualified batch/prefill controls. Every rendered row
+must fit the declared qualified context ceiling before any row is admitted. Waves
+run one generation window, with no qualification or warmup replies inside it.
+`project_wave` checks the copied authority, raw protocol, shared parent receipt
+and the decoded-file hash bound by the worker's terminal event. It returns one
+process/wall record and every planned row, including unadmitted rows and partial
+token lower bounds. Rows become eligible only after the entire session completes
+with proven cleanup. Campaign reservation and cohort orchestration remain separate.

@@ -74,8 +74,11 @@ def watch_lease_parent():
 
 
 def _shape(job, *, historical=False):
-    G.require(type(job) is dict and set(job) - {"cache_limit_bytes"} == {"schema_version", "request", "fixtures", "windows", "worker", "wall_seconds", "source_hashes"}
-              and type(job["schema_version"]) is int and job["schema_version"] in (1, 2), "Invalid job fields")
+    wave = type(job) is dict and job.get("schema_version") == 3
+    G.require(type(job) is dict and set(job) - {"cache_limit_bytes"} - ({"rows", "admission", "prompt_ceiling_tokens"} if wave else set())
+              == {"schema_version", "request", "fixtures", "windows", "worker", "wall_seconds", "source_hashes"}
+              and (not wave or {"rows", "admission", "prompt_ceiling_tokens"} <= set(job))
+              and type(job["schema_version"]) is int and job["schema_version"] in (1, 2, 3), "Invalid job fields")
     long = job["schema_version"] == 2
     if "cache_limit_bytes" in job:
         G.require(type(job["cache_limit_bytes"]) is int and job["cache_limit_bytes"] in (0, 4 * 1024**3, 8 * 1024**3), "Invalid allocator cache limit")
@@ -91,7 +94,7 @@ def _shape(job, *, historical=False):
         paths = {Path(job["worker"]).resolve(), Path(__file__).resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
         G.require(set(sources) == {str(p) for p in paths}, "Invalid source map")
     fixtures, windows = job["fixtures"], job["windows"]
-    G.require(type(fixtures) is list and (len(fixtures) == 2 if long else 1 <= len(fixtures) <= 8 or len(fixtures) == 32)
+    G.require(type(fixtures) is list and (len(fixtures) == 2 if long else 1 <= len(fixtures) <= 8 or not wave and len(fixtures) == 32)
               and type(windows) is list and 1 <= len(windows) <= 56, "Invalid panel bounds")
     expanded = len(fixtures) == 32
     for fixture in fixtures:
@@ -106,7 +109,7 @@ def _shape(job, *, historical=False):
     counts, caps, order = [], 0, []
     for window in windows:
         G.require(type(window) is dict and set(window) == {"id", "mode", "config", "rows"} and type(window["id"]) is str and window["id"]
-                  and window["mode"] in ("qualification", "warmup", "measure"), "Invalid window")
+                  and window["mode"] in (("generate",) if wave else ("qualification", "warmup", "measure")), "Invalid window")
         config, rows = window["config"], window["rows"]
         G.require(type(config) is dict and set(config) == {"batch_size", "prefill_batch_size", "prefill_step_size"} and all(type(v) is int for v in config.values())
                   and config["batch_size"] in ((1, 2, 4, 8, 16, 32) if expanded else (1, 2, 4, 8))
@@ -115,12 +118,15 @@ def _shape(job, *, historical=False):
         G.require(type(rows) is list and 1 <= len(rows) <= (32 if expanded else 8), "Invalid window rows")
         for index, row in enumerate(rows):
             G.require(type(row) is dict and set(row) == {"fixture_id", "seed", "cap", "sampling", "after_row_index"} and row["fixture_id"] in ids
-                      and type(row["seed"]) is int and 0 <= row["seed"] < 2**64 and type(row["cap"]) is int and 1 <= row["cap"] <= (2048 if long else 128)
+                      and type(row["seed"]) is int and 0 <= row["seed"] < 2**64 and type(row["cap"]) is int and 1 <= row["cap"] <= (2048 if long or wave else 128)
                       and row["sampling"] in ("sample", "greedy", "eos", "length") and (window["mode"] == "qualification" or row["sampling"] == "sample")
                       and (row["after_row_index"] is None or type(row["after_row_index"]) is int and 0 <= row["after_row_index"] < index), "Invalid row")
             caps += row["cap"]
         counts.append(len(rows))
-        order.append(("qualification", "warmup", "measure").index(window["mode"]))
+        order.append(("qualification", "warmup", "measure", "generate").index(window["mode"]))
+    if wave:
+        _wave_shape(job)
+        return
     qualification_count = 8
     if expanded:
         measured = [w for w in windows if w["mode"] == "measure"]
@@ -161,6 +167,28 @@ def _long_shape(job):
         G.require(window["config"] == expected and window["rows"] == rows, "Long qualification recipe differs")
 
 
+def _wave_shape(job):
+    admission, rows = job["admission"], job["rows"]
+    fields = set("schema_version request_controls config source_hashes prompt_ceiling_tokens stress_prompt_tokens inputs".split())
+    G.require(type(admission) is dict and set(admission) - {"cache_limit_bytes"} == fields
+        and type(admission["schema_version"]) is int and admission["schema_version"] == 1, "Wave admission differs")
+    G.require(type(job["prompt_ceiling_tokens"]) is int and 0 < job["prompt_ceiling_tokens"] <= admission["prompt_ceiling_tokens"] <= 4096
+        and job["wall_seconds"] == 240 and type(rows) is list and 1 <= len(rows) <= admission["config"]["batch_size"], "Wave bounds differ")
+    requests = []
+    for row in rows:
+        G.require(type(row) is dict and set(row) == {"row_id", "request_text", "request_sha256"} and type(row["request_text"]) is str, "Wave row differs")
+        raw = row["request_text"].encode("utf-8"); request = G.snapshot(json.loads(raw))
+        G.require(type(request) is dict and raw == _raw(request) and row["request_sha256"] == sha256(raw).hexdigest()
+            and G.P.digest({k: v for k, v in request.items() if k not in ("messages", "seed")}) == G.P.digest(admission["request_controls"]), "Wave request controls differ")
+        requests.append(request)
+    fixtures = [dict(id=r["row_id"], messages=q["messages"], seed=q["seed"]) for r, q in zip(rows, requests)]
+    expected = dict(id="wave", mode="generate", config=admission["config"], rows=[dict(fixture_id=f["id"], seed=f["seed"],
+        cap=2048, sampling="sample", after_row_index=None) for f in fixtures])
+    G.require(G.P.digest(job["fixtures"]) == G.P.digest(fixtures) and G.P.digest(job["windows"]) == G.P.digest([expected])
+        and G.P.digest(job["request"]) == G.P.digest(requests[0]) and G.P.digest(job["source_hashes"]) == G.P.digest(admission["source_hashes"])
+        and {k: job[k] for k in ("cache_limit_bytes",) if k in job} == {k: admission[k] for k in ("cache_limit_bytes",) if k in admission}, "Wave layout differs")
+
+
 def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200, cache_limit_bytes=None, schema_version=1):
     request, _ = G.prepare_request(request)
     G.require("precision_profile" in request, "Require precision profile")
@@ -183,7 +211,7 @@ def validate_events(raw, job, pid=None):
     events, observations, windows, current = [], [], [], None
     error, proof, eos, ready, qualified, complete, index = None, None, set(), False, False, False, 0
     identity = sha256(_raw(job)).hexdigest()
-    long, stress, ready_fixtures = job["schema_version"] == 2, None, None
+    long, wave, stress, ready_fixtures, decoded_digest = job["schema_version"] == 2, job["schema_version"] == 3, None, None, None
     truncated, raw = len(raw) > STDOUT_LIMIT, raw[:STDOUT_LIMIT]
     try:
         for line in raw.splitlines(keepends=True):
@@ -192,6 +220,7 @@ def validate_events(raw, job, pid=None):
             event = G.snapshot(json.loads(line))
             kind = event["event"]
             fields = set(FIELDS[kind].split()) | ({"stress"} if long and kind == "qualification" else set())
+            if wave and kind == "done": fields.add("decoded_sha256")
             G.require(set(event) == {"event", "job_sha256"} | fields and event["job_sha256"] == identity, "Event binding differs")
             if not events:
                 G.require(kind == "start" and type(event["pid"]) is int and event["pid"] > 0 and (pid is None or event["pid"] == pid), "Worker PID differs")
@@ -212,14 +241,15 @@ def validate_events(raw, job, pid=None):
                 G.require(type(event["fixtures"]) is list and len(event["fixtures"]) == len(job["fixtures"]), "Ready fixtures differ")
                 for fixture, planned in zip(event["fixtures"], job["fixtures"]):
                     G.require(set(fixture) == {"id", "prompt", "prompt_ids"} and fixture["id"] == planned["id"] and type(fixture["prompt"]) is str
-                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <= (4096 if long else 1536)
+                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <= (4096 if long or wave else 1536)
                               and all(type(t) is int and t >= 0 for t in fixture["prompt_ids"]), "Ready fixtures differ")
+                if wave: G.require(all(len(f["prompt_ids"]) <= job["prompt_ceiling_tokens"] for f in event["fixtures"]), "Wave prompt exceeds qualified ceiling")
                 eos, ready, ready_fixtures = set(event["eos_token_ids"]), True, event["fixtures"]
             elif kind == "window_start":
                 G.require(ready and current is None and index < len(job["windows"]) and event["id"] == job["windows"][index]["id"]
                           and _number(event["started_seconds"]) and event["started_seconds"] > 0, "Window order differs")
                 planned = job["windows"][index]
-                G.require(planned["mode"] == "qualification" or qualified, "Qualification required")
+                G.require(planned["mode"] == "qualification" or qualified or wave, "Qualification required")
                 current = dict(plan=planned, states={}, rows={}, last=0)
             elif kind in ("admit", "token"):
                 G.require(current is not None and event["window"] == current["plan"]["id"] and type(event["uid"]) is int and event["uid"] >= 0
@@ -259,7 +289,7 @@ def validate_events(raw, job, pid=None):
                 windows.append(event)
                 current, index = None, index + 1
             elif kind == "qualification":
-                G.require(ready and current is None and not qualified and index == sum(w["mode"] == "qualification" for w in job["windows"])
+                G.require(not wave and ready and current is None and not qualified and index == sum(w["mode"] == "qualification" for w in job["windows"])
                           and type(event["checks"]) is dict and set(event["checks"]) == CHECKS and all(v is True for v in event["checks"].values()), "Qualification failed")
                 if long:
                     rows = sorted((s for s in observations if s["window"] == "qlong"), key=lambda s: s["row_index"])
@@ -275,7 +305,10 @@ def validate_events(raw, job, pid=None):
                     stress = derived
                 qualified = True
             else:
-                G.require(kind == "done" and ready and qualified and current is None and index == len(job["windows"]), "Incomplete job")
+                G.require(kind == "done" and ready and (qualified or wave) and current is None and index == len(job["windows"]), "Incomplete job")
+                if wave:
+                    G.require(G.P._sha(event["decoded_sha256"]), "Wave decoded digest differs")
+                    decoded_digest = event["decoded_sha256"]
                 complete = True
             events.append(event)
         G.require(complete, "Missing done")
@@ -284,7 +317,7 @@ def validate_events(raw, job, pid=None):
     if truncated: error = "Output limit; " + (error or "bounded prefix retained")
     return dict(events=events, protocol_error=error, complete=complete and error is None, observations=observations, windows=windows,
                 observed_generation_tokens=sum(len(s["tokens"]) for s in observations), finished_sequences=sum(s["finish_reason"] is not None for s in observations),
-                **({"long_stress": stress} if long else {}))
+                **({"long_stress": stress} if long else {}), **({"decoded_sha256": decoded_digest} if wave else {}))
 
 
 def _sample(pid):
@@ -381,9 +414,12 @@ def current_source_compatible(admission):
         raise ValueError("Qualified source changed") from error
 
 
-def run(job, output, lock_path, *, lease_fd=None):
+def run(job, output, lock_path, *, lease_fd=None, qualification_files=None):
     job = G.snapshot(job)
     _shape(job)
+    wave = job["schema_version"] == 3
+    if wave: current_source_compatible(job["admission"])
+    else: G.require(qualification_files is None, "Unexpected qualification files")
     G.require("precision_profile" in job["request"] and G.validate({k: v for k, v in job["request"].items() if k != "environment"}) == job["request"], "Request launch differs")
     sources = {p: Path(p).read_bytes() for p in job["source_hashes"]}
     G.require({p: sha256(raw).hexdigest() for p, raw in sources.items()} == job["source_hashes"], "Source changed")
@@ -391,6 +427,12 @@ def run(job, output, lock_path, *, lease_fd=None):
         output = Path(output).resolve()
         output.mkdir(exist_ok=False)
         _write(output / "job.json", job)
+        if wave:
+            admission = copy_qualification(qualification_files, output / "qualification", job["admission"]["inputs"]["response.json"]["sha256"])
+            G.require(G.P.digest(admission) == G.P.digest(job["admission"]), "Wave qualification authority differs")
+            requests = output / "requests"; requests.mkdir()
+            for i, row in enumerate(job["rows"]): _write(requests / f"{i}.json", row["request_text"].encode("utf-8"))
+            _sync(requests)
         for index, raw in enumerate(sources.values()): _write(output / f"source-{index}.py", raw)
         argv = [str(G.INTERPRETER), "-I", "-B", job["worker"], str(output / "job.json")]
         lease_stat = os.fstat(ownership.fileno())
@@ -449,13 +491,13 @@ def run(job, output, lock_path, *, lease_fd=None):
         if (output / "stdout.jsonl").stat().st_size > STDOUT_LIMIT or (output / "stderr.txt").stat().st_size > STDERR_LIMIT: status = status or "output_limit"
         with (output / "stdout.jsonl").open("rb") as stream: parsed = validate_events(stream.read(STDOUT_LIMIT + 1), job, process.pid if process else None)
         work_seconds = cleanup_started - started
-        if job["schema_version"] == 2 and work_seconds > job["wall_seconds"]: status = status or "timeout"
+        if job["schema_version"] in (2, 3) and work_seconds > job["wall_seconds"]: status = status or "timeout"
         passed = process is not None and process.returncode == 0 and parsed["complete"] and absent and cleanup_error is None
         response = dict(**parsed, job_sha256=sha256(_raw(job)).hexdigest(), status=status or ("passed" if passed else "worker_error"), pid=process.pid if process else None,
             returncode=process.returncode if process else None, elapsed_seconds=monotonic() - started, cleanup_seconds=monotonic() - cleanup_started,
             group_absent=absent, cleanup_error=cleanup_error, parent_error=repr(interruption) if interruption else None,
             telemetry=samples, telemetry_complete=bool(samples) and all("error" not in s for s in samples),
-            **({"work_seconds": work_seconds} if job["schema_version"] == 2 else {}))
+            **({"work_seconds": work_seconds} if job["schema_version"] in (2, 3) else {}))
         _write(output / "response.json", response)
         _sync(output)
         _sync(output.parent)

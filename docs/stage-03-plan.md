@@ -317,4 +317,22 @@ and `reserved_output_tokens`, an `audit` copy `{path, sha256, bytes}` and the pr
 The panel's full activation enters cumulative denominators; its joint target stays
 15/50. Baseline costs are separate from cohort reservations. Snapshots append only
 missing generation completions from retained bytes before capturing their fixed prefix.
-Immutable on-disk publication follows in batch 7b.
+
+### Versioned publication (batch 7b)
+
+`study_report.publish(campaign, version, *, selections=None)` publishes under
+`campaign.root/exports/<version>` while retaining the lease. It copies and verifies
+the snapshot, then atomically renames a sibling staging directory. Existing versions
+are read-only: exact byte/tree validation returns the same manifest identity,
+including when different override arguments select identical rows. Changed prefixes,
+selections or pipeline source hashes require a new version; prior bytes stay intact.
+Unexpected files, including Finder's `.DS_Store`, make validation refuse the version.
+The manifest records every pipeline source hash and binds exact report/event bytes.
+Produce authoritative exports in a fresh process from a clean reviewed commit;
+source hashes describe the files on disk, not previously imported code.
+Copies and directories are fsync-ordered, including retry parent-directory syncs;
+this provides no macOS power-loss survival guarantee. A torn version fails validation
+and requires a new name. SIGKILL staging orphans are ignored. Atomic visibility
+assumes one publisher and stable inputs; unrelated manual directory creation can
+race POSIX rename. Retries require the same execution contract and reachable Docker,
+and perform no generation, native execution, recovery or operator resolution.

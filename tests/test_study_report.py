@@ -1,5 +1,6 @@
 from hashlib import sha256
 import importlib
+import json
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -102,6 +103,96 @@ class StudyReportTests(unittest.TestCase):
             if damage == "other_sample": next(iter(self.logs.values())).samples[0].error = object()
             with self.assertRaises(ValueError): self.R.snapshot(campaign)
             campaign.close()
+
+    def test_publication_exact_bytes_equal_retry_and_immutable_versions(self):
+        campaign = self.fresh(); self.run_recipe(campaign, "first")
+        result = self.R.publish(campaign, "v1"); destination = Path(result["path"])
+        before = {str(p.relative_to(destination)): p.read_bytes() for p in destination.rglob("*") if p.is_file()}
+        manifest = json.loads(before["manifest.json"])
+        self.assertEqual(result["manifest_sha256"], sha256(before["manifest.json"]).hexdigest())
+        self.assertEqual(manifest["report_sha256"], sha256(before["report.json"]).hexdigest())
+        self.assertEqual(manifest["journal"]["sha256"], sha256(before["events.jsonl"]).hexdigest())
+        self.assertFalse(before["manifest.json"].endswith(b"\n") or before["report.json"].endswith(b"\n"))
+        self.assertEqual(manifest["source_sha256"], {p.name: sha256(p.read_bytes()).hexdigest() for p in Path(self.R.__file__).parent.glob("*.py")})
+        for origin, item in manifest["artifacts"].items():
+            self.assertEqual(before[item["path"]], (campaign.root / origin).read_bytes())
+            self.assertNotEqual((destination / item["path"]).stat().st_ino, (campaign.root / origin).stat().st_ino)
+        count = len(campaign.events); original_open = Path.open
+        def readonly(path, mode="r", *args, **kwargs):
+            self.assertFalse(any(flag in mode for flag in "wax+")); return original_open(path, mode, *args, **kwargs)
+        with mock.patch.object(Path, "open", autospec=True, side_effect=readonly), mock.patch.object(self.R, "sync_directory", wraps=self.R.sync_directory) as sync, mock.patch.object(self.api, "generate", side_effect=AssertionError("dispatch")), mock.patch.object(self.N, "run_native", side_effect=AssertionError("native")):
+            self.assertEqual(self.R.publish(campaign, "v1"), result)
+            self.assertEqual(self.R.publish(campaign, "v1", selections=[manifest["selections"][0]["reservation_seq"]]), result)
+            self.assertIn(mock.call(campaign.root), sync.call_args_list); self.assertIn(mock.call(campaign.root / "exports"), sync.call_args_list)
+        self.assertEqual(len(campaign.events), count)
+        read = Path.read_bytes
+        with mock.patch.object(Path, "read_bytes", autospec=True, side_effect=lambda p: read(p) + (b"# changed" if p == Path(self.R.__file__) else b"")), self.assertRaisesRegex(ValueError, "Artifact changed"):
+            self.R.publish(campaign, "v1")
+        self.run_recipe(campaign, "later", (2,)); self.R.publish(campaign, "v2")
+        with self.assertRaisesRegex(ValueError, "Published tree differs"): self.R.publish(campaign, "v1")
+        self.assertEqual({str(p.relative_to(destination)): p.read_bytes() for p in destination.rglob("*") if p.is_file()}, before)
+
+    def test_published_tree_refuses_damage_symlinks_extra_files_and_empty_versions(self):
+        campaign = self.fresh(); self.run_recipe(campaign, "run")
+        for damage in ("tamper", "missing", "extra", "symlink", "dir_symlink", "empty"):
+            destination = campaign.root / "exports" / damage
+            if damage == "empty": destination.mkdir(parents=True)
+            else:
+                self.R.publish(campaign, damage); artifact = next(p for p in (destination / "artifacts").iterdir() if p.stat().st_size)
+                if damage == "tamper":
+                    raw = artifact.read_bytes(); artifact.write_bytes(bytes([raw[0] ^ 1]) + raw[1:])
+                if damage == "missing": artifact.unlink()
+                if damage == "extra": (destination / ".DS_Store").write_bytes(b"extra")
+                if damage == "symlink":
+                    twin = campaign.root / "identical"; twin.write_bytes(artifact.read_bytes()); artifact.unlink(); artifact.symlink_to(twin)
+                if damage == "dir_symlink":
+                    twin = campaign.root / "identical-directory"; (destination / "artifacts").rename(twin); (destination / "artifacts").symlink_to(twin, target_is_directory=True)
+            reason = "Artifact changed" if damage == "tamper" else "Nonregular published entry" if damage in ("symlink", "dir_symlink") else "Published tree differs"
+            with self.subTest(damage=damage), self.assertRaisesRegex(ValueError, reason): self.R.publish(campaign, damage)
+
+    def test_unsafe_versions_exports_aliases_and_artifact_free_layout(self):
+        campaign = self.fresh()
+        for version in ("", ".hidden", "../escape", "/absolute", "v1\n", 1, True, "x" * 65):
+            with self.subTest(version=version), self.assertRaisesRegex(ValueError, "Invalid export version"): self.R.publish(campaign, version)
+        target = campaign.root / "elsewhere"; target.mkdir(); exports = campaign.root / "exports"; exports.symlink_to(target, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "Invalid exports directory"): self.R.publish(campaign, "v1")
+        exports.unlink(); exports.write_bytes(b"file")
+        with self.assertRaisesRegex(ValueError, "Invalid exports directory"): self.R.publish(campaign, "v1")
+        campaign = self.fresh(); destination = Path(self.R.publish(campaign, "empty")["path"])
+        self.assertTrue((destination / "artifacts").is_dir()); self.assertEqual(list((destination / "artifacts").iterdir()), [])
+        (destination / "artifacts/unexpected").write_bytes(b"hidden extra"); scandir = self.R.os.scandir
+        def denied(path):
+            if str(path) == str(destination / "artifacts"): raise PermissionError("unreadable fixture")
+            return scandir(path)
+        with mock.patch.object(self.R.os, "scandir", side_effect=denied), self.assertRaisesRegex(ValueError, "Unreadable published tree"):
+            self.R.publish(campaign, "empty")
+
+    def test_publication_crashes_before_and_after_rename_resume_without_dispatch(self):
+        campaign = self.fresh(); self.run_recipe(campaign, "run"); rename = self.R.os.rename
+        for phase in ("before", "after"):
+            def crash(source, destination):
+                if phase == "after": rename(source, destination)
+                raise OSError("rename uncertainty")
+            count = len(campaign.events)
+            with mock.patch.object(self.R.os, "rename", side_effect=crash), self.assertRaises(OSError): self.R.publish(campaign, phase)
+            destination = campaign.root / "exports" / phase
+            self.assertEqual(destination.exists(), phase == "after")
+            self.assertEqual(list((campaign.root / "exports").glob(".staging-*")), [])
+            with mock.patch.object(self.api, "generate", side_effect=AssertionError("replay")), mock.patch.object(self.N, "run_native", side_effect=AssertionError("reexecute")), mock.patch.object(self.R, "sync_directory", wraps=self.R.sync_directory) as sync:
+                result = self.R.publish(campaign, phase)
+                self.assertIn(mock.call(campaign.root), sync.call_args_list); self.assertIn(mock.call(campaign.root / "exports"), sync.call_args_list)
+            self.assertEqual(result["manifest_sha256"], sha256((destination / "manifest.json").read_bytes()).hexdigest())
+            self.assertEqual(len(campaign.events), count)
+
+    def test_source_changes_after_snapshot_refuse_before_final_and_remove_staging(self):
+        campaign = self.fresh(); self.run_recipe(campaign, "run"); snapshot = self.R.snapshot
+        def changed(*args, **kwargs):
+            result = snapshot(*args, **kwargs); origin = next(iter(result["files"])); path = campaign.root / origin
+            raw = path.read_bytes(); path.write_bytes(bytes([raw[0] ^ 1]) + raw[1:]); return result
+        with mock.patch.object(self.R, "snapshot", side_effect=changed) as derive, self.assertRaisesRegex(ValueError, "Artifact changed"):
+            self.R.publish(campaign, "v1")
+        self.assertEqual(derive.call_count, 1); self.assertFalse((campaign.root / "exports/v1").exists())
+        self.assertEqual(list((campaign.root / "exports").glob(".staging-*")), [])
 
     def test_pending_generation_or_native_preserves_unknown_costs_and_dispatches_nothing(self):
         for failure in ("generation", "native", "timeout"):

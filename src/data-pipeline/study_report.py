@@ -6,11 +6,13 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import stat
+import tempfile
 
 from . import experiment_loop as loop, local_generation as generation, native_recovery as native
 from . import study_tasks as study, verification
-from .generation_journal import Campaign, encoded, require
+from .generation_journal import Campaign, encoded, require, sync_directory
 
 RUN_FIELDS = {"schema_version", "experiment_id", "cohort", "activation", "reference_gate",
               "recipes", "assigned_task_ids", "policy_sha256"}
@@ -273,3 +275,67 @@ def snapshot(campaign, *, selections=None):
                     artifacts=files, selections=selected, report_sha256=digest(report))
     require(len(campaign.events) == len(events), "Snapshot prefix changed")
     return dict(events=raw, report=report, manifest=manifest, files=files)
+
+
+def publish(campaign, version, *, selections=None):
+    """Atomic visibility under the campaign lease; fsync ordering, not power-loss safety."""
+    require(type(version) is str and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", version), "Invalid export version")
+    exports = campaign.root / "exports"
+    require(not exports.is_symlink() and (not exports.exists() or exports.is_dir()), "Invalid exports directory")
+    state = snapshot(campaign, selections=selections)
+    require("version" not in state["manifest"], "Snapshot already versioned")
+    manifest = {**state["manifest"], "version": version, "source_sha256": {
+        p.name: sha256(p.read_bytes()).hexdigest() for p in sorted(Path(__file__).parent.glob("*.py"))}}
+    generated = {"manifest.json": encoded(manifest).encode(), "report.json": encoded(state["report"]).encode(),
+                 "events.jsonl": state["events"]}
+    artifacts = {}
+    for origin, item in state["files"].items():
+        name = item["path"]
+        require(len(Path(name).parts) == 2 and Path(name).parts[0] == "artifacts"
+                and name == str(Path(name)), "Invalid flat artifact path")
+        require(name not in artifacts or artifacts[name][1] == item, "Conflicting artifact destination")
+        artifacts[name] = (origin, item)
+    expected = {(name, False) for name in generated.keys() | artifacts.keys()} | {("artifacts", True)}
+    destination = exports / version
+    identity = {"path": str(destination), "manifest_sha256": sha256(generated["manifest.json"]).hexdigest()}
+    exports.mkdir(exist_ok=True)
+    sync_directory(campaign.root)
+
+    def validate(directory):
+        require(directory.resolve() == directory and directory.is_dir(), "Invalid published directory")
+        actual = set()
+        for parent, directories, filenames in os.walk(directory, followlinks=False,
+                onerror=lambda error: require(False, "Unreadable published tree")):
+            for name in directories + filenames:
+                path = Path(parent) / name
+                mode = path.lstat().st_mode
+                require(stat.S_ISDIR(mode) or stat.S_ISREG(mode), "Nonregular published entry")
+                actual.add((str(path.relative_to(directory)), stat.S_ISDIR(mode)))
+        require(actual == expected, "Published tree differs")
+        for name, raw in generated.items(): read_artifact(directory, name, sha256(raw).hexdigest(), len(raw))
+        for name, (_, item) in artifacts.items(): read_artifact(directory, name, item["sha256"], item["bytes"])
+
+    if os.path.lexists(destination):
+        validate(destination)
+        sync_directory(exports)
+        return identity
+    with tempfile.TemporaryDirectory(prefix=".staging-", dir=exports) as temporary:
+        staging = Path(temporary)
+        (staging / "artifacts").mkdir()
+        for name in [*generated, *artifacts]:
+            if name in generated:
+                raw = generated[name]
+            else:
+                origin, item = artifacts[name]
+                raw = read_artifact(campaign.root, origin, item["sha256"], item["bytes"])
+            with (staging / name).open("xb") as output:
+                output.write(raw)
+                output.flush()
+                os.fsync(output.fileno())
+        validate(staging)
+        sync_directory(staging / "artifacts")
+        sync_directory(staging)
+        if os.path.lexists(destination): raise FileExistsError(destination)
+        os.rename(staging, destination)
+        sync_directory(exports)
+    return identity

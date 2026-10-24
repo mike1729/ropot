@@ -20,6 +20,7 @@ L = importlib.import_module("src.data-pipeline.local_runner")
 _exited, _kill_group = L._exited, L._kill_group
 CHECKS = {"greedy_equal", "eos_at_cap", "length_cap", "reinsert_equal", "seed_independent"}
 STDOUT_LIMIT, STDERR_LIMIT = 64 * 1024**2, 16 * 1024**2
+QUALIFICATION_LIMITS = {"job.json": 4 * 1024**2, "stdout.jsonl": STDOUT_LIMIT, "response.json": STDOUT_LIMIT, "cache-control.json": 4096}
 FIELDS = {"start": "pid", "controls_checked": "request_sha256 proof", "ready": "eos_token_ids fixtures provenance hash_seconds load_seconds",
     "window_start": "id started_seconds", "admit": "window uid row_index t_seconds", "token": "window uid seq token finish_reason t_seconds",
     "window_done": "window elapsed stats memory", "qualification": "checks", "done": ""}
@@ -72,7 +73,7 @@ def watch_lease_parent():
     threading.Thread(target=watch, daemon=True).start()
 
 
-def _shape(job):
+def _shape(job, *, historical=False):
     G.require(type(job) is dict and set(job) - {"cache_limit_bytes"} == {"schema_version", "request", "fixtures", "windows", "worker", "wall_seconds", "source_hashes"}
               and type(job["schema_version"]) is int and job["schema_version"] in (1, 2), "Invalid job fields")
     long = job["schema_version"] == 2
@@ -80,9 +81,15 @@ def _shape(job):
         G.require(type(job["cache_limit_bytes"]) is int and job["cache_limit_bytes"] in (0, 4 * 1024**3, 8 * 1024**3), "Invalid allocator cache limit")
     G.require(type(job["worker"]) is str and Path(job["worker"]).is_absolute()
               and _number(job["wall_seconds"]) and 0 < job["wall_seconds"] <= 1200, "Invalid launch bounds")
-    paths = {Path(job["worker"]).resolve(), Path(__file__).resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
-    G.require(type(job["source_hashes"]) is dict and set(job["source_hashes"]) == {str(p) for p in paths}
-              and all(G.P._sha(h) for h in job["source_hashes"].values()), "Invalid source map")
+    sources = job["source_hashes"]
+    G.require(type(sources) is dict and all(G.P._sha(h) for h in sources.values()), "Invalid source map")
+    if historical:
+        G.require(len(sources) == 6 and job["worker"] in sources and all(type(p) is str and os.path.isabs(p)
+            and os.path.normpath(p) == p for p in sources), "Invalid historical source map")
+        G.require(job["request"]["precision_profile"]["guard_sha256"] in sources.values(), "Qualification guard differs")
+    else:
+        paths = {Path(job["worker"]).resolve(), Path(__file__).resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
+        G.require(set(sources) == {str(p) for p in paths}, "Invalid source map")
     fixtures, windows = job["fixtures"], job["windows"]
     G.require(type(fixtures) is list and (len(fixtures) == 2 if long else 1 <= len(fixtures) <= 8 or len(fixtures) == 32)
               and type(windows) is list and 1 <= len(windows) <= 56, "Invalid panel bounds")
@@ -288,6 +295,90 @@ def _sample(pid):
                     available_bytes=psutil.virtual_memory().available, swap_bytes=psutil.swap_memory().used)
     except Exception as error:
         return dict(error=repr(error))
+
+
+def _qualification_file(directory, name, limit):
+    descriptor = os.open(Path(directory) / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(descriptor)
+        G.require(stat.S_ISREG(info.st_mode) and info.st_size <= limit, "Invalid qualification file")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            raw = stream.read(limit + 1)
+    finally:
+        os.close(descriptor)
+    G.require(len(raw) <= limit, "Qualification file limit")
+    return raw
+
+
+def qualification_checked(files):
+    G.require(type(files) is dict and {"job.json", "stdout.jsonl", "response.json"} <= set(files) <= set(QUALIFICATION_LIMITS)
+        and all(type(raw) is bytes and len(raw) <= QUALIFICATION_LIMITS[name] for name, raw in files.items()), "Invalid qualification files")
+    try:
+        job, response = (G.snapshot(json.loads(files[name])) for name in ("job.json", "response.json"))
+        _shape(job, historical=True)
+        G.require(job["schema_version"] == 2 and files["job.json"] == _raw(job), "Qualification job differs")
+        G.require(("cache-control.json" in files) == ("cache_limit_bytes" in job), "Qualification cache files differ")
+        request = job["request"]; descriptor = G._profile(request)
+        G.require(set(request) == G.FIELDS | {"environment", "precision_profile"} and type(request["max_tokens"]) is int
+            and type(request["seed"]) is int and 0 <= request["seed"] < 2**64
+            and G.P.digest(request["environment"]) == G.P.digest(descriptor["expected_runtime"]["environment"]), "Qualification request differs")
+        G.require(type(response) is dict and type(response["pid"]) is int and response["pid"] > 0
+            and type(response["returncode"]) is int and response["returncode"] == 0 and response["status"] == "passed"
+            and response["complete"] is True and response["group_absent"] is True
+            and all(response[k] is None for k in ("cleanup_error", "parent_error", "protocol_error")), "Qualification parent proof differs")
+        G.require(_number(response["work_seconds"]) and 0 < response["work_seconds"] <= 240
+            and _number(response["elapsed_seconds"]) and response["elapsed_seconds"] >= response["work_seconds"]
+            and _number(response["cleanup_seconds"]) and response["cleanup_seconds"] <= response["elapsed_seconds"], "Qualification timing differs")
+        telemetry = response["telemetry"]; counters = {"t_seconds", "cpu_seconds", "rss_bytes", "available_bytes", "swap_bytes"}
+        G.require(response["telemetry_complete"] is True and type(telemetry) is list and bool(telemetry)
+            and all(type(sample) is dict and counters <= set(sample) and "error" not in sample
+                    and all(_number(sample[k]) for k in counters) for sample in telemetry), "Qualification telemetry differs")
+        parsed = validate_events(files["stdout.jsonl"], job, pid=response["pid"])
+        parent = set("job_sha256 status pid returncode elapsed_seconds cleanup_seconds group_absent cleanup_error parent_error telemetry telemetry_complete work_seconds".split())
+        G.require(set(response) == set(parsed) | parent and response["job_sha256"] == sha256(files["job.json"]).hexdigest()
+            and parsed["complete"] and G.P.digest({k: response[k] for k in parsed}) == G.P.digest(parsed), "Qualification protocol differs")
+        if "cache_limit_bytes" in job:
+            proof = G.snapshot(json.loads(files["cache-control.json"]))
+            G.require(proof["job_sha256"] == response["job_sha256"] and all(type(proof[k]) is int
+                and proof[k] == job["cache_limit_bytes"] for k in ("requested_bytes", "observed_bytes")), "Qualification cache proof differs")
+        stress = parsed["long_stress"]
+        admission = dict(schema_version=1, request_controls={k: v for k, v in request.items() if k not in ("messages", "seed")},
+            config=job["windows"][-1]["config"], source_hashes=job["source_hashes"], prompt_ceiling_tokens=stress["prompt_token_ceiling"],
+            stress_prompt_tokens=dict(min=stress["prompt_tokens_min"], max=stress["prompt_tokens_max"]),
+            inputs={name: dict(sha256=sha256(raw).hexdigest(), bytes=len(raw)) for name, raw in files.items()})
+        if "cache_limit_bytes" in job: admission["cache_limit_bytes"] = job["cache_limit_bytes"]
+        return G.snapshot(admission)
+    except (KeyError, TypeError) as error:
+        raise ValueError("Invalid qualification metadata") from error
+
+
+def read_qualification(directory, expected_response_sha256):
+    response = _qualification_file(directory, "response.json", QUALIFICATION_LIMITS["response.json"])
+    G.require(G.P._sha(expected_response_sha256) and sha256(response).hexdigest() == expected_response_sha256, "Qualification authority differs")
+    files = {name: _qualification_file(directory, name, QUALIFICATION_LIMITS[name]) for name in ("job.json", "stdout.jsonl")}
+    files["response.json"] = response
+    if "cache_limit_bytes" in json.loads(files["job.json"]):
+        files["cache-control.json"] = _qualification_file(directory, "cache-control.json", QUALIFICATION_LIMITS["cache-control.json"])
+    return qualification_checked(files), files
+
+
+def copy_qualification(files, directory, expected_response_sha256):
+    G.require(type(files) is dict and type(files.get("response.json")) is bytes and G.P._sha(expected_response_sha256)
+        and sha256(files.get("response.json", b"")).hexdigest() == expected_response_sha256, "Qualification authority differs")
+    files = dict(files); admission = qualification_checked(files)
+    directory = Path(directory); directory.mkdir()
+    for name, raw in files.items(): _write(directory / name, raw)
+    _sync(directory); _sync(directory.parent)
+    return admission
+
+
+def current_source_compatible(admission):
+    paths = {Path(__file__).resolve(), Path(__file__).with_name("mlx_batch_throughput.py").resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
+    G.require(set(admission["source_hashes"]) == {str(p) for p in paths}, "Qualified source paths differ")
+    try:
+        G.require(all(sha256(p.read_bytes()).hexdigest() == admission["source_hashes"][str(p)] for p in paths), "Qualified source changed")
+    except OSError as error:
+        raise ValueError("Qualified source changed") from error
 
 
 def run(job, output, lock_path, *, lease_fd=None):

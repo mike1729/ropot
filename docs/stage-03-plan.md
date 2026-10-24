@@ -609,3 +609,10 @@ minimum observed context length across all stress rows, never an assumed 4,096.
 Select a common capacity per source by testing both precisions at 8, then 4 or 2
 only after a proven resource/deadline failure; retain every attempt and cleanup.
 Run actual qualification after all captured adapter/helper sources are final.
+
+The throughput helper's qualification reader validates a pinned response SHA,
+reparses the copied raw schema 2 protocol, and derives the proven configuration
+and minimum stress-context bound. Historical validation needs only retained bytes;
+new launches separately require the entire qualified source map to match current
+files. Qualification copies preserve exact job, raw output, parent receipt and
+optional cache-control bytes. These helpers authorize no cohort dispatch by themselves.

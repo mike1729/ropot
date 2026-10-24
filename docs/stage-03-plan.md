@@ -581,3 +581,6 @@ for an explicitly coordinated experiment: both duplicate the same existing flock
 description and retain it through worker cleanup. In this mode stdin EOF interrupts
 the owning parent through its normal receipt and cleanup path. GPU window starts
 and CPU eval starts retain host monotonic anchors for measuring actual overlap.
+Optional GPU `--cache-gib 0|4|8` binds a post-load MLX allocator free-cache limit to
+the job and retains its setter readback in `cache-control.json`. Omission preserves
+the runtime default. This changes unused allocator memory, independently of KV state.

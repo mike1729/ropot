@@ -73,8 +73,10 @@ def watch_lease_parent():
 
 
 def _shape(job):
-    G.require(type(job) is dict and set(job) == {"schema_version", "request", "fixtures", "windows", "worker", "wall_seconds", "source_hashes"}
+    G.require(type(job) is dict and set(job) - {"cache_limit_bytes"} == {"schema_version", "request", "fixtures", "windows", "worker", "wall_seconds", "source_hashes"}
               and type(job["schema_version"]) is int and job["schema_version"] == 1, "Invalid job fields")
+    if "cache_limit_bytes" in job:
+        G.require(type(job["cache_limit_bytes"]) is int and job["cache_limit_bytes"] in (0, 4 * 1024**3, 8 * 1024**3), "Invalid allocator cache limit")
     G.require(type(job["worker"]) is str and Path(job["worker"]).is_absolute()
               and _number(job["wall_seconds"]) and 0 < job["wall_seconds"] <= 1200, "Invalid launch bounds")
     paths = {Path(job["worker"]).resolve(), Path(__file__).resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
@@ -126,7 +128,7 @@ def _shape(job):
               and sum(n for n, o in zip(counts, order) if o == 1) == 1, "Invalid job workload")
 
 
-def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200):
+def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200, cache_limit_bytes=None):
     request, _ = G.prepare_request(request)
     G.require("precision_profile" in request, "Require precision profile")
     windows = G.snapshot(windows)
@@ -139,6 +141,7 @@ def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200):
     paths = {Path(worker).resolve(), Path(__file__).resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
     job = dict(schema_version=1, request=request, fixtures=G.snapshot(fixtures), windows=windows, worker=str(Path(worker).resolve()),
                wall_seconds=wall_seconds, source_hashes={str(p): sha256(p.read_bytes()).hexdigest() for p in paths})
+    if cache_limit_bytes is not None: job["cache_limit_bytes"] = cache_limit_bytes
     _shape(job)
     return job
 

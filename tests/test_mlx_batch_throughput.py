@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import chdir, contextmanager
 import copy
 import importlib
 import json
@@ -180,3 +180,54 @@ class MlxBatchThroughputTests(unittest.TestCase):
         for field, value in (("tokens", [7] * 16), ("text", "wrong late decode"), ("finish_reason", "stop")):
             changed = copy.deepcopy(results); changed["q2"][-1][field] = value
             with self.subTest(field=field): self.assertFalse(self.B.qualification_checks(changed, True)["greedy_equal"])
+
+    def test_cache_limit_is_optional_hash_bound_and_strictly_finite(self):
+        parent = importlib.import_module("experiments.batch_throughput")
+        default = self.B.build_job(self.d, [self.config])
+        self.assertNotIn("cache_limit_bytes", default)
+        self.assertEqual(default, self.B.build_job(self.d, [self.config], cache_limit_bytes=None))
+        for limit in (0, 4 * 1024**3, 8 * 1024**3):
+            job = self.B.build_job(self.d, [self.config], cache_limit_bytes=limit)
+            self.assertEqual(job["cache_limit_bytes"], limit)
+            self.assertEqual({k: v for k, v in job.items() if k != "cache_limit_bytes"}, default)
+            self.assertNotEqual(parent.sha256(parent._raw(job)).hexdigest(), parent.sha256(parent._raw(default)).hexdigest())
+        for invalid in (True, False, -1, 1, float(4 * 1024**3)):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, "allocator cache"):
+                self.B.build_job(self.d, [self.config], cache_limit_bytes=invalid)
+        with self.assertRaisesRegex(ValueError, "allocator cache"): parent._shape(dict(default, cache_limit_bytes=None))
+
+    def test_cache_setting_readback_proof_and_omitted_default(self):
+        with chdir(self.root), mock.patch.object(self.mx, "set_cache_limit", create=True) as setter:
+            self.B.configure_cache({}, "a" * 64)
+            setter.assert_not_called(); self.assertFalse((self.root / "cache-control.json").exists())
+        for limit in (0, 4 * 1024**3, 8 * 1024**3):
+            directory = self.root / f"cache-{limit}"; directory.mkdir()
+            with chdir(directory), mock.patch.object(self.mx, "set_cache_limit", side_effect=[17, limit], create=True) as setter, \
+                 mock.patch.object(self.B.os, "fsync", wraps=self.B.os.fsync) as synced:
+                self.B.configure_cache(dict(cache_limit_bytes=limit), "b" * 64)
+            self.assertEqual(setter.call_args_list, [mock.call(limit), mock.call(limit)]); synced.assert_called_once()
+            self.assertEqual(json.loads((directory / "cache-control.json").read_bytes()), dict(job_sha256="b" * 64,
+                requested_bytes=limit, previous_bytes=17, observed_bytes=limit))
+
+    def test_cache_mismatch_retains_fsynced_observation_before_failure(self):
+        for i, (requested, observed) in enumerate(((4 * 1024**3, 0), (0, False), (4 * 1024**3, None))):
+            directory = self.root / f"mismatch-{i}"; directory.mkdir()
+            with chdir(directory), mock.patch.object(self.mx, "set_cache_limit", side_effect=[23, observed], create=True), \
+                 mock.patch.object(self.B.os, "fsync", wraps=self.B.os.fsync) as synced:
+                with self.assertRaisesRegex(RuntimeError, "not honored"): self.B.configure_cache(dict(cache_limit_bytes=requested), "c" * 64)
+                synced.assert_called_once()
+                self.assertEqual(json.loads((directory / "cache-control.json").read_bytes()), dict(job_sha256="c" * 64,
+                    requested_bytes=requested, previous_bytes=23, observed_bytes=observed))
+
+    def test_cli_preserves_omitted_and_explicit_zero_cache_values(self):
+        parent = importlib.import_module("experiments.batch_throughput")
+        path = self.root / "cache-profiles.json"; self.put(path, dict(profiles={str(self.d["bits"]): {self.d["source"]: dict(descriptor=self.d)}}))
+        for limit in (None, 0, 4):
+            output = self.root / f"cache-cli-{limit}"
+            argv = [self.B.__file__, "--run", "--profiles", str(path), "--source", self.d["source"], "--bits", str(self.d["bits"]),
+                    "--configs", json.dumps([self.config]), "--output", str(output), "--lock", str(self.root / "lock")]
+            if limit is not None: argv += ["--cache-gib", str(limit)]
+            with mock.patch.object(self.B.sys, "argv", argv), mock.patch.object(self.B, "build_job", return_value={}) as build, \
+                 mock.patch.object(parent, "run", return_value=dict(status="passed", observed_generation_tokens=0, elapsed_seconds=1, protocol_error=None, windows=[])), mock.patch("builtins.print"):
+                self.assertFalse(self.B.main())
+            self.assertEqual(build.call_args.kwargs["cache_limit_bytes"], None if limit is None else limit * 1024**3)

@@ -15,7 +15,7 @@ mx = BatchGenerator = make_sampler = None
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build_job(descriptor, configs, wall_seconds=1170, *, panel_size=8):
+def build_job(descriptor, configs, wall_seconds=1170, *, panel_size=8, cache_limit_bytes=None):
     B = importlib.import_module("experiments.batch_throughput")
     B.G.require(type(configs) is list and 1 <= len(configs) <= 7
                 and len({json.dumps(c, sort_keys=True) for c in configs}) == len(configs), "Require distinct finite configs")
@@ -53,7 +53,20 @@ def build_job(descriptor, configs, wall_seconds=1170, *, panel_size=8):
             windows.append(dict(id=f"m{index}-r{repeat}", mode="measure", config=config, rows=[row(i, 128) for i in range(panel_size)]))
     request = B.G.request_for(descriptor["source"], fixtures[0]["messages"], profile=descriptor,
         seed=20261024, temperature=.2, top_p=.95, max_tokens=128, wall_time_seconds=wall_seconds)
-    return B.build_plan(request, fixtures, windows, worker=__file__, wall_seconds=wall_seconds)
+    return B.build_plan(request, fixtures, windows, worker=__file__, wall_seconds=wall_seconds, cache_limit_bytes=cache_limit_bytes)
+
+
+def configure_cache(job, identity):
+    if "cache_limit_bytes" not in job: return
+    requested = job["cache_limit_bytes"]
+    previous = mx.set_cache_limit(requested)
+    observed = mx.set_cache_limit(requested)
+    with Path("cache-control.json").open("x") as output:
+        json.dump(dict(job_sha256=identity, requested_bytes=requested, previous_bytes=previous, observed_bytes=observed), output)
+        output.flush()
+        os.fsync(output.fileno())
+    if type(observed) is not int or observed != requested:
+        raise RuntimeError("Allocator cache limit not honored")
 
 
 def sampler_for(row, eos, safe):
@@ -175,6 +188,7 @@ def run_job(job, identity, emit):
     model, tokenizer, config, proof, post = M.controlled_load(request, guard, model_files, sources, emit,
         load, stream_generate, make_sampler, identity=identity, tokenizer_config=tokenizer_config)
     load_seconds = monotonic() - started
+    configure_cache(job, identity)
     started = monotonic()
     fixtures = []
     for fixture in job["fixtures"]:
@@ -217,13 +231,15 @@ def main():
         parser.add_argument("--wall", type=float, default=1170)
         parser.add_argument("--panel-size", type=int, choices=(8, 32), default=8)
         parser.add_argument("--lease-fd", type=int)
+        parser.add_argument("--cache-gib", type=int, choices=(0, 4, 8))
         args = parser.parse_args(sys.argv[2:])
         raw = Path(args.profiles).read_bytes()
         descriptor = json.loads(raw)["profiles"][args.bits][args.source]["descriptor"]
         B = importlib.import_module("experiments.batch_throughput")
         B.G.require(descriptor["source"] == args.source and str(descriptor["bits"]) == args.bits, "Profile label differs")
         if args.lease_fd is not None: B.watch_lease_parent()
-        job = build_job(descriptor, json.loads(args.configs), args.wall, panel_size=args.panel_size)
+        job = build_job(descriptor, json.loads(args.configs), args.wall, panel_size=args.panel_size,
+            cache_limit_bytes=None if args.cache_gib is None else args.cache_gib * 1024**3)
         output = Path(args.output).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         B._write(output.with_name(output.name + "-inputs.json"), dict(profiles_sha256=sha256(raw).hexdigest(),

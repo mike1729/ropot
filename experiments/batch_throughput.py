@@ -74,7 +74,8 @@ def watch_lease_parent():
 
 def _shape(job):
     G.require(type(job) is dict and set(job) - {"cache_limit_bytes"} == {"schema_version", "request", "fixtures", "windows", "worker", "wall_seconds", "source_hashes"}
-              and type(job["schema_version"]) is int and job["schema_version"] == 1, "Invalid job fields")
+              and type(job["schema_version"]) is int and job["schema_version"] in (1, 2), "Invalid job fields")
+    long = job["schema_version"] == 2
     if "cache_limit_bytes" in job:
         G.require(type(job["cache_limit_bytes"]) is int and job["cache_limit_bytes"] in (0, 4 * 1024**3, 8 * 1024**3), "Invalid allocator cache limit")
     G.require(type(job["worker"]) is str and Path(job["worker"]).is_absolute()
@@ -83,7 +84,7 @@ def _shape(job):
     G.require(type(job["source_hashes"]) is dict and set(job["source_hashes"]) == {str(p) for p in paths}
               and all(G.P._sha(h) for h in job["source_hashes"].values()), "Invalid source map")
     fixtures, windows = job["fixtures"], job["windows"]
-    G.require(type(fixtures) is list and (1 <= len(fixtures) <= 8 or len(fixtures) == 32)
+    G.require(type(fixtures) is list and (len(fixtures) == 2 if long else 1 <= len(fixtures) <= 8 or len(fixtures) == 32)
               and type(windows) is list and 1 <= len(windows) <= 56, "Invalid panel bounds")
     expanded = len(fixtures) == 32
     for fixture in fixtures:
@@ -107,7 +108,7 @@ def _shape(job):
         G.require(type(rows) is list and 1 <= len(rows) <= (32 if expanded else 8), "Invalid window rows")
         for index, row in enumerate(rows):
             G.require(type(row) is dict and set(row) == {"fixture_id", "seed", "cap", "sampling", "after_row_index"} and row["fixture_id"] in ids
-                      and type(row["seed"]) is int and 0 <= row["seed"] < 2**64 and type(row["cap"]) is int and 1 <= row["cap"] <= 128
+                      and type(row["seed"]) is int and 0 <= row["seed"] < 2**64 and type(row["cap"]) is int and 1 <= row["cap"] <= (2048 if long else 128)
                       and row["sampling"] in ("sample", "greedy", "eos", "length") and (window["mode"] == "qualification" or row["sampling"] == "sample")
                       and (row["after_row_index"] is None or type(row["after_row_index"]) is int and 0 <= row["after_row_index"] < index), "Invalid row")
             caps += row["cap"]
@@ -123,12 +124,37 @@ def _shape(job):
         G.require(batch in (8, 16, 32) and len(q2) == 1 and len(q2[0]["rows"]) == batch
                   and q2[0]["config"] == dict(batch_size=batch, prefill_batch_size=batch, prefill_step_size=256), "Expanded qualification differs")
         qualification_count = batch + 6
-    G.require(len({w["id"] for w in windows}) == len(windows) and order == sorted(order) and sum(counts) <= 128 and caps <= 16384
+    if long:
+        _long_shape(job)
+        qualification_count = 2 * windows[-1]["config"]["batch_size"] + 6
+    G.require(len({w["id"] for w in windows}) == len(windows) and order == sorted(order) and sum(counts) <= 128 and caps <= (16555 if long else 16384)
               and sum(n for n, o in zip(counts, order) if o == 0) == qualification_count
-              and sum(n for n, o in zip(counts, order) if o == 1) == 1, "Invalid job workload")
+              and sum(n for n, o in zip(counts, order) if o == 1) == (0 if long else 1), "Invalid job workload")
 
 
-def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200, cache_limit_bytes=None):
+def _long_shape(job):
+    fixtures, windows, request = job["fixtures"], job["windows"], job["request"]
+    G.require([f["id"] for f in fixtures] == ["short", "long"] and [[m["role"] for m in f["messages"]] for f in fixtures]
+        == [["system", "user"], ["system", "user", "assistant", "user"]], "Long fixture roles differ")
+    G.require(job["wall_seconds"] == request["wall_time_seconds"] == 240 and request["max_tokens"] == 2048
+        and request["messages"] == fixtures[0]["messages"] and request["temperature"] == .2 and request["top_p"] == .95, "Long request bounds differ")
+    G.require([w["id"] for w in windows] == ["q0", "q1", "q2", "q3", "q4", "qlong"]
+        and all(w["mode"] == "qualification" for w in windows), "Long qualification order differs")
+    config = windows[-1]["config"]; batch = config["batch_size"]
+    G.require(batch in (2, 4, 8), "Long capacity differs")
+    reference = dict(config, batch_size=1, prefill_batch_size=1)
+    live = dict(config, batch_size=2, prefill_batch_size=2)
+    recipes = [[(0, 16, "greedy", None)], [(1, 16, "greedy", None)],
+        [(i % 2, 16, "greedy", None) for i in range(batch)],
+        [(0, 2, "eos", None), (1, 3, "length", None), (0, 3, "greedy", 0)], [(0, 3, "greedy", None)],
+        [(1, 2048, "eos" if i % 2 == 0 else "length", None) for i in range(batch)]]
+    for window, expected, recipe in zip(windows, (reference, reference, config, live, reference, config), recipes):
+        rows = [dict(fixture_id=fixtures[i]["id"], seed=fixtures[i]["seed"], cap=cap, sampling=sampling, after_row_index=after)
+                for i, cap, sampling, after in recipe]
+        G.require(window["config"] == expected and window["rows"] == rows, "Long qualification recipe differs")
+
+
+def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200, cache_limit_bytes=None, schema_version=1):
     request, _ = G.prepare_request(request)
     G.require("precision_profile" in request, "Require precision profile")
     windows = G.snapshot(windows)
@@ -139,7 +165,7 @@ def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200, cache_l
             G.require(type(row) is dict, "Invalid row")
             row.setdefault("after_row_index", None)
     paths = {Path(worker).resolve(), Path(__file__).resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
-    job = dict(schema_version=1, request=request, fixtures=G.snapshot(fixtures), windows=windows, worker=str(Path(worker).resolve()),
+    job = dict(schema_version=schema_version, request=request, fixtures=G.snapshot(fixtures), windows=windows, worker=str(Path(worker).resolve()),
                wall_seconds=wall_seconds, source_hashes={str(p): sha256(p.read_bytes()).hexdigest() for p in paths})
     if cache_limit_bytes is not None: job["cache_limit_bytes"] = cache_limit_bytes
     _shape(job)
@@ -150,6 +176,7 @@ def validate_events(raw, job, pid=None):
     events, observations, windows, current = [], [], [], None
     error, proof, eos, ready, qualified, complete, index = None, None, set(), False, False, False, 0
     identity = sha256(_raw(job)).hexdigest()
+    long, stress, ready_fixtures = job["schema_version"] == 2, None, None
     truncated, raw = len(raw) > STDOUT_LIMIT, raw[:STDOUT_LIMIT]
     try:
         for line in raw.splitlines(keepends=True):
@@ -157,7 +184,8 @@ def validate_events(raw, job, pid=None):
             G.require(line.endswith(b"\n"), "Incomplete protocol tail")
             event = G.snapshot(json.loads(line))
             kind = event["event"]
-            G.require(set(event) == {"event", "job_sha256"} | set(FIELDS[kind].split()) and event["job_sha256"] == identity, "Event binding differs")
+            fields = set(FIELDS[kind].split()) | ({"stress"} if long and kind == "qualification" else set())
+            G.require(set(event) == {"event", "job_sha256"} | fields and event["job_sha256"] == identity, "Event binding differs")
             if not events:
                 G.require(kind == "start" and type(event["pid"]) is int and event["pid"] > 0 and (pid is None or event["pid"] == pid), "Worker PID differs")
             elif kind == "controls_checked":
@@ -177,9 +205,9 @@ def validate_events(raw, job, pid=None):
                 G.require(type(event["fixtures"]) is list and len(event["fixtures"]) == len(job["fixtures"]), "Ready fixtures differ")
                 for fixture, planned in zip(event["fixtures"], job["fixtures"]):
                     G.require(set(fixture) == {"id", "prompt", "prompt_ids"} and fixture["id"] == planned["id"] and type(fixture["prompt"]) is str
-                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <= 1536
+                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <= (4096 if long else 1536)
                               and all(type(t) is int and t >= 0 for t in fixture["prompt_ids"]), "Ready fixtures differ")
-                eos, ready = set(event["eos_token_ids"]), True
+                eos, ready, ready_fixtures = set(event["eos_token_ids"]), True, event["fixtures"]
             elif kind == "window_start":
                 G.require(ready and current is None and index < len(job["windows"]) and event["id"] == job["windows"][index]["id"]
                           and _number(event["started_seconds"]) and event["started_seconds"] > 0, "Window order differs")
@@ -195,6 +223,8 @@ def validate_events(raw, job, pid=None):
                     G.require(type(row) is int and 0 <= row < len(current["plan"]["rows"]) and row not in current["rows"] and uid not in current["states"], "Duplicate or unknown row")
                     after = current["plan"]["rows"][row]["after_row_index"]
                     G.require(after is None or after in current["rows"] and current["states"][current["rows"][after]]["finish_reason"] is not None, "Early reinsert")
+                    if long and current["plan"]["id"] == "q3" and after is not None:
+                        G.require(any(s["finish_reason"] is None for s in current["states"].values()), "Reinsert has no live peer")
                     state = dict(window=event["window"], uid=uid, row_index=row, tokens=[], finish_reason=None,
                                  admit_seconds=event["t_seconds"], first_seconds=None, finish_seconds=None)
                     current["states"][uid], current["rows"][row] = state, uid
@@ -224,6 +254,18 @@ def validate_events(raw, job, pid=None):
             elif kind == "qualification":
                 G.require(ready and current is None and not qualified and index == sum(w["mode"] == "qualification" for w in job["windows"])
                           and type(event["checks"]) is dict and set(event["checks"]) == CHECKS and all(v is True for v in event["checks"].values()), "Qualification failed")
+                if long:
+                    rows = sorted((s for s in observations if s["window"] == "qlong"), key=lambda s: s["row_index"])
+                    planned = job["windows"][-1]; batch = planned["config"]["batch_size"]
+                    lengths = {f["id"]: len(f["prompt_ids"]) for f in ready_fixtures}
+                    prompts = [lengths[r["fixture_id"]] for r in planned["rows"]]
+                    G.require(len(rows) == batch and [r["row_index"] for r in rows] == list(range(batch))
+                        and all(len(r["tokens"]) == 2048 and r["finish_reason"] == ("stop" if i % 2 == 0 else "length")
+                        for i, r in enumerate(rows)) and 2826 < min(prompts) <= max(prompts) <= 4096, "Long stress incomplete")
+                    derived = dict(batch_size=batch, prompt_tokens_min=min(prompts), prompt_tokens_max=max(prompts),
+                        prompt_token_ceiling=min(prompts), max_tokens=2048, raw_generation_tokens=batch * 2048)
+                    G.require(G.P.digest(event["stress"]) == G.P.digest(derived), "Long stress proof differs")
+                    stress = derived
                 qualified = True
             else:
                 G.require(kind == "done" and ready and qualified and current is None and index == len(job["windows"]), "Incomplete job")
@@ -234,7 +276,8 @@ def validate_events(raw, job, pid=None):
         error = str(failure)
     if truncated: error = "Output limit; " + (error or "bounded prefix retained")
     return dict(events=events, protocol_error=error, complete=complete and error is None, observations=observations, windows=windows,
-                observed_generation_tokens=sum(len(s["tokens"]) for s in observations), finished_sequences=sum(s["finish_reason"] is not None for s in observations))
+                observed_generation_tokens=sum(len(s["tokens"]) for s in observations), finished_sequences=sum(s["finish_reason"] is not None for s in observations),
+                **({"long_stress": stress} if long else {}))
 
 
 def _sample(pid):
@@ -314,11 +357,14 @@ def run(job, output, lock_path, *, lease_fd=None):
                         if not isinstance(error, Exception): interruption, status = interruption or error, "cancelled"
         if (output / "stdout.jsonl").stat().st_size > STDOUT_LIMIT or (output / "stderr.txt").stat().st_size > STDERR_LIMIT: status = status or "output_limit"
         with (output / "stdout.jsonl").open("rb") as stream: parsed = validate_events(stream.read(STDOUT_LIMIT + 1), job, process.pid if process else None)
+        work_seconds = cleanup_started - started
+        if job["schema_version"] == 2 and work_seconds > job["wall_seconds"]: status = status or "timeout"
         passed = process is not None and process.returncode == 0 and parsed["complete"] and absent and cleanup_error is None
         response = dict(**parsed, job_sha256=sha256(_raw(job)).hexdigest(), status=status or ("passed" if passed else "worker_error"), pid=process.pid if process else None,
             returncode=process.returncode if process else None, elapsed_seconds=monotonic() - started, cleanup_seconds=monotonic() - cleanup_started,
             group_absent=absent, cleanup_error=cleanup_error, parent_error=repr(interruption) if interruption else None,
-            telemetry=samples, telemetry_complete=bool(samples) and all("error" not in s for s in samples))
+            telemetry=samples, telemetry_complete=bool(samples) and all("error" not in s for s in samples),
+            **({"work_seconds": work_seconds} if job["schema_version"] == 2 else {}))
         _write(output / "response.json", response)
         _sync(output)
         _sync(output.parent)

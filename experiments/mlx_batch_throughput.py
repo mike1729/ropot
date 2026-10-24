@@ -56,6 +56,45 @@ def build_job(descriptor, configs, wall_seconds=1170, *, panel_size=8, cache_lim
     return B.build_plan(request, fixtures, windows, worker=__file__, wall_seconds=wall_seconds, cache_limit_bytes=cache_limit_bytes)
 
 
+def build_long_job(descriptor, config, *, cache_limit_bytes=None):
+    B = importlib.import_module("experiments.batch_throughput")
+    config = B.G.snapshot(config)
+    system = dict(role="system", content="Write a complete Python 3.12 program. Return only code, without explanation.")
+    note = "Input values are separated by whitespace. Vertex labels start at one. Handle empty intermediate results. Keep all data local to this program.\n"
+    draft = "import sys\n\ndef solve():\n" + ("    # " + note) * 120 + "    values = list(map(int, sys.stdin.buffer.read().split()))\n    print(len(values))\n\nsolve()\n"
+    fixtures = [dict(id="short", seed=20261024, messages=[system,
+        dict(role="user", content="Read n then n integers. Print their sum. Handle an empty array.")]),
+        dict(id="long", seed=20261025, messages=[system,
+        dict(role="user", content="Read n,m and m undirected edges. Print the number of connected components, including isolated vertices. Use an iterative traversal."),
+        dict(role="assistant", content=draft), dict(role="user", content="The visible check reported an incorrect answer. Correct the draft. Read exactly m edges and count isolated vertices. Return a complete program.")])]
+    def row(i, cap, sampling="greedy", after=None):
+        return dict(fixture_id=fixtures[i]["id"], seed=fixtures[i]["seed"], cap=cap, sampling=sampling, after_row_index=after)
+    reference = dict(config, batch_size=1, prefill_batch_size=1)
+    live = dict(config, batch_size=2, prefill_batch_size=2)
+    batch = config["batch_size"]
+    windows = [dict(id=name, mode="qualification", config=c, rows=rows) for name, c, rows in (
+        ("q0", reference, [row(0, 16)]), ("q1", reference, [row(1, 16)]),
+        ("q2", config, [row(i % 2, 16) for i in range(batch)]),
+        ("q3", live, [row(0, 2, "eos"), row(1, 3, "length"), row(0, 3, after=0)]),
+        ("q4", reference, [row(0, 3)]),
+        ("qlong", config, [row(1, 2048, "eos" if i % 2 == 0 else "length") for i in range(batch)]))]
+    request = B.G.request_for(descriptor["source"], fixtures[0]["messages"], profile=descriptor,
+        seed=20261024, temperature=.2, top_p=.95, max_tokens=2048, wall_time_seconds=240)
+    return B.build_plan(request, fixtures, windows, worker=__file__, wall_seconds=240, cache_limit_bytes=cache_limit_bytes, schema_version=2)
+
+
+def long_stress(job, ready_fixtures, completed_rows):
+    window = job["windows"][-1]; batch = window["config"]["batch_size"]
+    lengths = {f["id"]: len(f["prompt_ids"]) for f in ready_fixtures}
+    prompts = [lengths[r["fixture_id"]] for r in window["rows"]]
+    if not (len(completed_rows) == len(prompts) == batch and 2826 < min(prompts) <= max(prompts) <= 4096
+        and all(len(r["tokens"]) == 2048 and all(type(t) is int and t >= 0 for t in r["tokens"])
+        and r["finish_reason"] == ("stop" if i % 2 == 0 else "length") for i, r in enumerate(completed_rows))):
+        raise ValueError("Long stress incomplete")
+    return dict(batch_size=batch, prompt_tokens_min=min(prompts), prompt_tokens_max=max(prompts),
+        prompt_token_ceiling=min(prompts), max_tokens=2048, raw_generation_tokens=batch * 2048)
+
+
 def configure_cache(job, identity):
     if "cache_limit_bytes" not in job: return
     requested = job["cache_limit_bytes"]
@@ -85,7 +124,7 @@ def sampler_for(row, eos, safe):
     return forced
 
 
-def run_window(model, tokenizer, fixtures, window, emit):
+def run_window(model, tokenizer, fixtures, window, emit, *, window_seconds=180):
     config, rows = window["config"], window["rows"]
     eos = sorted(tokenizer.eos_token_ids)
     safe = next(t for t in tokenizer.encode("0", add_special_tokens=False) if t not in eos)
@@ -101,7 +140,7 @@ def run_window(model, tokenizer, fixtures, window, emit):
         emit("window_start", id=window["id"], started_seconds=started)
         with gen.stats() as stats:
             while len(finished) < len(rows):
-                if monotonic() - started > 180:
+                if monotonic() - started > window_seconds:
                     raise TimeoutError("Cooperative window deadline")
                 for index, row in enumerate(rows):
                     if index in admitted or row["after_row_index"] is not None and row["after_row_index"] not in finished:
@@ -169,7 +208,7 @@ def run_job(job, identity, emit):
     for source, digest in job["source_hashes"].items():
         if M.file_sha256(source) != digest:
             raise M.Control("guard", "Benchmark source changed")
-    request = job["request"]
+    request, long = job["request"], job["schema_version"] == 2
     guard = M.load_guard(request)
     descriptor = request["precision_profile"]["descriptor"]
     model_files = M.inventory(Path(request["model_path"]), guard, descriptor)
@@ -195,10 +234,12 @@ def run_job(job, identity, emit):
         options = dict(add_generation_prompt=True, enable_thinking=False)
         prompt = tokenizer.apply_chat_template(fixture["messages"], tokenize=False, **options)
         ids = tokenizer.apply_chat_template(fixture["messages"], tokenize=True, **options)
-        if not 0 < len(ids) <= 1536:
+        if not 0 < len(ids) <= (4096 if long else 1536):
             raise RuntimeError("Fixture prompt outside token bound")
         fixtures.append(dict(id=fixture["id"], prompt=prompt, prompt_ids=ids))
-    if len(fixtures[0]["prompt_ids"]) == len(fixtures[4]["prompt_ids"]):
+    if long and len(fixtures[1]["prompt_ids"]) <= 2826:
+        raise RuntimeError("Long fixture does not cover the exposed prompt envelope")
+    if len(fixtures[0]["prompt_ids"]) == len(fixtures[1 if long else 4]["prompt_ids"]):
         raise RuntimeError("Qualification requires unequal prompts")
     M.observe(sources, descriptor["expected_runtime"]["sources"])
     emit("ready", fixtures=fixtures, eos_token_ids=sorted(tokenizer.eos_token_ids), hash_seconds=hash_seconds + monotonic() - started,
@@ -211,13 +252,14 @@ def run_job(job, identity, emit):
     results = {}
     with Path("decoded.jsonl").open("x") as decoded:
         for window in job["windows"]:
-            results[window["id"]] = run_window(model, tokenizer, {f["id"]: f for f in fixtures}, window, emit)
+            results[window["id"]] = run_window(model, tokenizer, {f["id"]: f for f in fixtures}, window, emit,
+                **({"window_seconds": 240} if long else {}))
             decoded.write(json.dumps(dict(job_sha256=identity, window=window["id"], rows=results[window["id"]]), ensure_ascii=False) + "\n")
             decoded.flush()
             os.fsync(decoded.fileno())
-            if window["id"] == "q4":
+            if window["id"] == ("qlong" if long else "q4"):
                 checks = qualification_checks(results, rng_ok)
-                emit("qualification", checks=checks)
+                emit("qualification", checks=checks, **({"stress": long_stress(job, fixtures, results["qlong"])} if long else {}))
                 if not all(checks.values()):
                     raise RuntimeError("Numerical batching qualification failed")
     emit("done")
@@ -228,7 +270,8 @@ def main():
         parser = argparse.ArgumentParser(description=__doc__)
         for name in ("profiles", "source", "bits", "configs", "output", "lock"):
             parser.add_argument("--" + name, required=True)
-        parser.add_argument("--wall", type=float, default=1170)
+        parser.add_argument("--wall", type=float)
+        parser.add_argument("--long-qualification", action="store_true")
         parser.add_argument("--panel-size", type=int, choices=(8, 32), default=8)
         parser.add_argument("--lease-fd", type=int)
         parser.add_argument("--cache-gib", type=int, choices=(0, 4, 8))
@@ -238,8 +281,12 @@ def main():
         B = importlib.import_module("experiments.batch_throughput")
         B.G.require(descriptor["source"] == args.source and str(descriptor["bits"]) == args.bits, "Profile label differs")
         if args.lease_fd is not None: B.watch_lease_parent()
-        job = build_job(descriptor, json.loads(args.configs), args.wall, panel_size=args.panel_size,
-            cache_limit_bytes=None if args.cache_gib is None else args.cache_gib * 1024**3)
+        configs, cache = json.loads(args.configs), None if args.cache_gib is None else args.cache_gib * 1024**3
+        if args.long_qualification:
+            B.G.require(type(configs) is list and len(configs) == 1 and args.panel_size == 8
+                and args.wall in (None, 240), "Long CLI bounds differ")
+            job = build_long_job(descriptor, configs[0], cache_limit_bytes=cache)
+        else: job = build_job(descriptor, configs, 1170 if args.wall is None else args.wall, panel_size=args.panel_size, cache_limit_bytes=cache)
         output = Path(args.output).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         B._write(output.with_name(output.name + "-inputs.json"), dict(profiles_sha256=sha256(raw).hexdigest(),

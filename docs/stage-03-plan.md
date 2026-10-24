@@ -596,3 +596,16 @@ selects the predeclared B32 pair or B8 pair before dispatch, otherwise skips bot
 The screen combines prior allocator observations with a 12 GiB margin; it is a
 heuristic, not a physical-memory bound. Useful rate counts only the 128 measured
 replies per phase; numerical qualification and warmup remain charged separately.
+
+The GPU CLI's `--long-qualification` mode uses one declared configuration and a
+240-second whole-job work deadline. Its separate schema 2 preserves the original
+short diagnostic format and runs only numerical/resource qualification windows.
+The greedy oracle uses the proposed prefill controls; the existing short live-row
+reinsertion check remains separate from the full-cap stress. Every row of that
+stress uses a long invented repair context and reaches 2,048 raw output tokens,
+alternating EOS-at-cap and length termination. Forced-token rates describe resource
+stress rather than sampled program quality. The qualified prompt ceiling is the
+minimum observed context length across all stress rows, never an assumed 4,096.
+Select a common capacity per source by testing both precisions at 8, then 4 or 2
+only after a proven resource/deadline failure; retain every attempt and cleanup.
+Run actual qualification after all captured adapter/helper sources are final.

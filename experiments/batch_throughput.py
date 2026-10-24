@@ -1,6 +1,7 @@
 """Owned fixture-only resident-batch jobs; no acquisition journal mutation."""
 
 import argparse
+from contextlib import contextmanager
 import fcntl
 from hashlib import sha256
 import importlib
@@ -8,8 +9,10 @@ import json
 import math
 import os
 from pathlib import Path
+import signal
 import stat
 import subprocess
+import threading
 from time import monotonic, sleep
 
 G = importlib.import_module("src.data-pipeline.local_generation")
@@ -18,7 +21,7 @@ _exited, _kill_group = L._exited, L._kill_group
 CHECKS = {"greedy_equal", "eos_at_cap", "length_cap", "reinsert_equal", "seed_independent"}
 STDOUT_LIMIT, STDERR_LIMIT = 64 * 1024**2, 16 * 1024**2
 FIELDS = {"start": "pid", "controls_checked": "request_sha256 proof", "ready": "eos_token_ids fixtures provenance hash_seconds load_seconds",
-    "window_start": "id", "admit": "window uid row_index t_seconds", "token": "window uid seq token finish_reason t_seconds",
+    "window_start": "id started_seconds", "admit": "window uid row_index t_seconds", "token": "window uid seq token finish_reason t_seconds",
     "window_done": "window elapsed stats memory", "qualification": "checks", "done": ""}
 
 
@@ -42,6 +45,31 @@ def _sync(path):
     descriptor = os.open(path, os.O_RDONLY)
     try: os.fsync(descriptor)
     finally: os.close(descriptor)
+
+
+@contextmanager
+def lease(lock_path, lease_fd=None):
+    G.require(lease_fd is None or type(lease_fd) is int and lease_fd >= 0, "Invalid inherited lease FD")
+    descriptor = (os.open(lock_path, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK)
+                  if lease_fd is None else os.dup(lease_fd))
+    try:
+        actual, expected = os.fstat(descriptor), os.stat(lock_path, follow_symlinks=False)
+        G.require(stat.S_ISREG(actual.st_mode) and stat.S_ISREG(expected.st_mode)
+                  and (actual.st_dev, actual.st_ino) == (expected.st_dev, expected.st_ino), "Lease inode differs")
+        stream = os.fdopen(descriptor, "r+b")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    with stream:
+        fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield stream
+
+
+def watch_lease_parent():
+    def watch():
+        while os.read(0, 1): pass
+        os.kill(os.getpid(), signal.SIGINT)
+    threading.Thread(target=watch, daemon=True).start()
 
 
 def _shape(job):
@@ -150,7 +178,8 @@ def validate_events(raw, job, pid=None):
                               and all(type(t) is int and t >= 0 for t in fixture["prompt_ids"]), "Ready fixtures differ")
                 eos, ready = set(event["eos_token_ids"]), True
             elif kind == "window_start":
-                G.require(ready and current is None and index < len(job["windows"]) and event["id"] == job["windows"][index]["id"], "Window order differs")
+                G.require(ready and current is None and index < len(job["windows"]) and event["id"] == job["windows"][index]["id"]
+                          and _number(event["started_seconds"]) and event["started_seconds"] > 0, "Window order differs")
                 planned = job["windows"][index]
                 G.require(planned["mode"] == "qualification" or qualified, "Qualification required")
                 current = dict(plan=planned, states={}, rows={}, last=0)
@@ -215,21 +244,21 @@ def _sample(pid):
         return dict(error=repr(error))
 
 
-def run(job, output, lock_path):
+def run(job, output, lock_path, *, lease_fd=None):
     job = G.snapshot(job)
     _shape(job)
     G.require("precision_profile" in job["request"] and G.validate({k: v for k, v in job["request"].items() if k != "environment"}) == job["request"], "Request launch differs")
     sources = {p: Path(p).read_bytes() for p in job["source_hashes"]}
     G.require({p: sha256(raw).hexdigest() for p, raw in sources.items()} == job["source_hashes"], "Source changed")
-    with os.fdopen(os.open(lock_path, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK), "r+b") as lease:
-        G.require(stat.S_ISREG(os.fstat(lease.fileno()).st_mode), "Require regular lease")
-        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with lease(lock_path, lease_fd) as ownership:
         output = Path(output).resolve()
         output.mkdir(exist_ok=False)
         _write(output / "job.json", job)
         for index, raw in enumerate(sources.values()): _write(output / f"source-{index}.py", raw)
         argv = [str(G.INTERPRETER), "-I", "-B", job["worker"], str(output / "job.json")]
-        _write(output / "launch.json", dict(argv=argv, environment=job["request"]["environment"], lease_fd=lease.fileno(), sources=list(sources)))
+        lease_stat = os.fstat(ownership.fileno())
+        _write(output / "launch.json", dict(argv=argv, environment=job["request"]["environment"], lease_fd=ownership.fileno(),
+            lease_dev=lease_stat.st_dev, lease_ino=lease_stat.st_ino, sources=list(sources)))
         _sync(output)
         _sync(output.parent)
         started, process, status, interruption, cleanup_error = monotonic(), None, None, None, None
@@ -237,7 +266,7 @@ def run(job, output, lock_path):
         with (output / "stdout.jsonl").open("xb") as stdout, (output / "stderr.txt").open("xb") as stderr, (output / "telemetry.jsonl").open("xb") as telemetry:
             try:
                 process = subprocess.Popen(argv, cwd=output, env=job["request"]["environment"], stdin=subprocess.PIPE,
-                    stdout=stdout, stderr=stderr, start_new_session=True, pass_fds=(lease.fileno(),))
+                    stdout=stdout, stderr=stderr, start_new_session=True, pass_fds=(ownership.fileno(),))
                 while not _exited(process):
                     elapsed = monotonic() - started
                     if elapsed - sampled >= 1:

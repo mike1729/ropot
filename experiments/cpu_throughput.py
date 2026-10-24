@@ -3,7 +3,6 @@
 import argparse
 import base64
 from contextlib import contextmanager
-import fcntl
 from hashlib import sha256
 import importlib
 import json
@@ -13,7 +12,6 @@ import re
 import secrets
 import shutil
 import signal
-import stat
 import subprocess
 import sys
 import threading
@@ -60,18 +58,19 @@ def fixtures():
     return task, programs, expected
 
 
-def build_plan():
+def build_plan(*, coalesced_four=False):
+    require(type(coalesced_four) is bool, "Require boolean coalesced-four choice")
     docker = shutil.which("docker")
     require(docker is not None and Path(docker).is_absolute(), "Require available absolute Docker CLI")
     task, programs, expected = fixtures()
     paths = [WORKER, Path(__file__), Path(H.__file__), Path(H.L.__file__), ROOT / "configs/sandbox/compose.yaml"]
     paths += [ROOT / "src/data-pipeline" / n for n in ("inspect_runner.py", "verification.py", "screen.py", "native_recovery.py")]
     operations = []
-    for condition, c in enumerate((1, 2, 4, 0, 0, 4, 2, 1)):
+    for condition, c in enumerate((4, 4) if coalesced_four else (1, 2, 4, 0, 0, 4, 2, 1)):
         for indices in ([list(range(8))] if c else [[i] for i in range(8)]):
             operations.append(dict(operation_id=secrets.token_hex(6), condition=condition, mode="coalesced" if c else "old",
                                    concurrency=c or 4, indices=indices))
-    require(len({o["operation_id"] for o in operations}) == 22, "Duplicate operation ID")
+    require(len({o["operation_id"] for o in operations}) == (2 if coalesced_four else 22), "Duplicate operation ID")
     return dict(schema_version=1, task=task, programs=[base64.b64encode(p).decode() for p in programs], expected=expected,
         operations=operations, source_hashes={str(p): sha256(p.read_bytes()).hexdigest() for p in paths},
         environment={k: v for k, v in os.environ.items() if k in ("HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG")}
@@ -162,7 +161,7 @@ def _operation(job, directory, operation, seen):
     _sync(path.parent)
     closure = _closed(opid, daemon)
     result = dict(**checked, operation=operation, log=str(path), log_sha256=sha256(path.read_bytes()).hexdigest(),
-        eval_seconds=eval_seconds, closure=closure, total_seconds=monotonic() - started)
+        eval_started_seconds=before, eval_seconds=eval_seconds, closure=closure, total_seconds=monotonic() - started)
     _write(op / "result.json", result)
     _sync(op); _sync(op.parent)
     return result
@@ -186,7 +185,7 @@ def _worker(jobfile):
     _native()
     setup_seconds = monotonic() - setup_started
     _write(directory / "setup.json", dict(setup_seconds=setup_seconds)); _sync(directory)
-    for condition in range(8):
+    for condition in dict.fromkeys(op["condition"] for op in job["operations"]):
         started = monotonic()
         results = []
         for op in (o for o in job["operations"] if o["condition"] == condition):
@@ -201,25 +200,26 @@ def _worker(jobfile):
             programs=sum(len(r["results"]) for r in results), programs_per_second=8 / elapsed,
             verified_programs_per_second=sum(x["status"] == "passed" for r in results for x in r["results"]) / elapsed))
         _write(directory / f"condition-{condition}.json", conditions[-1]); _sync(directory)
-    _write(directory / "summary.json", dict(conditions=conditions, setup_seconds=setup_seconds, generator_requests=0, verifications=64, eval_starts=22))
+    _write(directory / "summary.json", dict(conditions=conditions, setup_seconds=setup_seconds, generator_requests=0,
+        verifications=sum(len(op["indices"]) for op in job["operations"]), eval_starts=len(job["operations"])))
     _sync(directory)
     print(json.dumps(dict(event="done", job_sha256=identity)), file=protocol, flush=True)
 
 
-def run(directory, lock_path):
-    job = build_plan()
+def run(directory, lock_path, *, lease_fd=None, coalesced_four=False):
+    job = build_plan(coalesced_four=coalesced_four)
     identity = sha256(_raw(job)).hexdigest()
     directory = Path(directory).resolve()
-    with os.fdopen(os.open(lock_path, os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK), "r+b") as lease:
-        require(stat.S_ISREG(os.fstat(lease.fileno()).st_mode), "Require regular lease")
-        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with H.lease(lock_path, lease_fd) as lease:
         directory.mkdir()
         _write(directory / "job.json", job)
         for i, (p, h) in enumerate(job["source_hashes"].items()):
             raw = Path(p).read_bytes(); require(sha256(raw).hexdigest() == h, "Source changed")
             _write(directory / f"source-{i}", raw)
         argv = [str(INTERPRETER), "-I", "-B", str(WORKER), "--worker", str(directory / "job.json")]
-        _write(directory / "launch.json", dict(argv=argv, environment=job["environment"], lease_fd=lease.fileno()))
+        lease_stat = os.fstat(lease.fileno())
+        _write(directory / "launch.json", dict(argv=argv, environment=job["environment"], lease_fd=lease.fileno(),
+            lease_dev=lease_stat.st_dev, lease_ino=lease_stat.st_ino))
         _sync(directory); _sync(directory.parent)
         started, process, status, interruption, error = monotonic(), None, None, None, None
         with (directory / "stdout.jsonl").open("xb") as out, (directory / "stderr.txt").open("xb") as err:
@@ -292,7 +292,7 @@ def run(directory, lock_path):
                 error = error or repr(failure)
                 audit_errors.append(dict(operation_id=operation["operation_id"], error=repr(failure)))
                 if not isinstance(failure, Exception): interruption, status = interruption or failure, "cancelled"; break
-        passed = process is not None and process.returncode == 0 and protocol_error is None and absent and error is None and len(results) == len(proofs) == 22
+        passed = process is not None and process.returncode == 0 and protocol_error is None and absent and error is None and len(results) == len(proofs) == len(job["operations"])
         response = dict(status=status or ("passed" if passed else "worker_error"), job_sha256=sha256(_raw(job)).hexdigest(),
             pid=process.pid if process else None, returncode=process.returncode if process else None, group_absent=absent,
             cleanup_error=error, protocol_error=protocol_error, parent_error=repr(interruption) if interruption else None,
@@ -310,10 +310,13 @@ def main(argv=None):
     parser.add_argument("--worker")
     parser.add_argument("--output")
     parser.add_argument("--lock")
+    parser.add_argument("--lease-fd", type=int)
+    parser.add_argument("--coalesced-four", action="store_true")
     args = parser.parse_args(argv)
     if args.worker: _worker(args.worker); return 0
     parser.error("require --output and --lock") if not (args.output and args.lock) else None
-    result = run(args.output, args.lock)
+    if args.lease_fd is not None: H.watch_lease_parent()
+    result = run(args.output, args.lock, lease_fd=args.lease_fd, coalesced_four=args.coalesced_four)
     print(json.dumps(dict(status=result["status"], attempted_eval_starts=result["attempted_eval_starts"])))
     return result["status"] != "passed"
 

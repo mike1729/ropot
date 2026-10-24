@@ -85,7 +85,7 @@ def run_window(model, tokenizer, fixtures, window, emit):
         before = dict(active_before_bytes=mx.get_active_memory(), cache_before_bytes=mx.get_cache_memory())
         mx.reset_peak_memory()
         started = monotonic()
-        emit("window_start", id=window["id"])
+        emit("window_start", id=window["id"], started_seconds=started)
         with gen.stats() as stats:
             while len(finished) < len(rows):
                 if monotonic() - started > 180:
@@ -216,17 +216,19 @@ def main():
             parser.add_argument("--" + name, required=True)
         parser.add_argument("--wall", type=float, default=1170)
         parser.add_argument("--panel-size", type=int, choices=(8, 32), default=8)
+        parser.add_argument("--lease-fd", type=int)
         args = parser.parse_args(sys.argv[2:])
         raw = Path(args.profiles).read_bytes()
         descriptor = json.loads(raw)["profiles"][args.bits][args.source]["descriptor"]
         B = importlib.import_module("experiments.batch_throughput")
         B.G.require(descriptor["source"] == args.source and str(descriptor["bits"]) == args.bits, "Profile label differs")
+        if args.lease_fd is not None: B.watch_lease_parent()
         job = build_job(descriptor, json.loads(args.configs), args.wall, panel_size=args.panel_size)
         output = Path(args.output).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         B._write(output.with_name(output.name + "-inputs.json"), dict(profiles_sha256=sha256(raw).hexdigest(),
             profiles_path=str(Path(args.profiles).resolve()), job_sha256=sha256(B._raw(job)).hexdigest(), argv=sys.argv))
-        result = B.run(job, output, args.lock)
+        result = B.run(job, output, args.lock, lease_fd=args.lease_fd)
         print(json.dumps({k: result[k] for k in ("status", "observed_generation_tokens", "elapsed_seconds", "protocol_error", "windows")}))
         return result["status"] != "passed"
     raw = Path(sys.argv[1]).read_bytes()

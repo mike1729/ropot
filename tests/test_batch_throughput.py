@@ -34,7 +34,7 @@ class BatchThroughputTests(unittest.TestCase):
             dict(event="ready", fixtures=[dict(id=f["id"], prompt=f["id"], prompt_ids=[1, 2]) for f in self.fixtures], eos_token_ids=[9],
                  provenance=dict(precision_controls=self.proof, precision_postload=self.roles(True), sources=self.d["expected_runtime"]["sources"]), hash_seconds=0, load_seconds=0)]
         for window in self.windows:
-            rows.append(dict(event="window_start", id=window["id"])); clock = 0
+            rows.append(dict(event="window_start", id=window["id"], started_seconds=1)); clock = 0
             for uid, row in enumerate(window["rows"]):
                 rows.append(dict(event="admit", window=window["id"], uid=uid, row_index=uid, t_seconds=clock))
                 for seq in range(1, row["cap"] + 1):
@@ -91,6 +91,9 @@ class BatchThroughputTests(unittest.TestCase):
         self.assertEqual(len(parsed["observations"]), 11)
         self.assertEqual([o["tokens"] for o in parsed["observations"] if o["window"] == "q2"], [[9], [3], [3]])
         self.assertFalse(self.parse(self.rows(), pid=8)["complete"])
+        for anchor in (0, -1, True, float("inf")):
+            rows = self.rows(); next(r for r in rows if r["event"] == "window_start")["started_seconds"] = anchor
+            with self.subTest(anchor=anchor): self.assertFalse(self.parse(rows)["complete"])
 
     def test_otherwise_valid_protocol_mutations_and_partial_prefix(self):
         for fault in ("proof", "source", "uid", "index", "row", "after", "finish", "eos", "time", "cap", "checks", "order", "afterdone", "count", "memory", "duplicate", "postfinish"):

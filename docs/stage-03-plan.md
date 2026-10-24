@@ -575,3 +575,9 @@ The first condition must pass its native oracle and resource-closure check befor
 continuation. Intents retain attempted costs; partial case counts are lower bounds.
 Compare native eval wall separately from total diagnostic ownership/proof overhead.
 The CPU worker freezes the discovered Docker CLI directory into its restricted PATH.
+Optional CPU `--coalesced-four` runs only two eight-program conditions at concurrency
+four, retaining the same native oracle. GPU and CPU parent CLIs accept `--lease-fd`
+for an explicitly coordinated experiment: both duplicate the same existing flock
+description and retain it through worker cleanup. In this mode stdin EOF interrupts
+the owning parent through its normal receipt and cleanup path. GPU window starts
+and CPU eval starts retain host monotonic anchors for measuring actual overlap.

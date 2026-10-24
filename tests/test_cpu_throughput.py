@@ -25,6 +25,22 @@ class CpuThroughputTests(unittest.TestCase):
         self.task, self.programs, self.expected = self.C.fixtures(); self.opid = "a" * 12
         self.items = [self.V.request(self.task, "b" * 64, program) for program in self.programs]
 
+    def test_opt_in_short_grid_preserves_default_and_native_oracle(self):
+        full, short = self.C.build_plan(), self.C.build_plan(coalesced_four=True)
+        self.assertEqual((len(full["operations"]), sum(len(o["indices"]) for o in full["operations"])), (22, 64))
+        self.assertEqual((len(short["operations"]), sum(len(o["indices"]) for o in short["operations"])), (2, 16))
+        self.assertEqual([(o["condition"], o["mode"], o["concurrency"], o["indices"]) for o in short["operations"]], [(i, "coalesced", 4, list(range(8))) for i in range(2)])
+        for field in ("task", "programs", "expected"): self.assertEqual(short[field], full[field])
+        for value in (1, None, "true"):
+            with self.assertRaisesRegex(ValueError, "boolean coalesced-four"): self.C.build_plan(coalesced_four=value)
+        directory = self.root / "short"; directory.mkdir(); path = directory / "job.json"; path.write_bytes(self.C._raw(short))
+        def settled(job, root, operation, seen): return dict(operation=operation, results=[dict(status="passed")] * len(operation["indices"]))
+        with mock.patch.object(self.C.os, "fdopen", return_value=io.StringIO()), mock.patch.object(self.C.os, "dup", return_value=1), mock.patch.object(self.C.os, "dup2"), mock.patch.object(self.C.threading, "Thread"), \
+             mock.patch.object(self.C, "_operation", side_effect=settled) as dispatch: self.C._worker(path)
+        summary = json.loads((directory / "summary.json").read_bytes())
+        self.assertEqual((dispatch.call_count, summary["eval_starts"], summary["verifications"]), (2, 2, 16))
+        self.assertEqual([c["programs"] for c in summary["conditions"]], [8, 8])
+
     def test_docker_discovery_is_frozen_and_missing_cli_fails_before_launch(self):
         docker = self.root / "docker"; docker.write_text("#!/bin/sh\nexit 0\n"); docker.chmod(0o755)
         with mock.patch.object(self.C.shutil, "which", return_value=str(docker)):

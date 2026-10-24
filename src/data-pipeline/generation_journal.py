@@ -185,6 +185,7 @@ class Campaign:
             self.require_native_clear()
             request = snapshot(request)
             prepared, raw = generation.prepare_request(request)
+            require("precision_profile" not in prepared, "Precision profiles require registered integration")
             events = self.events
             require(source in SOURCES and any(e["kind"] == "experiment" and e["experiment_id"] == experiment_id
                                              for e in events), "Require registered experiment/source")
@@ -230,7 +231,7 @@ class Campaign:
             require(type(response) is dict, "Invalid parent outcome object")
             response = snapshot(response)
         pid = response.get("pid") if response is not None else None
-        parsed = generation.checked_protocol(stdout, request, intent["request_sha256"], pid)
+        parsed = generation.checked_protocol(stdout, request, intent["request_sha256"], pid, response.get("returncode") if response else None)
         if response is not None:
             require(set(response) == set(parsed) | {"status", "request_sha256", "pid", "returncode", "elapsed_seconds", "parent_error", "cleanup_error"}, "Invalid outcome fields")
             require(response["request_sha256"] == intent["request_sha256"]

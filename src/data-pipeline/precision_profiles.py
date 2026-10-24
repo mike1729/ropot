@@ -95,6 +95,41 @@ def _metadata(directory, identity, *, original=False):
         raise ProfileError("Record/metadata unreadable or invalid") from error
 
 
+def check_descriptor(value):
+    require(type(value) is dict and set(value) == set("source bits label receipt_sha256 record_sha256 parent16_record_sha256 model_path model_files enable_thinking fix_mistral_regex expected_runtime runtime_guard_sha256".split()), "Descriptor fields differ")
+    source, bits = value["source"], value["bits"]
+    require(type(source) is str and source in CONTROLS and type(bits) is int and bits in (8, 16), "Descriptor selection differs")
+    require(value["label"] == ("MLX-native BF16" if bits == 16 else "affine8/group64")
+            and all(_sha(value[k]) for k in ("receipt_sha256", "record_sha256", "runtime_guard_sha256"))
+            and (value["parent16_record_sha256"] is None if bits == 16 else _sha(value["parent16_record_sha256"])), "Descriptor identity differs")
+    require(_absolute(value["model_path"]) and value["model_path"].endswith(f"/models/{source}-{bits}"), "Descriptor model path differs")
+    files = value["model_files"]
+    require(type(files) is dict and bool(files) and all(type(n) is str and n and not n.startswith(".") and not any(c in n for c in "/\\\0")
+            and type(f) is dict and set(f) == {"bytes", "sha256"} and type(f["bytes"]) is int and f["bytes"] >= 0 and _sha(f["sha256"])
+            for n, f in files.items()), "Descriptor model files differ")
+    require(all(value[k] is v for k, v in CONTROLS[source].items()), "Descriptor controls differ")
+    _runtime(value["expected_runtime"])
+    require(value["runtime_guard_sha256"] == digest(value["expected_runtime"]), "Descriptor runtime digest differs")
+    return value
+
+
+def role_suffixes(source, post=False):
+    architecture = f"/mlx_lm/models/{'qwen3_5' if source == 'actor' else 'mistral3'}.py"
+    if post:
+        return dict(model=architecture, text_model=f"/mlx_lm/models/{'qwen3_5' if source == 'actor' else 'ministral3'}.py",
+                    tokenizer_wrapper="/mlx_lm/tokenizer_utils.py", tokenizer_impl=None, tokenizer_native="/tokenizers/tokenizers.abi3.so")
+    return dict(loader="/mlx_lm/utils.py", generator="/mlx_lm/generate.py", sampler="/mlx_lm/sample_utils.py",
+                cache="/mlx_lm/models/cache.py", native_core="/mlx/core.cpython-312-darwin.so", architecture=architecture)
+
+
+def bind_roles(sources, required, paths):
+    require(type(paths) is dict and set(paths) == set(required), "Critical role fields differ")
+    for role, suffix in required.items():
+        require(type(paths[role]) is str and paths[role] in sources and (suffix is None
+                or [p for p in sources if p.endswith(suffix)] == [paths[role]]), "Critical role path differs")
+    return {role: dict(path=path, sha256=sources[path]) for role, path in paths.items()}
+
+
 def _validated(directory, identity, *, original):
     require(_sha(identity), "Receipt digest invalid")
     require(directory.is_dir() and os.path.realpath(directory) == str(directory), "Tree directory differs")

@@ -11,9 +11,11 @@ from time import monotonic, sleep
 
 from .local_runner import _exited, _kill_group
 from .study_tasks import snapshot
+from . import precision_profiles as P
 
 INTERPRETER = "/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python"
 WORKER = Path(__file__).with_name("mlx_worker.py").resolve()
+GUARD = Path(P.__file__).resolve()
 FIELDS = {"model_path", "messages", "seed", "temperature", "top_p", "max_tokens",
           "wall_time_seconds", "enable_thinking", "fix_mistral_regex"}
 ENVIRONMENT = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin", "HF_HUB_OFFLINE": "1",
@@ -29,7 +31,12 @@ def validate(request):
     request = snapshot(request)
     require(type(request) is dict, "Require request object")
     request.setdefault("fix_mistral_regex", False)
-    require(set(request) == FIELDS, "Unexpected request fields")
+    controlled = "precision_profile" in request
+    require(set(request) == FIELDS | ({"precision_profile"} if controlled else set()), "Unexpected request fields")
+    if controlled:
+        descriptor = _profile(request)
+        require(P.digest(descriptor["expected_runtime"]["environment"]) == P.digest(ENVIRONMENT)
+                and descriptor["expected_runtime"]["executable"] == INTERPRETER, "Profile launch differs")
     require(type(request["fix_mistral_regex"]) is bool, "Invalid regex control")
     messages = request.get("messages")
     require(type(messages) is list and bool(messages), "Require nonempty messages")
@@ -44,7 +51,7 @@ def validate(request):
         require(type(value) in (int, float) and math.isfinite(value) and value <= upper
                 and (value >= lower if name == "temperature" else value > lower), f"Invalid {name}")
     model = request.get("model_path")
-    require(type(model) is str and Path(model).is_absolute() and Path(model).is_dir(), "Require local model directory")
+    require(type(model) is str and Path(model).is_absolute() and (controlled or Path(model).is_dir()), "Require local model directory")
     require(request.get("enable_thinking") is False, "Explicitly disable thinking")
     return {**request, "environment": dict(ENVIRONMENT)}
 
@@ -54,24 +61,80 @@ def prepare_request(request):
     return request, (json.dumps(request, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
 
 
+def _profile(request):
+    wrapper = request["precision_profile"]
+    require(type(wrapper) is dict and set(wrapper) == {"descriptor", "guard_sha256"} and P._sha(wrapper["guard_sha256"]), "Profile wrapper differs")
+    descriptor = P.check_descriptor(wrapper["descriptor"])
+    require(P.digest({k: request[k] for k in ("model_path", "enable_thinking", "fix_mistral_regex")})
+            == P.digest({k: descriptor[k] for k in ("model_path", "enable_thinking", "fix_mistral_regex")}), "Profile controls differ")
+    return descriptor
+
+
+def _roles(binding, descriptor, post=False):
+    require(type(binding) is dict, "Profile role proof differs")
+    expected = P.bind_roles(descriptor["expected_runtime"]["sources"], P.role_suffixes(descriptor["source"], post),
+                            {role: item["path"] for role, item in binding.items()})
+    require(P.digest(binding) == P.digest(expected), "Profile role proof differs")
+
+
+def _proof(proof, wrapper):
+    descriptor = wrapper["descriptor"]
+    base = dict(descriptor_sha256=P.digest(descriptor), guard_sha256=wrapper["guard_sha256"],
+                runtime_guard_sha256=descriptor["runtime_guard_sha256"], model_files=descriptor["model_files"])
+    require(type(proof) is dict and set(proof) == set(base) | {"gpu", "critical_sources"}
+            and P.digest({k: proof[k] for k in base}) == P.digest(base), "Profile controls proof differs")
+    gpu = proof["gpu"]
+    require(type(gpu) is dict and set(gpu) == {"available", "default", "info"} and gpu["available"] is True
+            and type(gpu["default"]) is str and bool(gpu["default"]) and type(gpu["info"]) is dict and bool(gpu["info"])
+            and len(json.dumps(gpu, allow_nan=False).encode()) <= 4096, "Profile GPU proof differs")
+    _roles(proof["critical_sources"], descriptor)
+
+
 def protocol(raw, request, identity):
     """Return the valid event prefix and a private protocol error, retaining raw bytes."""
     events, tokens, text, ready, terminal, done, error = [], [], [], None, None, False, None
+    controlled, guarded, failed, checking = "precision_profile" in request, False, None, False
     try:
         for line in raw.splitlines(keepends=True):
+            checking = False
             require(line.endswith(b"\n"), "Incomplete protocol tail")
             event = snapshot(json.loads(line))
             kind = event["event"]
+            checking = kind in ("controls_checked", "profile_error")
+            require(failed is None, "Events after profile error")
             require(not done, "Events after done")
             if not events:
                 require(kind == "start" and event["request_sha256"] == identity
                         and type(event["pid"]) is int, "Invalid start")
+            elif controlled and kind == "profile_error":
+                require(ready is None and set(event) == {"event", "request_sha256", "code", "detail"}
+                        and event["request_sha256"] == identity and event["code"] in
+                        (("import_path",) if guarded else ("guard", "runtime", "artifact", "import_path", "device"))
+                        and type(event["detail"]) is str and len(event["detail"]) <= 500, "Invalid profile error")
+                failed = {k: event[k] for k in ("code", "detail")}
+            elif controlled and ready is None and not guarded:
+                require(kind == "controls_checked" and set(event) == {"event", "request_sha256", "proof"}
+                        and event["request_sha256"] == identity, "Invalid controls event")
+                descriptor = _profile(request)
+                require(P.digest(request["environment"]) == P.digest(descriptor["expected_runtime"]["environment"]), "Profile environment differs")
+                _proof(event["proof"], request["precision_profile"])
+                proof, guarded = event["proof"], True
             elif ready is None:
                 require(kind == "ready" and type(event["prompt"]) is str, "Invalid ready")
                 for name in ("prompt_ids", "eos_token_ids"):
                     require(type(event[name]) is list and bool(event[name])
                             and all(type(i) is int and i >= 0 for i in event[name]), f"Invalid {name}")
                 require(type(event["provenance"]) is dict, "Missing provenance")
+                if controlled:
+                    checking = True
+                    provenance = event["provenance"]
+                    require(P.digest(provenance["precision_controls"]) == P.digest(proof), "Profile ready proof differs")
+                    _roles(provenance["precision_postload"], descriptor, post=True)
+                    P._sources(provenance["sources"])
+                    expected = descriptor["expected_runtime"]["sources"]
+                    require(all(p not in expected or h == expected[p] for p, h in provenance["sources"].items())
+                            and all(provenance["sources"].get(v["path"]) == v["sha256"] for v in
+                                    [*proof["critical_sources"].values(), *provenance["precision_postload"].values()]), "Profile observed sources differ")
                 ready = event
             elif kind == "chunk":
                 seq, token, reason = event["seq"], event["token"], event["finish_reason"]
@@ -93,19 +156,25 @@ def protocol(raw, request, identity):
                         and event["finish_reason"] == terminal, "Invalid done")
                 done = True
             events.append(event)
-        require(done, "Missing done")
+            checking = False
+        require(done or failed is not None, "Missing done")
     except (ValueError, TypeError, KeyError) as failure:
         error = str(failure)
+        if checking or failed is not None: guarded = False
     return {"events": events, "tokens": tokens, "text": "".join(text),
             "prompt_tokens": len(ready["prompt_ids"]) if ready else None,
             "observed_generation_tokens": len(tokens), "finish_reason": terminal,
-            "protocol_error": error, "complete": done and error is None}
+            "protocol_error": error, "complete": done and error is None,
+            **({"profile_guarded": guarded, "profile_failure": failed if error is None else None} if controlled else {})}
 
 
-def checked_protocol(raw, request, identity, pid):
+def checked_protocol(raw, request, identity, pid, returncode=None):
     result = protocol(raw, request, identity)
     if result["events"] and pid is not None and result["events"][0]["pid"] != pid:
         result.update(complete=False, protocol_error="Worker PID differs")
+        if "precision_profile" in request: result.update(profile_guarded=False, profile_failure=None)
+    if result.get("profile_failure") is not None and (type(pid) is not int or pid <= 0 or type(returncode) is not int or returncode == 0):
+        result.update(profile_guarded=False, profile_failure=None, complete=False, protocol_error="Profile error process unproven")
     return result
 
 
@@ -149,8 +218,8 @@ def generate(request, request_dir, lease_fd=None):
                     except BaseException as error:
                         cleanup_failure = cleanup_failure or error
     elapsed = monotonic() - started
-    result = checked_protocol((directory / "stdout.jsonl").read_bytes(), request, identity, process.pid if process is not None else None)
     returncode = process.returncode if process is not None else None
+    result = checked_protocol((directory / "stdout.jsonl").read_bytes(), request, identity, process.pid if process is not None else None, returncode)
     successful = failure is None and cleanup_failure is None and returncode == 0 and result["complete"]
     result.update(status=status or (result["finish_reason"] if successful else "worker_error"),
                   request_sha256=identity, pid=process.pid if process is not None else None,
@@ -171,12 +240,18 @@ PROFILES = {source: {"model_path": f"/Users/michal/Workspace/models/mlx-communit
                                   ("synthetic", "Ministral-3-8B-Instruct-2512-8bit"))}
 
 
-def request_for(source, messages, **controls):
+def request_for(source, messages, *, profile=None, **controls):
     require(source in PROFILES, "Unknown generator source")
     require(set(controls) == {"seed", "temperature", "top_p", "max_tokens", "wall_time_seconds"}, "Invalid controls")
     require(source != "synthetic" or (messages and messages[0].get("role") == "system"),
             "Synthetic messages require an explicit leading system message")
-    return {**PROFILES[source], "messages": snapshot(messages), **controls}
+    selected = PROFILES[source]
+    if profile is not None:
+        profile = P.check_descriptor(snapshot(profile))
+        require(profile["source"] == source, "Profile source differs")
+        selected = {k: profile[k] for k in ("model_path", "fix_mistral_regex", "enable_thinking")}
+        selected["precision_profile"] = dict(descriptor=profile, guard_sha256=sha256(GUARD.read_bytes()).hexdigest())
+    return {**selected, "messages": snapshot(messages), **controls}
 
 
 def extract_program(text):

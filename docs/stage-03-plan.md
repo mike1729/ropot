@@ -433,3 +433,22 @@ does not. Input hash maps are checked for agreement, not reconstructed from deco
 objects. Publication assumes one stable publisher and fsync ordering, without a
 power-loss guarantee. This batch adds no dispatch integration or cohort outcomes;
 use new export versions after source changes.
+
+### Direct controlled requests (batch 8c.2a)
+
+`local_generation.request_for(..., profile=descriptor)` adds a single
+`precision_profile` wrapper containing the historical descriptor and current guard
+source hash. Legacy requests keep their existing bytes and protocol fields. The
+worker executes the same helper bytes it checked, verifies runtime and the exact
+model inventory, then positively checks GPU and operative source origins before
+loading. Post-load tokenizer/model checks precede task template and sampler work.
+Known source hashes must agree; additional noncritical imports remain provenance.
+
+Controlled protocol evidence includes `controls_checked` before load and matching
+ready provenance. Retained `profile_guarded` distinguishes a proven pre-load prefix
+from unproven controls; it does not establish successful generation or diagnose OOM.
+Typed `profile_error` is trusted only with its valid terminal sequence, matching PID
+and a known nonzero exit. Parsing old evidence uses serialized controls, without
+reading current helper/model/runtime files. Profile control failures remain
+infrastructure evidence, never wrong answers or automatic retries. Campaign dispatch
+explicitly refuses these requests until registered profile integration is reviewed.

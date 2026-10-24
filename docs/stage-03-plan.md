@@ -292,3 +292,29 @@ Host parser-stack/recursion errors are format failures. Host compilation retains
 4,300-digit integer-literal limit; Linux execution uses the documented unlimited setting.
 The later report imports this reducer; edits to loop/generation code change the policy
 hash and require new experiment records. Existing historical projection remains available.
+
+### Evidence snapshots (batch 7a)
+
+`study_report.snapshot(campaign, *, selections=None)` derives a private report and file
+map under the campaign lease. Optional reservation sequence IDs override only their
+own selected cells; other cells retain their earliest proven pass. Every closed
+verdict is re-derived, including unselected passes and failed gates. This requires
+the current Docker daemon/image and unchanged execution contract, without starting
+containers. Export before changing that contract. Snapshot errors can close Campaign.
+Per-run grids share the loop reducer; cumulative counts group by source/difficulty.
+Recipe comparisons require equal ordered tasks, budgets and execution context.
+Historical policies retain bound response/candidate/native evidence; only current
+policy replies are re-extracted with today's rules. Each run exposes its policy hash.
+Observed tokens and unknown/lower-bound work remain distinct from reserved caps.
+
+Batch 8 will anchor `panel` and `mechanics_baseline` before any generation/native
+intent, each with `payload` and SHA-256 of `encoded(payload)`. Panel payload is
+`{activation, tasks}` with exactly 50 distinct bindings in activation order.
+Baseline payload binds per-source and combined `replies`, `observed_generation_tokens`
+and `reserved_output_tokens`, an `audit` copy `{path, sha256, bytes}` and the primary
+`inventory_sha256`; the audit path is campaign-relative. Optional `elapsed` and
+`limitations` preserve timing caveats. Missing anchors are null.
+The panel's full activation enters cumulative denominators; its joint target stays
+15/50. Baseline costs are separate from cohort reservations. Snapshots append only
+missing generation completions from retained bytes before capturing their fixed prefix.
+Immutable on-disk publication follows in batch 7b.

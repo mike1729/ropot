@@ -12,6 +12,7 @@ import tempfile
 
 from . import experiment_loop as loop, local_generation as generation, native_recovery as native
 from . import study_tasks as study, verification
+from . import precision_profiles as precision
 from .generation_journal import Campaign, encoded, require, sync_directory
 
 RUN_FIELDS = {"schema_version", "experiment_id", "cohort", "activation", "reference_gate",
@@ -22,6 +23,11 @@ BASE_FIELDS = {"sources", "combined", "audit", "inventory_sha256"}
 
 def digest(value):
     return sha256(encoded(value).encode()).hexdigest()
+
+
+def profile_identity(descriptor):
+    return {**{k: descriptor[k] for k in ("source", "bits", "label", "receipt_sha256", "record_sha256", "runtime_guard_sha256")},
+            "descriptor_sha256": digest(descriptor)}
 
 
 def read_artifact(root, name, expected, size=None):
@@ -141,7 +147,24 @@ def snapshot(campaign, *, selections=None):
     for event in events:
         if event["kind"] != "experiment": continue
         record, name = event["record"], event["experiment_id"]
-        require(set(record) == RUN_FIELDS and name not in records, "Require unique loop run record")
+        require(type(record.get("schema_version")) is int and ((record["schema_version"] == 1 and set(record) == RUN_FIELDS)
+                or (record["schema_version"] == 2 and set(record) == RUN_FIELDS | {"profiles"}))
+                and name not in records, "Require unique loop run record")
+        if "profiles" in record:
+            precision.check_profiles(record["profiles"], record["recipes"], campaign=campaign)
+            for entry in record["profiles"].values():
+                reference = entry["reference"]
+                raw = precision._metadata(campaign.root / reference["path"], reference["receipt_sha256"])[0]
+                for filename, content in raw.items(): add(reference["path"] + "/" + filename, sha256(content).hexdigest(), len(content))
+        for reservation in (e for e in reservations.values() if e["experiment_id"] == name):
+            request = json.loads(reservation["request_text"])
+            require(("precision_profile" in request) == ("profiles" in record), "Request profile direction differs")
+            if "profiles" in record:
+                source = reservation["source"]
+                require(source in record["profiles"] and set(request) == generation.FIELDS | {"precision_profile", "environment"}, "Request profile fields differ")
+                descriptor = generation._profile(request)
+                require(digest(descriptor) == digest(record["profiles"][source]["descriptor"])
+                        and digest(request["environment"]) == digest(descriptor["expected_runtime"]["environment"]), "Request profile binding differs")
         require(record["cohort"]["manifest_sha256"] == study.COHORT_SHA256
                 and record["activation"]["cohort_sha256"] == study.COHORT_SHA256, "Run cohort differs")
         records[name] = event
@@ -197,7 +220,8 @@ def snapshot(campaign, *, selections=None):
                     "policy_sha256": record["policy_sha256"], "contract_sha256": contexts[name], "operation_id": opid,
                     "sample_id": result["sample_id"], "reference_identical": intent["reference_indices"] is not None,
                     "program_bytes": len(program), "observed_generation_tokens": outcome["observed_generation_tokens"],
-                    "reply_index": reservations[seq]["attempt"]["reply_index"]})
+                    "reply_index": reservations[seq]["attempt"]["reply_index"],
+                    **({"precision_profile": profile_identity(record["profiles"][cell["source"]]["descriptor"])} if "profiles" in record else {})})
     require(all(e["experiment_id"] in records for e in reservations.values()), "Reservation lacks loop run")
     chosen = {}
     for item in sorted(eligible, key=lambda e: e["reservation_seq"]): chosen.setdefault((_key(item), item["source"]), item)
@@ -244,6 +268,7 @@ def snapshot(campaign, *, selections=None):
                 observed=_observed([e for e in own_reserved if e["source"] == source], outcomes),
                 initial_passes=sum(e["reply_index"] == 0 for e in passes), repair_passes=sum(e["reply_index"] > 0 for e in passes),
                 reference_identical=sum(e["reference_identical"] for e in passes))
+            if "profiles" in record: row["precision_profile"] = profile_identity(record["profiles"][source]["descriptor"])
             own_source = [e for e in own_reserved if e["source"] == source]
             row["generation_status_counts"] = dict(Counter(outcomes[e["seq"]]["status"] for e in own_source))
             row["attempt_status_counts"] = dict(Counter(results[e["seq"]]["status"] for e in own_source if e["seq"] in results))

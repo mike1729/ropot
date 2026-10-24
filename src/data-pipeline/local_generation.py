@@ -97,6 +97,8 @@ def protocol(raw, request, identity):
     try:
         for line in raw.splitlines(keepends=True):
             checking = False
+            if controlled:
+                require(not done, "Events after done")
             require(line.endswith(b"\n"), "Incomplete protocol tail")
             event = snapshot(json.loads(line))
             kind = event["event"]

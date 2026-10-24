@@ -450,5 +450,26 @@ from unproven controls; it does not establish successful generation or diagnose 
 Typed `profile_error` is trusted only with its valid terminal sequence, matching PID
 and a known nonzero exit. Parsing old evidence uses serialized controls, without
 reading current helper/model/runtime files. Profile control failures remain
-infrastructure evidence, never wrong answers or automatic retries. Campaign dispatch
-explicitly refuses these requests until registered profile integration is reviewed.
+infrastructure evidence, never wrong answers or automatic retries. Batch 8c.2a limited
+these calls to direct requests; registered execution is described below.
+
+### Registered controlled runs (batch 8c.2b)
+
+`experiment_loop.run_record(..., profiles={source: {reference, descriptor}})` creates
+schema 2; omission retains schema 1. All requested profiles must share a receipt,
+runtime and precision. The loop resolves both sources before fresh native work,
+and the journal checks the whole canonical request before reserving shared budgets.
+Policy hashes include the loop, generator, profile helper, worker and journal;
+earlier IDs remain reportable but need new IDs for execution after policy edits.
+
+Controlled outcomes durably distinguish observed profile failure, unproven controls
+and protocol violations. Hashing/loading need deadline headroom: a timeout before
+`controls_checked` stops that experiment as unproven. A valid guarded prefix permits
+only `Missing done` or `Incomplete protocol tail` as execution interruptions.
+`ProfileControlError` follows persisted evidence; reopening stops the same record,
+while a new ID can proceed on the same cumulative budget. Each new failed dispatch
+remains charged, with no refund or automatic retry. Historical reports use stored
+request/helper identities and copied metadata, exporting all seven files even for
+zero-reply runs. Source rows/selections include compact `precision_profile` identity;
+global selections and panel yield remain a mixed acquisition union across recipes
+and precisions. This batch runs no cohort tasks or paired experiment.

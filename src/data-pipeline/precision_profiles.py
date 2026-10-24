@@ -130,6 +130,23 @@ def bind_roles(sources, required, paths):
     return {role: dict(path=path, sha256=sources[path]) for role, path in paths.items()}
 
 
+def check_profiles(profiles, sources, campaign=None):
+    require(type(profiles) is dict and bool(profiles) and set(profiles) == set(sources)
+            and set(profiles) <= CONTROLS.keys(), "Profile sources differ")
+    common = set()
+    for source, entry in profiles.items():
+        require(type(entry) is dict and set(entry) == {"reference", "descriptor"}, "Profile entry differs")
+        descriptor, reference = check_descriptor(entry["descriptor"]), entry["reference"]
+        require(descriptor["source"] == source and type(reference) is dict and set(reference) == {"path", "receipt_sha256"}
+                and reference["receipt_sha256"] == descriptor["receipt_sha256"]
+                and reference["path"] == "precision/" + descriptor["receipt_sha256"], "Profile reference differs")
+        common.add((descriptor["receipt_sha256"], descriptor["runtime_guard_sha256"], descriptor["bits"]))
+        if campaign is not None:
+            require(digest(resolve(campaign, reference, source, descriptor["bits"])) == digest(descriptor), "Profile metadata differs")
+    require(len(common) == 1, "Profile arm differs")
+    return profiles
+
+
 def _validated(directory, identity, *, original):
     require(_sha(identity), "Receipt digest invalid")
     require(directory.is_dir() and os.path.realpath(directory) == str(directory), "Tree directory differs")

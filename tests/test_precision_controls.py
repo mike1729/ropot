@@ -103,7 +103,7 @@ class PrecisionControlTests(unittest.TestCase):
         with mock.patch.object(self.G, "GUARD", self.root / "missing"), mock.patch.object(self.P, "check_runtime", side_effect=AssertionError("live guard")), mock.patch.object(self.G, "validate", side_effect=AssertionError("live validation")):
             self.assertTrue(self.parse(rows)["complete"])
         self.campaign.register(dict(experiment_id="fixture")); before = self.campaign.events
-        with mock.patch.object(self.G, "generate") as launch, self.assertRaisesRegex(ValueError, "registered integration"): self.campaign.generate("fixture", "actor", self.raw_request)
+        with mock.patch.object(self.G, "generate") as launch, self.assertRaisesRegex(ValueError, "Registered profile direction differs"): self.campaign.generate("fixture", "actor", self.raw_request)
         launch.assert_not_called()
         with self.J.Campaign(self.campaign.root) as reopened: self.assertEqual(reopened.events, before)
 

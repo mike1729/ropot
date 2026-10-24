@@ -9,6 +9,7 @@ from pathlib import Path
 import sqlite3
 
 from . import local_generation as generation
+from . import precision_profiles as precision
 from .study_tasks import SOURCES, snapshot
 
 require = generation.require
@@ -36,6 +37,28 @@ def sync_directory(path):
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
+
+
+class ProfileControlError(RuntimeError):
+    def __init__(self, reservation_seq, reason):
+        self.reservation_seq, self.reason = reservation_seq, reason
+        super().__init__(f"Reservation {reservation_seq}: {reason}")
+
+
+def profile_control_reason(outcome):
+    fields = {"profile_guarded", "profile_failure", "protocol_error"}
+    present = fields & outcome.keys()
+    if not present: return None
+    require(present == fields, "Partial profile outcome")
+    if outcome["profile_failure"] is not None: return "profile_failure"
+    if outcome["profile_guarded"] is not True: return "profile_unproven"
+    if outcome["protocol_error"] not in (None, "Missing done", "Incomplete protocol tail"): return "profile_protocol"
+    return None
+
+
+def require_profile_outcome(outcome):
+    reason = profile_control_reason(outcome)
+    if reason is not None: raise ProfileControlError(outcome["reservation_seq"], reason)
 
 
 class Campaign:
@@ -185,11 +208,18 @@ class Campaign:
             self.require_native_clear()
             request = snapshot(request)
             prepared, raw = generation.prepare_request(request)
-            require("precision_profile" not in prepared, "Precision profiles require registered integration")
             events = self.events
-            require(source in SOURCES and any(e["kind"] == "experiment" and e["experiment_id"] == experiment_id
-                                             for e in events), "Require registered experiment/source")
-            require(all(prepared[k] == v for k, v in generation.PROFILES[source].items()), "Source profile differs")
+            record = next((e["record"] for e in events if e["kind"] == "experiment" and e["experiment_id"] == experiment_id), None)
+            require(source in SOURCES and record is not None, "Require registered experiment/source")
+            require(("precision_profile" in prepared) == ("profiles" in record), "Registered profile direction differs")
+            if "profiles" in record:
+                profiles = precision.check_profiles(record["profiles"], record["recipes"], campaign=self)
+                require(source in profiles, "Registered profile source differs")
+                expected = generation.request_for(source, prepared["messages"], profile=profiles[source]["descriptor"],
+                    **{k: prepared[k] for k in ("seed", "temperature", "top_p", "max_tokens", "wall_time_seconds")})
+                require(generation.prepare_request(expected)[1] == raw, "Registered profile request differs")
+            else:
+                require(all(prepared[k] == v for k, v in generation.PROFILES[source].items()), "Source profile differs")
             reserved = {e["seq"] for e in events if e["kind"] == "generation_reserved"}
             require(reserved == {e["reservation_seq"] for e in events if e["kind"] == "generation_done"},
                     "Reconcile pending generations before dispatch")
@@ -200,7 +230,9 @@ class Campaign:
                                   request_text=raw.decode(), request_sha256=sha256(raw).hexdigest(), attempt=attempt)
             generation.generate(request, self.root / "requests" / f"{intent['seq']:06d}",
                                 lease_fd=self._lock.fileno())
-            return self._finish(intent["seq"])
+            outcome = self._finish(intent["seq"])
+            require_profile_outcome(outcome)
+            return outcome
         except BaseException:
             self.close()
             raise
@@ -256,6 +288,8 @@ class Campaign:
         summary = {"status": response["status"] if response and saved == raw else "interrupted",
                    "finish_reason": parsed["finish_reason"], "observed_generation_tokens": parsed["observed_generation_tokens"],
                    "elapsed_seconds": response["elapsed_seconds"] if response else None}
+        if "precision_profile" in request:
+            summary.update({k: parsed[k] for k in ("profile_guarded", "profile_failure", "protocol_error")})
         evidence = {}
         for name, content in files.items():
             with (directory / name).open("rb") as file:

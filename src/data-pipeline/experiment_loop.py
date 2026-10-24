@@ -11,6 +11,7 @@ from . import local_generation as generation
 from . import native_recovery as native
 from . import study_tasks as study
 from . import verification
+from . import precision_profiles as precision, generation_journal as journal
 from .generation_journal import Campaign, UNITS, encoded, require, sync_directory
 
 RECIPE_FIELDS = {"system", "instruction", "max_replies", "max_tokens", "wall_time_seconds",
@@ -25,13 +26,17 @@ FORMAT_REPAIR = ("The preceding reply is not valid Python in the required format
 
 
 def policy_sha256():
-    sources = {Path(p).name: sha256(Path(p).read_bytes()).hexdigest() for p in (__file__, generation.__file__)}
+    sources = {Path(p).name: sha256(Path(p).read_bytes()).hexdigest() for p in
+               (__file__, generation.__file__, precision.__file__, generation.WORKER, journal.__file__)}
     return sha256(encoded(sources).encode("utf-8")).hexdigest()
 
 
-def run_record(loaded, experiment_id, groups, recipes, assigned):
+def run_record(loaded, experiment_id, groups, recipes, assigned, *, profiles=None):
     activation = study.activate(loaded, groups)
     record = study.experiment_record(loaded, experiment_id, activation, study.snapshot(recipes))
+    if profiles is not None:
+        profiles = precision.check_profiles(study.snapshot(profiles), record["recipes"])
+        record.update(schema_version=2, profiles=profiles)
     for source, recipe in record["recipes"].items():
         require(set(recipe) == RECIPE_FIELDS, "Unexpected recipe fields")
         require(all(type(recipe[k]) is str and recipe[k].strip() for k in ("system", "instruction")),
@@ -40,7 +45,7 @@ def run_record(loaded, experiment_id, groups, recipes, assigned):
         require(type(recipe["seeds"]) is list and len(recipe["seeds"]) == recipe["max_replies"], "Invalid seeds")
         for seed in recipe["seeds"]:
             generation.prepare_request(generation.request_for(source, [{"role": "system", "content": "Validate"},
-                {"role": "user", "content": "Validate"}], seed=seed, **{k: recipe[k] for k in
+                {"role": "user", "content": "Validate"}], profile=profiles[source]["descriptor"] if profiles is not None else None, seed=seed, **{k: recipe[k] for k in
                 ("temperature", "top_p", "max_tokens", "wall_time_seconds")}))
     assigned = study.snapshot(assigned)
     require(type(assigned) is list and assigned and all(type(i) is int for i in assigned)
@@ -54,7 +59,7 @@ def validate_run(loaded, record):
     record = study.snapshot(record)
     try:
         rebuilt = run_record(loaded, record["experiment_id"], record["activation"]["groups"],
-                             record["recipes"], record["assigned_task_ids"])
+                             record["recipes"], record["assigned_task_ids"], profiles=record.get("profiles"))
     except (KeyError, TypeError):
         raise ValueError("Invalid run record") from None
     require(encoded(rebuilt) == encoded(record), "Run differs from its canonical record or current policy")
@@ -183,6 +188,7 @@ def cell_states(events, record):
     cells, results = _history(events, record)
     closed = {e["operation_id"] for e in events if e["kind"] == "native_closed"}
     verdicts = {e["operation_id"]: e for e in events if e["kind"] == "native_verdict"}
+    outcomes = {e["reservation_seq"]: e for e in events if e["kind"] == "generation_done"}
     output = []
     for task in record["activation"]["tasks"]:
         gate = _gate(events, task["sha256"], contract)
@@ -195,7 +201,9 @@ def cell_states(events, record):
             elif any(e["status"] == "verified" for e in done): state = "verified"
             elif done and done[-1]["status"] in ("generation_timeout", "generation_error", "interrupted", "verification_error"):
                 state, reason = "blocked", "native_infrastructure" if done[-1]["status"] == "verification_error" else done[-1]["status"]
-            elif slots and slots[-1]["seq"] not in results: state = "pending"
+            elif slots and slots[-1]["seq"] not in results:
+                reason = journal.profile_control_reason(outcomes.get(slots[-1]["seq"], {}))
+                state = "blocked" if reason is not None else "pending"
             elif len(slots) == record["recipes"][source]["max_replies"]: state, reason = "exhausted", "reply_limit"
             elif not slots and gate and gate["operation_id"] not in closed: state = "pending"
             elif not slots and gate and verdicts.get(gate["operation_id"], {}).get("status") != "passed":
@@ -249,7 +257,8 @@ def _cell(campaign, task, binding, source, record, contract_sha256, dispatch):
         return
     previous, feedback = None, None
     for index in range(recipe["max_replies"]):
-        request = generation.request_for(source, messages(task, recipe, previous, feedback), seed=recipe["seeds"][index],
+        request = generation.request_for(source, messages(task, recipe, previous, feedback),
+            profile=record["profiles"][source]["descriptor"] if "profiles" in record else None, seed=recipe["seeds"][index],
             **{k: recipe[k] for k in ("temperature", "top_p", "max_tokens", "wall_time_seconds")})
         _, raw = generation.prepare_request(request)
         if index < len(slots):
@@ -298,11 +307,14 @@ def _cell(campaign, task, binding, source, record, contract_sha256, dispatch):
 def run(campaign, loaded, record):
     native.reconcile_native(campaign)
     record = validate_run(loaded, record)
+    if "profiles" in record: precision.check_profiles(record["profiles"], record["recipes"], campaign=campaign)
     events = campaign.events
     for event in events:
         if event["kind"] == "generation_reserved":
-            response = campaign.outcome(event["seq"])["response"]
+            outcome = campaign.outcome(event["seq"])
+            response = outcome["response"]
             require(response is None or response["cleanup_error"] is None, "Unresolved generation cleanup failure")
+            if event["experiment_id"] == record["experiment_id"]: journal.require_profile_outcome(outcome)
     current = verification.runner.contract()
     digest = verification.digest(current)
     contexts = [e for e in events if e["kind"] == "execution_context" and e["experiment_id"] == record["experiment_id"]]

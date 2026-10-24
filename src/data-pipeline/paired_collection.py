@@ -1,4 +1,4 @@
-"""Freeze one sequential paired trial; this command dispatches no work."""
+"""Freeze one sequential paired trial and collect only its finite tuning prefix."""
 
 import argparse
 from hashlib import sha256
@@ -175,20 +175,134 @@ def setup(campaign, loaded, plan_id, receipt_path, receipt_sha256, mechanics_aud
     return _event(campaign, "paired_plan", built["plan"])
 
 
+def _one(events, kind, plan_id=None):
+    matches = [e for e in events if e["kind"] == kind and (plan_id is None or e["payload"]["plan_id"] == plan_id)]
+    J.require(len(matches) == 1, "Collection binding differs")
+    event = matches[0]
+    J.require(set(event) == {"seq", "kind", "payload", "payload_sha256"}
+              and digest(event["payload"]) == event["payload_sha256"], "Collection binding differs")
+    return event
+
+
+def _reference(campaign, binding, name):
+    J.require(type(binding) is dict and set(binding) == {"path", "sha256", "bytes"}
+              and P._sha(binding["sha256"]) and type(binding["bytes"]) is int and binding["bytes"] >= 0
+              and binding["path"] == f"audits/{binding['sha256']}-{name}", "Collection artifact differs")
+    path = campaign.root / binding["path"]
+    J.require(path.resolve() == path, "Collection artifact differs")
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), "rb") as stream:
+        J.require(stat.S_ISREG(os.fstat(stream.fileno()).st_mode), "Collection artifact differs")
+        raw = stream.read()
+    J.require(len(raw) == binding["bytes"] and sha256(raw).hexdigest() == binding["sha256"], "Collection artifact differs")
+    return raw
+
+
+def _producer_guard(campaign, payload):
+    J.require(digest(payload["producer_sources"]) == digest(fingerprint()), "Producer sources changed")
+    J.require(_reference(campaign, payload["protocol"], "paired-protocol.md") == PROTOCOL.read_bytes(), "Protocol source changed")
+
+
+def _retained(campaign, loaded, plan_id):
+    J.require(type(plan_id) is str and PLAN_ID.fullmatch(plan_id), "Invalid plan ID")
+    events = campaign.events
+    setup_event = _one(events, "collection_setup", plan_id)
+    payload = setup_event["payload"]
+    J.require(set(payload) == {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
+              and type(payload["schema_version"]) is int and payload["schema_version"] == 1, "Collection binding differs")
+    J.require(not any(e["kind"] == "collection_setup" and e["seq"] > setup_event["seq"] for e in events), "Collection superseded")
+    _producer_guard(campaign, payload)
+    plan = _one(events, "paired_plan", plan_id)
+    J.require(setup_event["seq"] < plan["seq"] and payload["plan_sha256"] == plan["payload_sha256"], "Collection binding differs")
+    registered = {e["experiment_id"]: e for e in events if e["kind"] == "experiment"}
+    J.require(len(registered) == sum(e["kind"] == "experiment" for e in events), "Collection binding differs")
+    J.require(type(plan["payload"].get("records")) is list and len(plan["payload"]["records"]) == 144
+              and all(m["experiment_id"] in registered for m in plan["payload"]["records"]), "Collection binding differs")
+    profiles = {b: registered[next(m["experiment_id"] for m in plan["payload"]["records"] if m["bits"] == b)]["record"]["profiles"] for b in (8, 16)}
+    for bound in profiles.values(): P.check_profiles(bound, study.SOURCES, campaign=campaign)
+    contract = V.runner.contract()
+    built = build(loaded, plan_id, profiles, V.digest(contract))
+    J.require(digest(built["plan"]) == plan["payload_sha256"], "Collection binding differs")
+    contexts = {}
+    for event in events:
+        if event["kind"] == "execution_context": contexts.setdefault(event["experiment_id"], []).append(event)
+    for index, record in enumerate(built["records"]):
+        name = record["experiment_id"]
+        old, context = registered.get(name), contexts.get(name, [])
+        J.require(old is not None and old["record_sha256"] == digest(record) and len(context) == 1
+                  and max(old["seq"], context[0]["seq"]) < setup_event["seq"]
+                  and J.encoded(context[0]["contract"]) == J.encoded(contract)
+                  and context[0]["contract_sha256"] == built["plan"]["contract_sha256"], "Collection binding differs")
+        built["records"][index] = old["record"]
+    owned = {r["experiment_id"] for r in built["records"]}
+    J.require(all(e["seq"] > plan["seq"] for e in events if e["kind"] == "generation_reserved"
+              and e["experiment_id"] in owned), "Member work precedes paired plan")
+    panel, baseline = _one(events, "panel"), _one(events, "mechanics_baseline")
+    J.require(panel["payload_sha256"] == digest(built["panel"]) and all(anchor["seq"] < e["seq"]
+              for anchor in (panel, baseline) for e in events if e["kind"] in ("generation_reserved", "native_intent")), "Collection binding differs")
+    audit = baseline["payload"]["audit"]
+    J.require(sha256(_reference(campaign, audit, "mechanics.txt")).hexdigest() == AUDIT_SHA256, "Mechanics audit differs")
+    expected = dict(sources=BASELINE_SOURCES, combined={u: sum(v[u] for v in BASELINE_SOURCES.values())
+                    for u in BASELINE_SOURCES["actor"]}, audit=audit, inventory_sha256=INVENTORY_SHA256, limitations=BASELINE_LIMITATIONS)
+    J.require(digest(expected) == baseline["payload_sha256"], "Collection binding differs")
+    count = len(built["records"]) * RECIPE["max_replies"]
+    bound = {s: dict(zip(J.UNITS, (count, count * RECIPE["max_tokens"], count * RECIPE["wall_time_seconds"]))) for s in study.SOURCES}
+    limits, reserved = J.Campaign.totals(events[:setup_event["seq"] - 1])
+    expected = dict(reserved_before=reserved, bound=bound,
+                    limits={s: {u: max(limits[s][u], reserved[s][u] + bound[s][u]) for u in J.UNITS} for s in study.SOURCES})
+    current, _ = campaign._accounting()
+    J.require(digest(expected) == digest(payload["funding"]) and all(current[s][u] >= expected["limits"][s][u]
+              for s in study.SOURCES for u in J.UNITS), "Collection funding differs")
+    return built, setup_event
+
+
+def _assigned(record, cells):
+    task = next(t for t in record["activation"]["tasks"] if t["id"] == record["assigned_task_ids"][0])
+    assigned = [c for c in cells if c["id"] == task["id"]]
+    J.require(len(assigned) == 2 and {c["source"] for c in assigned} == set(study.SOURCES)
+              and all((c["split"], c["task_sha256"]) == (task["split"], task["sha256"]) for c in assigned), "Assigned cells differ")
+    allowed = {("verified", None), ("exhausted", "reply_limit"), ("blocked", "gate_failed"),
+               ("blocked", "generation_timeout"), ("blocked", "generation_error"), ("blocked", "interrupted")}
+    J.require(all((c["status"], c["reason"]) in allowed for c in assigned), "Collection member not terminal")
+    return assigned
+
+
+def tune(campaign, loaded, plan_id, *, through_tasks=40):
+    J.require(type(through_tasks) is int and 1 <= through_tasks <= 40, "Invalid tuning prefix")
+    built, event = _retained(campaign, loaded, plan_id)
+    names = {r["experiment_id"] for r in built["records"]}
+    for reservation in campaign.events:
+        if reservation["kind"] == "generation_reserved" and reservation["experiment_id"] in names:
+            J.require_profile_outcome(campaign.outcome(reservation["seq"]))
+    results = []
+    for record in built["records"][:2 * through_tasks]:
+        _producer_guard(campaign, event["payload"])
+        before = campaign.db.execute("SELECT MAX(seq) FROM events").fetchone()[0]
+        cells = _assigned(record, L.run(campaign, loaded, record))
+        if any(c["reason"] in ("generation_error", "interrupted") and any(seq > before for seq in c["attempt_seqs"]) for c in cells):
+            raise RuntimeError(f"New guarded execution failure in {record['experiment_id']}; inspect before resuming")
+        results.append(dict(experiment_id=record["experiment_id"], cells=cells))
+    return results
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["setup"])
-    for name in ("campaign", "plan-id", "receipt", "receipt-sha256", "mechanics-audit"):
-        parser.add_argument("--" + name, required=True)
+    commands = parser.add_subparsers(dest="mode", required=True)
+    for mode in ("setup", "tune"):
+        command = commands.add_parser(mode)
+        for name in ("campaign", "plan-id"): command.add_argument("--" + name, required=True)
+        if mode == "setup":
+            for name in ("receipt", "receipt-sha256", "mechanics-audit"): command.add_argument("--" + name, required=True)
+        else: command.add_argument("--through-tasks", type=int, choices=range(1, 41), required=True)
     args = parser.parse_args(argv)
     loaded, root = study.load_cohort(), Path(args.campaign)
-    if root.exists(): campaign = J.Campaign(root)
+    if args.mode == "tune" or root.exists(): campaign = J.Campaign(root)
     else:
         count = 144 * RECIPE["max_replies"]
         limits = {s: dict(zip(J.UNITS, (count, count * RECIPE["max_tokens"], count * RECIPE["wall_time_seconds"]))) for s in study.SOURCES}
         campaign = J.Campaign.create(root, limits)
     with campaign:
-        result = setup(campaign, loaded, args.plan_id, args.receipt, args.receipt_sha256, args.mechanics_audit)
+        result = (tune(campaign, loaded, args.plan_id, through_tasks=args.through_tasks) if args.mode == "tune"
+                  else setup(campaign, loaded, args.plan_id, args.receipt, args.receipt_sha256, args.mechanics_audit))
         print(J.encoded(result))
 
 

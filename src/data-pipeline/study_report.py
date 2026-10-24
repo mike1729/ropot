@@ -13,7 +13,7 @@ import tempfile
 from . import experiment_loop as loop, local_generation as generation, native_recovery as native
 from . import study_tasks as study, verification
 from . import precision_profiles as precision
-from .generation_journal import Campaign, encoded, require, sync_directory
+from .generation_journal import Campaign, encoded, require, sync_directory, limits_checked
 
 RUN_FIELDS = {"schema_version", "experiment_id", "cohort", "activation", "reference_gate",
               "recipes", "assigned_task_ids", "policy_sha256"}
@@ -111,6 +111,34 @@ def snapshot(campaign, *, selections=None):
         require(set(audit) == {"path", "sha256", "bytes"} and type(audit["bytes"]) is int
                 and audit["bytes"] >= 0, "Invalid baseline audit")
         add(audit["path"], audit["sha256"], audit["bytes"])
+    collections, plans = {}, {}
+    for event in (e for e in events if e["kind"] in ("collection_setup", "paired_plan")):
+        payload = event["payload"]
+        require(set(event) == {"seq", "kind", "payload", "payload_sha256"} and type(payload) is dict
+                and type(payload.get("plan_id")) is str and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", payload["plan_id"])
+                and digest(payload) == event["payload_sha256"], "Invalid collection event")
+        target = collections if event["kind"] == "collection_setup" else plans
+        require(payload["plan_id"] not in target, "Duplicate collection plan")
+        target[payload["plan_id"]] = event
+        if event["kind"] != "collection_setup": continue
+        require(set(payload) == {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
+                and type(payload["schema_version"]) is int and payload["schema_version"] == 1
+                and precision._sha(payload["plan_sha256"]) and type(payload["producer_sources"]) is dict and payload["producer_sources"]
+                and all(type(p) is str and p and str(Path(p)) == p and not Path(p).is_absolute() and ".." not in Path(p).parts
+                        and precision._sha(h) for p, h in payload["producer_sources"].items()), "Invalid collection setup")
+        item, funding = payload["protocol"], payload["funding"]
+        require(type(item) is dict and set(item) == {"path", "sha256", "bytes"} and precision._sha(item["sha256"])
+                and type(item["bytes"]) is int and item["bytes"] >= 0
+                and item["path"] == f"audits/{item['sha256']}-paired-protocol.md", "Invalid collection protocol")
+        add(item["path"], item["sha256"], item["bytes"])
+        limits, reserved = Campaign.totals(events[:event["seq"] - 1])
+        require(type(funding) is dict and set(funding) == {"reserved_before", "bound", "limits"}, "Invalid collection funding")
+        limits_checked(funding["bound"]); limits_checked(funding["limits"])
+        require(digest(funding["reserved_before"]) == digest(reserved) and digest(funding["limits"]) == digest({
+            s: {u: max(limits[s][u], reserved[s][u] + funding["bound"][s][u]) for u in limits[s]} for s in study.SOURCES}), "Invalid collection funding")
+    require(all(name in collections and collections[name]["seq"] < event["seq"]
+                and collections[name]["payload"]["plan_sha256"] == event["payload_sha256"]
+                for name, event in plans.items()), "Unbound paired plan")
     reservations = {e["seq"]: e for e in events if e["kind"] == "generation_reserved"}
     for event in events:
         if event["kind"] == "generation_done":

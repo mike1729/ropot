@@ -483,3 +483,20 @@ historical reports retain recorded activations without current-policy rebuilding
 
 Use `python -m src.data-pipeline.paired_collection setup --help` to freeze a paired
 trial; [its protocol](stage-03-paired-protocol.md) binds methods before collection.
+
+Only `paired_collection tune --campaign PATH --plan-id ID --through-tasks N`
+dispatches paired members; N is required on the CLI and ranges from 1 to 40 tasks.
+It walks the same first `2*N` records on every resume, without re-dispatching spent
+requests or reaching fresh tasks. Use whole-task checkpoints for quiet tests;
+do not run heavy work while requests are measured. A later setup supersedes old plans.
+An interruption before guard proof permanently stops that family as unproven.
+A new reviewed plan reruns exposed tuning tasks under new IDs with cumulative
+charges; repeated tuning across families cannot be called fresh confirmation.
+New guarded errors/interruptions pause collection for inspection; explicit resume
+keeps those cells terminal and charged. Fixed-budget timeouts may continue.
+Retained verification/gate infrastructure errors also stop collection; do not skip
+the blocked member. A new plan may still reuse the same failed native evidence.
+Budget refusals need a recorded funding correction.
+The historical protocol export adds no live producer/model/runtime reads; existing
+snapshot proof checks retain their code, metadata and Docker requirements.
+Fresh continuation will use a separately reviewed new module after reports land.

@@ -1,9 +1,10 @@
-"""Scientific validity from one snapshot's proven evidence; no dispatch or live guards."""
+"""Paired validity and metrics from proven evidence; no dispatch or live guards."""
 
 from collections import Counter
 from hashlib import sha256
 import json
 import math
+from statistics import median
 
 from . import experiment_loop as loop, study_tasks as study
 from .generation_journal import encoded, profile_control_reason, require
@@ -149,6 +150,126 @@ def _confirmation(event, decisions, rows, events, reservations, tuning, fresh, i
     return decision, exposed
 
 
+def _first_assessed(cell, views):
+    done, results, proved = views
+    if not cell["attempt_seqs"]: return cell["reason"] == "gate_failed" and _terminal(cell, views)
+    seq = cell["attempt_seqs"][0]; result = results.get(seq, {})
+    return (cell["gate_operation_id"] in proved and seq in done and done[seq].get("profile_guarded") is True
+            and profile_control_reason(done[seq]) is None
+            and (result.get("status") in ("format_failed", "generation_timeout", "generation_error", "interrupted")
+                 or (result.get("status") in ("verified", "verification_failed") and result.get("operation_id") in proved)))
+
+
+def _native_rate(outcome):
+    response = outcome["response"]
+    if response is None or response.get("complete") is not True: return None
+    chunk = next((e for e in reversed(response["events"]) if e["event"] == "chunk"), {})
+    value = chunk.get("generation_tps")
+    return value if (chunk.get("finish_reason") in ("stop", "length") and type(value) in (int, float)
+                     and math.isfinite(value) and value > 0) else None
+
+
+def _ready(outcome):
+    response = outcome["response"]
+    return next((e for e in response["events"] if e["event"] == "ready"), None) if response else None
+
+
+def _cell_wall(cell, first, outcomes, views):
+    if not first and not _terminal(cell, views): return None
+    seqs = cell["attempt_seqs"][:1] if first else cell["attempt_seqs"]
+    if first and not seqs: return None
+    values = [outcomes[s]["elapsed_seconds"] for s in seqs]
+    return math.fsum(values) if all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in values) else None
+
+
+def _wall(values, valid):
+    known = {str(b): [v for v in values[b] if v is not None] for b in (8, 16)}
+    pairs = [(a, b) for a, b in zip(values[8], values[16]) if a is not None and b is not None]
+    ratios = [b / a for a, b in pairs if a > 0 and math.isfinite(b / a)] if valid else []
+    return dict(known_seconds={b: math.fsum(v) for b, v in known.items()},
+        known_tasks={b: len(v) for b, v in known.items()},
+        unknown_tasks={str(b): len(values[b]) - len(known[str(b)]) for b in (8, 16)},
+        known_pairs=len(pairs), zero_denominator_pairs=sum(a == 0 for a, _ in pairs),
+        ratio_pairs=len(ratios), median_16_over_8=median(ratios) if ratios else None)
+
+
+def _cost(source_rows):
+    return {kind: {unit: (math.fsum(r[kind][unit] for r in source_rows) if unit in
+            ("reserved_generation_wall_seconds", "known_elapsed_seconds") else sum(r[kind][unit] for r in source_rows))
+            for unit in source_rows[0][kind]} for kind in ("reserved", "observed")}
+
+
+def _metrics(layout, rows, run_map, eligible, outcomes, reservations, views, valid):
+    members = {m["experiment_id"]: m for m, _, _ in rows}
+    cells = {(_key(m["task"]), m["bits"], c["source"]): c for m, _, assigned in rows for c in assigned}
+    source_rows = {(_key(m["task"]), m["bits"], r["source"]): r for m, _, _ in rows
+                   for r in run_map[m["experiment_id"]]["sources"]}
+    own = [e for e in eligible if e["experiment_id"] in members and _key(e) == _key(members[e["experiment_id"]]["task"])
+           and e["source"] in study.SOURCES]
+    passed = {first: {(_key(e), members[e["experiment_id"]]["bits"], e["source"]) for e in own
+                     if not first or e["reply_index"] == 0} for first in (True, False)}
+    rates = {s: _native_rate(outcomes[s]) for s, r in reservations.items() if r["experiment_id"] in members}
+    panel_keys = {_key(t) for t in layout[2]["tasks"]}
+    subsets = [("primary50", layout[2]["tasks"]), ("tuning40", layout[3]), ("fresh32", layout[4]),
+               ("extra22", [t for t in layout[1]["tasks"] if _key(t) not in panel_keys]), ("full72", layout[1]["tasks"])]
+    output = []
+    for name, tasks in subsets:
+        keys = [_key(t) for t in tasks]; arms, joints = [], {}
+        terminal = sum(_terminal(cells[(k, b, s)], views) for k in keys for b in (8, 16) for s in study.SOURCES)
+        for bits in (8, 16):
+            verified = {}
+            for first in (True, False):
+                sets = {s: {k for k in keys if (k, bits, s) in passed[first]} for s in study.SOURCES}
+                joint = set.intersection(*sets.values()); joints[(bits, first)] = joint
+                verified[first] = {**{s: len(v) for s, v in sets.items()}, "joint": len(joint)}
+            costs, native_rates = [], []
+            names = {m["experiment_id"] for m, _, _ in rows if m["bits"] == bits and _key(m["task"]) in keys}
+            for source in study.SOURCES:
+                costs.append(dict(source=source, **_cost([source_rows[(k, bits, source)] for k in keys])))
+                seqs = [s for s, r in reservations.items() if r["experiment_id"] in names and r["source"] == source]
+                values = [rates[s] for s in seqs if rates[s] is not None]
+                native_rates.append(dict(source=source, count=len(values), median_generation_tps=median(values) if values else None,
+                                         unavailable_requests=len(seqs) - len(values)))
+            arms.append(dict(bits=bits, first_verified=verified[True], final_verified=verified[False], costs=costs, native_rates=native_rates))
+        contingencies = {}
+        for first, label in ((True, "first_reply"), (False, "final_policy")):
+            counts = dict.fromkeys(("both", "8_only", "16_only", "neither", "unassessed"), 0)
+            for key in keys:
+                assessed = all((_first_assessed(cells[(key, b, s)], views) if first else _terminal(cells[(key, b, s)], views))
+                               for b in (8, 16) for s in study.SOURCES)
+                a, b = key in joints[(8, first)], key in joints[(16, first)]
+                category = "unassessed" if not assessed else "both" if a and b else "8_only" if a else "16_only" if b else "neither"
+                counts[category] += 1
+            contingencies[label] = counts
+        timing = []
+        for source in study.SOURCES:
+            coverage = dict.fromkeys(("paired_requests", "missing_request_pairs", "matching_ready_pairs", "missing_ready_pairs", "mismatched_ready_pairs"), 0)
+            walls = {first: {b: [] for b in (8, 16)} for first in (True, False)}; native_pairs = 0
+            for key in keys:
+                firsts = {b: cells[(key, b, source)]["attempt_seqs"][:1] for b in (8, 16)}
+                for first in (True, False):
+                    for b in (8, 16): walls[first][b].append(_cell_wall(cells[(key, b, source)], first, outcomes, views))
+                if not all(firsts.values()):
+                    coverage["missing_request_pairs"] += 1
+                    continue
+                coverage["paired_requests"] += 1
+                ready = [_ready(outcomes[firsts[b][0]]) for b in (8, 16)]
+                fields = ("prompt", "prompt_ids", "eos_token_ids")
+                same = (all(r is not None for r in ready)
+                        and digest([ready[0][k] for k in fields]) == digest([ready[1][k] for k in fields]))
+                coverage["matching_ready_pairs" if same else "missing_ready_pairs" if any(r is None for r in ready) else "mismatched_ready_pairs"] += 1
+                native_pairs += same and all(rates[firsts[b][0]] is not None for b in (8, 16))
+            timing.append(dict(source=source, initial_inputs=coverage, first_reply_wall=_wall(walls[True], valid),
+                               final_policy_wall=_wall(walls[False], valid), native_first_pairs=native_pairs))
+        subset = dict(name=name, denominator=len(keys), terminal_cells=terminal, complete=terminal == 4 * len(keys),
+                      arms=arms, joint_contingency=contingencies, timing=timing)
+        if name == "primary50":
+            subset["target_met"] = [dict(bits=a["bits"], first_reply=a["first_verified"]["joint"] >= 15 if valid and subset["complete"] else None,
+                final_policy=a["final_verified"]["joint"] >= 15 if valid and subset["complete"] else None) for a in arms]
+        output.append(subset)
+    return output
+
+
 def derive(*, events, records, runs, eligible, outcomes, reservations, panel):
     anchors = [e for e in events if e["kind"] == "paired_plan"]
     if not anchors: return []
@@ -184,5 +305,5 @@ def derive(*, events, records, runs, eligible, outcomes, reservations, panel):
                 reason_counts=dict(Counter(c["reason"] for c in cells if c["reason"] is not None))),
             members=[dict(experiment_id=m["experiment_id"], task=m["task"], bits=m["bits"],
                 cells=[{k: c[k] for k in ("source", "status", "reason", "attempt_seqs")} for c in assigned])
-                for m, _, assigned in rows]))
+                for m, _, assigned in rows], metrics=_metrics(layout, rows, run_map, eligible, outcomes, reservations, views, not invalid)))
     return trials

@@ -509,7 +509,20 @@ Malformed bindings reject; observed control/procedure failures remain publishabl
 with invalid reasons and existing costs. Usable completion requires durable guard,
 generation and native proof at the relevant prefix, never later reconciliation.
 Freshness is campaign-local through the decision; cohort restrictions cover prior
-cross-campaign use. This slice adds no paired yield, cost comparison or target claim.
+cross-campaign use.
+
+Paired `metrics` summarize primary50, tuning40, fresh32, extra22 and full72;
+their overlapping denominators never shrink or add together. Verified first/final
+counts use each trial's own replies and same-arm actor AND synthetic success.
+Primary target flags require valid comparison and all200 source cells terminal;
+subset completion alone describes coverage. Unknown/pending tasks stay visible.
+Costs include every owned attempt; shared native and cumulative costs stay global.
+First-request cold wall includes guarded load failures, with missing-ready coverage;
+policy wall includes independent repairs only when terminal and fully measured.
+Median16/8 wall ratios require positive8 denominators and a valid comparison.
+Native rates use complete terminal evidence, independently of program success;
+their timer excludes first-token time while its token count includes it/EOS.
+Neither rate nor parent wall measures GPU-only time or time to first token.
 
 After Darwin EPERM, teardown waits up to five seconds for the child to exit, then
 observes its group for up to five seconds after reaping. Existing final waits may

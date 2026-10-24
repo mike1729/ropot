@@ -413,3 +413,23 @@ The final-source run `precision-u_uycdio` also passed in 70.84 seconds, with
 all four model manifests identical to the first attempt. Both attempts are retained:
 145.65 seconds total, 244 forced-forward tokens and zero generator requests.
 Use its passed receipt for profiles; audit: `data/03_reviews/batch-08b2-final-actual-audit.json`.
+
+### Frozen precision metadata (batch 8c.1)
+
+Under an open `Campaign` lease, `precision_profiles.freeze(campaign, receipt_path,
+expected_receipt_sha256)` takes an absolute canonical receipt path and freezes seven metadata files under
+`precision/<receipt-SHA>`. Equal retry validates that copy even after the original
+metadata is removed. `resolve(campaign, reference, source, bits)` returns the
+original model path, exact file map and common runtime fingerprint without reading
+weights or requiring the original model/runtime files to exist.
+
+`check_runtime(expected_runtime)` loads by path under `-I -B` using only stdlib. It
+checks interpreter, flags, eight distributions, four launch-environment controls
+and the consistent source union before any heavy import. Later-import observations
+remain distinguished from preparation's pre-operation stability evidence. Fixed
+thinking/regex controls match the receipt-bound preparation source. Parent metadata
+validation lazily depends on `experiments.prepare_precision_artifacts`; the guard
+does not. Input hash maps are checked for agreement, not reconstructed from decoded
+objects. Publication assumes one stable publisher and fsync ordering, without a
+power-loss guarantee. This batch adds no dispatch integration or cohort outcomes;
+use new export versions after source changes.

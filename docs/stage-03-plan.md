@@ -584,3 +584,8 @@ and CPU eval starts retain host monotonic anchors for measuring actual overlap.
 Optional GPU `--cache-gib 0|4|8` binds a post-load MLX allocator free-cache limit to
 the job and retains its setter readback in `cache-control.json`. Omission preserves
 the runtime default. This changes unused allocator memory, independently of KV state.
+`python -m experiments.overlap_throughput --profiles PATH --winner JOB --output NEW
+--lock PATH` runs serial GPU/CPU, overlap, overlap and reverse-serial phases under
+one lease. It rebuilds the winner with current source hashes, binds identical GPU
+job bytes across phases and reports full makespan plus actual window/eval overlap.
+The verifier uses independent fixed programs; this benchmark does not measure yield.

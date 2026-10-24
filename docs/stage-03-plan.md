@@ -667,3 +667,11 @@ binds the retained base protocol and replaces cold ordering and wall accounting.
 Setup copies all four qualifications, registers the full metadata matrix, and
 freezes funding before extension. Actual acquisition waits for reviewed report,
 executor and confirmation consumers; no setup command alone starts model work.
+
+The Ministral sampler diagnostic reuses the original owned schema 2 worker job
+through a byte-pinned helper. It records native normalized sampling scores and
+sampling dtype for the shared prefix, with lossless float32 observation vectors
+at token index 10. Original requests, samplers, stress checks and verdict remain.
+Its baseline binds the retained failing job and rendered prompts. An expected
+qualification failure can yield diagnostic evidence with proven cleanup; it
+provides no new cohort admission or inference speed measurement.

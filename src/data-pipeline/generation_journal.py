@@ -176,8 +176,9 @@ class Campaign:
                 == {e["operation_id"] for e in events if e["kind"] == "native_closed"},
                 "Reconcile pending native operations before dispatch")
 
-    def generate(self, experiment_id, source, request):
+    def generate(self, experiment_id, source, request, *, attempt=None):
         try:
+            attempt = snapshot(attempt)
             self.require_native_clear()
             request = snapshot(request)
             prepared, raw = generation.prepare_request(request)
@@ -192,7 +193,7 @@ class Campaign:
             require(all(totals[source][u] <= limits[source][u] for u in UNITS),
                     "Campaign budget exhausted")
             intent = self._append("generation_reserved", experiment_id=experiment_id, source=source,
-                                  request_text=raw.decode(), request_sha256=sha256(raw).hexdigest())
+                                  request_text=raw.decode(), request_sha256=sha256(raw).hexdigest(), attempt=attempt)
             generation.generate(request, self.root / "requests" / f"{intent['seq']:06d}",
                                 lease_fd=self._lock.fileno())
             return self._finish(intent["seq"])

@@ -244,3 +244,30 @@ Batch 6b must define a recorded operator resolution for blocked native operation
 before any cohort generation. No automatic host termination or cleanup is provided.
 The low-level native adapter dispatches fresh operations; batch 6b must enforce
 source-independent completed-key reuse (including gate samples) before cohort use.
+
+### Loop inputs and manual resolution (batch 6b.1)
+
+`experiment_loop.run_record` builds a canonical activation and an ordered assigned
+subset; `validate_run` compares the complete frozen record. Recipes set reply count,
+fixed per-request token/wall caps and every seed; cell ceilings are their products.
+The policy digest includes loop and generation/extraction code. Messages select only
+question/starter and share output conventions. Stateless repair uses the preceding
+reply and bounded visible feedback; hidden failures supply only their generic enum.
+Candidates publish through fsynced temporary files and exclusive links, never overwrite.
+`Campaign.generate(..., attempt=...)` stores strict JSON ownership with the reservation;
+the integrated batch-6b.2 loop must validate slots and recheck exact request bytes.
+
+`native_recovery.resolve_native(..., attestation={operator, quiescence_evidence})`
+is a HUMAN-only escape hatch, never invoked by unattended code. Stop the original
+controller and prove owned creators cannot resume; the campaign flock alone does
+not cover Inspect's Docker children. Establish original-daemon quiescence, using a
+coordinated manual daemon restart if startup completion cannot otherwise be proved.
+Clean only exact operation projects with scoped Inspect cleanup, then retain the
+commands/results and positive proof in the attestation. Empty inventories alone
+are insufficient. The handler retries derivation first, then rechecks same-daemon
+CLI/container absence. Manual closure creates no verdict or refund; newly derivable
+verdicts are recorded and the call refuses. Contract restoration is required first.
+Make derivation possible before resolving: retain the directory, pinned image and
+Inspect version. Recorded or newly derivable verdicts require normal reconciliation.
+A changed daemon ID remains blocked in this batch. If proof is missing, keep the
+operation blocked and resume the same campaign only after a human resolves it.

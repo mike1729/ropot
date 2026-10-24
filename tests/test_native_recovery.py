@@ -206,3 +206,69 @@ class NativeRecoveryDockerTests(unittest.TestCase):
             self.assertRegex(log.samples[0].store["container"]["Config"]["Labels"]["com.docker.compose.project"],
                              rf"^inspect-{result['operation_id']}-i[a-z0-9]{{6}}$")
             self.assertEqual(sum(e["kind"] == "native_closed" for e in campaign.events), 1)
+
+
+class NativeManualResolutionTests(unittest.TestCase):
+    limits, rows, request = NativeRecoveryTests.limits, NativeRecoveryTests.rows, NativeRecoveryTests.request
+    setUp, read, execute, pending = NativeRecoveryTests.setUp, NativeRecoveryTests.read, NativeRecoveryTests.execute, NativeRecoveryTests.pending
+    attestation = {"operator": "Unit test operator", "quiescence_evidence": "Fixture daemon and all matching resources independently checked"}
+
+    def create(self):
+        campaign, root = journal_fixture.GenerationJournalTests.create(self)
+        campaign.generate("one", "actor", self.request())
+        return campaign, root
+
+    def unknown(self):
+        campaign, directory = self.pending(); Path(self.log.location).unlink()
+        operation_id = next(e["operation_id"] for e in campaign.events if e["kind"] == "native_intent")
+        return campaign, operation_id
+
+    def test_attestation_unblocks_without_correctness_or_refund_and_is_idempotent(self):
+        campaign, operation_id = self.unknown(); accounting = campaign._accounting()
+        self.assertGreater(accounting[1]["actor"]["replies"], 0)
+        closed = self.N.resolve_native(campaign, operation_id, attestation=self.attestation)
+        self.assertEqual((closed["mode"], closed["attestation"]), ("operator_attestation", self.attestation))
+        self.assertEqual(closed["attestation_sha256"], self.N.sha256(self.N.encoded(self.attestation).encode()).hexdigest())
+        self.assertFalse(any(e["kind"] == "native_verdict" for e in campaign.events))
+        self.assertEqual(campaign._accounting(), accounting); campaign.require_native_clear()
+        count = len(campaign.events)
+        with mock.patch.object(self.N, "_inventory", side_effect=AssertionError("must not inspect")) as inventory, \
+             mock.patch.object(self.N, "_derive", side_effect=AssertionError("must not derive")) as derive:
+            self.assertEqual(self.N.resolve_native(campaign, operation_id, attestation=dict(self.attestation)), closed)
+            inventory.assert_not_called(); derive.assert_not_called()
+        self.assertEqual(len(campaign.events), count)
+        with self.assertRaises(ValueError): self.N.resolve_native(campaign, operation_id, attestation={**self.attestation, "operator": "Other"})
+
+    def test_invalid_attestations_and_unknown_operation_append_nothing(self):
+        campaign, operation_id = self.unknown(); count = len(campaign.events)
+        for bad in ({}, {**self.attestation, "extra": 1}, {**self.attestation, "operator": " "},
+                    {**self.attestation, "operator": "é" * 129}, {**self.attestation, "quiescence_evidence": "é" * 4097},
+                    {**self.attestation, "operator": True}, {**self.attestation, "operator": "\ud800"}):
+            with self.assertRaises(ValueError): self.N.resolve_native(campaign, operation_id, attestation=bad)
+        with self.assertRaises(ValueError): self.N.resolve_native(campaign, "0" * 12, attestation=self.attestation)
+        self.assertEqual(len(campaign.events), count)
+
+    def test_derivable_and_prior_verdicts_require_normal_reconciliation(self):
+        campaign, _ = self.pending()
+        operation_id = next(e["operation_id"] for e in campaign.events if e["kind"] == "native_intent")
+        with self.assertRaisesRegex(ValueError, "derivable"): self.N.resolve_native(campaign, operation_id, attestation=self.attestation)
+        self.assertEqual(sum(e["kind"] == "native_verdict" for e in campaign.events), 1)
+        self.assertFalse(any(e["kind"] == "native_closed" for e in campaign.events))
+        with self.assertRaisesRegex(ValueError, "Recorded verdict"): self.N.resolve_native(campaign, operation_id, attestation=self.attestation)
+        self.assertEqual(sum(e["kind"] == "native_verdict" for e in campaign.events), 1)
+        self.N.reconcile_native(campaign)
+        with self.assertRaises(ValueError): self.N.resolve_native(campaign, operation_id, attestation=self.attestation)
+
+    def test_manual_closure_requires_original_daemon_and_complete_idle_inventory(self):
+        for probe in ({"return_value": {}}, {"side_effect": OSError("contract unavailable")}):
+            campaign, operation_id = self.unknown()
+            with mock.patch.object(self.N.verification.runner, "contract", **probe), self.assertRaises(self.N.NativeBlocked):
+                self.N.resolve_native(campaign, operation_id, attestation=self.attestation)
+            self.assertFalse(any(e["kind"] == "native_closed" for e in campaign.events)); campaign.close()
+        for inventory in (("fixture-daemon", ["owned-stopped"], False), ("fixture-daemon", [], True),
+                          ("changed-daemon", [], False), OSError("scan failed")):
+            campaign, operation_id = self.unknown(); accounting = campaign._accounting()
+            with mock.patch.object(self.N, "_inventory", **({"side_effect": inventory} if isinstance(inventory, Exception) else {"return_value": inventory})):
+                with self.assertRaises(self.N.NativeBlocked): self.N.resolve_native(campaign, operation_id, attestation=self.attestation)
+            self.assertFalse(any(e["kind"] in ("native_verdict", "native_closed") for e in campaign.events))
+            self.assertEqual(campaign._accounting(), accounting); campaign.close()

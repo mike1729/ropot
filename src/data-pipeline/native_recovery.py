@@ -128,6 +128,12 @@ def _settle(campaign, intent, *, elapsed=None, returned_log=None):
     opid = intent["operation_id"]
     prior = [e for e in campaign.events if e["kind"] == "native_verdict" and e["operation_id"] == opid]
     verdict = prior[0] if prior else _derive(campaign, intent, elapsed, returned_log)
+    _close(campaign, intent)
+    return verdict
+
+
+def _close(campaign, intent, **closure):
+    opid = intent["operation_id"]
     try:
         daemon, projects, live = _inventory(opid)
     except Exception:
@@ -136,8 +142,37 @@ def _settle(campaign, intent, *, elapsed=None, returned_log=None):
         _block(campaign, intent, "changed_daemon")
     if projects or live:
         _block(campaign, intent, "resources_present")
-    campaign._append("native_closed", operation_id=opid)
-    return verdict
+    return campaign._append("native_closed", operation_id=opid, **closure)
+
+
+def resolve_native(campaign, operation_id, *, attestation):
+    """Human-only resource attestation; never a correctness override or automatic retry."""
+    attestation = snapshot(attestation)
+    require(type(attestation) is dict and set(attestation) == {"operator", "quiescence_evidence"}
+            and all(type(attestation[k]) is str and bool(attestation[k].strip())
+                    and len(attestation[k].encode()) <= bound
+                    for k, bound in (("operator", 256), ("quiescence_evidence", 8192))),
+            "Require bounded human operator and positive quiescence evidence")
+    digest = sha256(encoded(attestation).encode()).hexdigest()
+    events = campaign.events
+    intents = [e for e in events if e["kind"] == "native_intent" and e["operation_id"] == operation_id]
+    require(len(intents) == 1, "Unknown native operation")
+    closed = [e for e in events if e["kind"] == "native_closed" and e["operation_id"] == operation_id]
+    if closed:
+        require(closed[0].get("mode") == "operator_attestation"
+                and closed[0]["attestation_sha256"] == digest
+                and encoded(closed[0]["attestation"]) == encoded(attestation), "Different native closure")
+        return closed[0]
+    require(not any(e["kind"] == "native_verdict" and e["operation_id"] == operation_id for e in events),
+            "Recorded verdict: use reconcile_native")
+    try:
+        _derive(campaign, intents[0], None, None)
+    except NativeBlocked as blocked:
+        if str(blocked) in ("contract_unavailable", "changed_contract"):
+            raise
+        return _close(campaign, intents[0], mode="operator_attestation", attestation=attestation,
+                      attestation_sha256=digest)
+    raise ValueError("Evidence derivable: use reconcile_native")
 
 
 def reconcile_native(campaign):

@@ -484,7 +484,7 @@ historical reports retain recorded activations without current-policy rebuilding
 Use `python -m src.data-pipeline.paired_collection setup --help` to freeze a paired
 trial; [its protocol](stage-03-paired-protocol.md) binds methods before collection.
 
-Only `paired_collection tune --campaign PATH --plan-id ID --through-tasks N`
+For tuning, `paired_collection tune --campaign PATH --plan-id ID --through-tasks N`
 dispatches paired members; N is required on the CLI and ranges from 1 to 40 tasks.
 It walks the same first `2*N` records on every resume, without re-dispatching spent
 requests or reaching fresh tasks. Use whole-task checkpoints for quiet tests;
@@ -499,7 +499,7 @@ the blocked member. A new plan may still reuse the same failed native evidence.
 Budget refusals need a recorded funding correction.
 The historical protocol export adds no live producer/model/runtime reads; existing
 snapshot proof checks retain their code, metadata and Docker requirements.
-Fresh continuation will use a separately reviewed new module after reports land.
+Fresh continuation uses a separately reviewed module, described below.
 
 Paired snapshots add `paired_trials` validity/status from all proven own attempts,
 independently of global selections. The reducer checks the complete frozen plan,
@@ -523,6 +523,18 @@ Median16/8 wall ratios require positive8 denominators and a valid comparison.
 Native rates use complete terminal evidence, independently of program success;
 their timer excludes first-token time while its token count includes it/EOS.
 Neither rate nor parent wall measures GPU-only time or time to first token.
+
+After all40 tuning tasks are terminal, explicitly review symmetric pooled tuning
+results and retain the unchanged decision rationale under `data/03_reviews`.
+`paired_continuation confirm --campaign PATH --plan-id ID` records that decision;
+`paired_continuation fresh --campaign PATH --plan-id ID --through-tasks N`
+then traverses exactly the first N of32 fresh tasks in the frozen arm order.
+Both commands require an existing campaign, current retained family, usable
+tuning evidence and no prior fresh exposure. Fresh never confirms automatically.
+Explicit resume retains every charge and prior terminal failure; a new guarded
+execution error pauses before another member, while fixed-wall timeouts continue.
+Run as `python -m src.data-pipeline.paired_continuation`; do not edit frozen
+producers or this continuation module during fresh collection.
 
 After Darwin EPERM, teardown waits up to five seconds for the child to exit, then
 observes its group for up to five seconds after reaping. Existing final waits may

@@ -76,6 +76,21 @@ class StudyTaskTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         return study.load_cohort(self.cohort_dir)
 
+    def feasibility_loaded(self):
+        loaded = copy.deepcopy(self.loaded); cohort = loaded["cohort"]; cohort["tasks"] = []
+        cohort["candidate_budgets"]["development"]["smoke"]["total"] = 8
+        cohort["candidate_budgets"]["construction"].update(probe_per_phase=16, feasibility_per_phase=32)
+        for index, (group, (owner, phase)) in enumerate(study.GROUPS.items(), 1):
+            size = 8 if phase is None else 32
+            identifiers = list(range(index * 1000 + size, index * 1000, -1))
+            queue = cohort["queues"][owner] if phase is None else cohort["construction_phases"][phase]
+            queue["initial"] = identifiers
+            for identifier in identifiers:
+                cohort["tasks"].append({**self.records[1], "id": identifier, "owner": owner,
+                    "path": f"absent/test_{identifier}.json", "known_uses": ["fixture provenance"],
+                    **({"phase": phase} if phase else {})})
+        return loaded
+
     def test_pinned_manifests_load_unchanged_and_allow_task_relocation(self):
         self.assertEqual((self.loaded["cohort"], self.loaded["test_pool"]), (self.cohort, self.pool_manifest))
         moved = self.root / "moved"
@@ -93,6 +108,8 @@ class StudyTaskTests(unittest.TestCase):
 
     def test_activation_takes_budgeted_prefixes_in_group_and_cohort_order(self):
         activation = study.activate(self.loaded, ["continuation_probe", "development_smoke"])
+        self.assertNotIn("construction_per_phase", activation)  # Legacy fixture has no feasibility bound.
+        self.assertEqual(json.dumps(activation), json.dumps(study.activate(self.loaded, ["continuation_probe", "development_smoke"], construction_per_phase=None)))
         self.assertEqual(activation["cohort_sha256"], self.loaded["sha256"])
         self.assertEqual(activation["groups"], ["development_smoke", "continuation_probe"])
         expected = ((1, "development_smoke"), (2, "development_smoke"),
@@ -100,6 +117,36 @@ class StudyTaskTests(unittest.TestCase):
         self.assertEqual(activation["tasks"], [{**self.records[i], "group": group} for i, group in expected])
         shared = study.activate(self.loaded, ["shared_pretraining_probe"])
         self.assertEqual([task["id"] for task in shared["tasks"]], [10, 11])
+
+    def test_feasibility_order_bindings_and_canonical_marker(self):
+        loaded = self.feasibility_loaded(); before = copy.deepcopy(loaded)
+        activation = study.activate(loaded, list(reversed(study.GROUPS)), construction_per_phase=32)
+        expected = [{**task, "group": group} for group, (owner, phase) in study.GROUPS.items()
+                    for task in loaded["cohort"]["tasks"] if (task["owner"], task.get("phase")) == (owner, phase)]
+        self.assertEqual((activation["groups"], activation["tasks"], activation["construction_per_phase"]), (list(study.GROUPS), expected, 32))
+        self.assertEqual(len(expected), 72); self.assertEqual(loaded, before)
+        self.assertEqual(study.experiment_record(loaded, "extended", activation, {"actor": {}})["activation"], activation)
+        for value, reason in ((None, "Activation differs"), (True, "Invalid construction prefix selection"), (32.0, "Invalid construction prefix selection")):
+            forged = {**activation, "construction_per_phase": value}
+            with self.assertRaisesRegex(ValueError, reason): study.experiment_record(loaded, "bad", forged, {"actor": {}})
+        for mutate in (lambda a: a.pop("construction_per_phase"), lambda a: a["tasks"].pop(),
+                       lambda a: a["tasks"].reverse(), lambda a: a["tasks"][-1]["known_uses"].append("changed")):
+            forged = copy.deepcopy(activation); mutate(forged)
+            with self.assertRaisesRegex(ValueError, "Activation differs"): study.experiment_record(loaded, "bad", forged, {"actor": {}})
+
+    def test_feasibility_selection_and_last_position_eligibility(self):
+        loaded = self.feasibility_loaded()
+        for value in (True, 32.0, "32", 0, 16, 31, 33):
+            with self.assertRaisesRegex(ValueError, "Invalid construction prefix selection"): study.activate(loaded, list(study.GROUPS), construction_per_phase=value)
+        for bound in (True, 32.0, "32", 0, None):
+            changed = copy.deepcopy(loaded); changed["cohort"]["candidate_budgets"]["construction"]["feasibility_per_phase"] = bound
+            with self.assertRaisesRegex(ValueError, "Invalid construction prefix selection"): study.activate(changed, list(study.GROUPS), construction_per_phase=32)
+        with self.assertRaisesRegex(ValueError, "Invalid construction prefix selection"): study.activate(loaded, ["development_smoke"], construction_per_phase=32)
+        for field, value in (("owner", "evaluation"), ("phase", PHASES[1]), ("block", "reserve"), ("defer_reasons", ["fixture"])):
+            changed = copy.deepcopy(loaded); changed["cohort"]["tasks"][39][field] = value
+            with self.assertRaisesRegex(ValueError, "Ineligible shared_pretraining_probe"): study.activate(changed, list(study.GROUPS), construction_per_phase=32)
+        loaded["cohort"]["construction_phases"][PHASES[0]]["initial"].pop()
+        with self.assertRaisesRegex(ValueError, "Insufficient shared_pretraining_probe"): study.activate(loaded, list(study.GROUPS), construction_per_phase=32)
 
     def test_activation_rejects_invalid_groups_and_prefixes(self):
         for groups in ([], ["development_smoke"] * 2, ["evaluation"], "development_smoke"):

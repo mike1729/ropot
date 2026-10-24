@@ -54,11 +54,12 @@ def load_cohort(cohort_dir=OUTPUT, test_pool_dir=None):
     return {"sha256": digest, "cohort": cohort, "test_pool": json.loads(pool_raw), "test_pool_dir": test_pool_dir}
 
 
-def activate(loaded, groups):
+def activate(loaded, groups, *, construction_per_phase=None):
     """Return task bindings for a nonempty subset of GROUPS, in GROUPS then cohort order.
 
     Development smoke takes the first ``candidate_budgets`` smoke tasks; each probe
-    takes the first ``probe_per_phase`` tasks of its phase's initial block. Every
+    takes the first ``probe_per_phase`` tasks, or opts into the recorded feasibility
+    bound with ``construction_per_phase``. Both use its phase's initial block. Every
     selected task must be an undeferred test task with the group's owner and phase.
     Bindings copy the cohort records unchanged, adding only their group name.
     """
@@ -68,11 +69,18 @@ def activate(loaded, groups):
     cohort, tasks = loaded["cohort"], []
     records = {record["id"]: record for record in cohort["tasks"]}
     budgets = cohort["candidate_budgets"]
+    if construction_per_phase is not None:
+        bound = budgets["construction"].get("feasibility_per_phase")
+        if (type(construction_per_phase) is not int or construction_per_phase <= 0
+                or type(bound) is not int or bound <= 0 or construction_per_phase != bound
+                or not any(GROUPS[name][1] is not None for name in requested)):
+            raise ValueError("Invalid construction prefix selection")
     for name, (owner, phase) in GROUPS.items():
         if name not in requested:
             continue
         queue, size = ((cohort["queues"][owner]["initial"], budgets[owner]["smoke"]["total"]) if phase is None
-                       else (cohort["construction_phases"][phase]["initial"], budgets[owner]["probe_per_phase"]))
+                       else (cohort["construction_phases"][phase]["initial"], construction_per_phase
+                             if construction_per_phase is not None else budgets[owner]["probe_per_phase"]))
         if type(size) is not int or not 0 < size <= len(queue):
             raise ValueError(f"Insufficient {name} prefix")
         for identifier in queue[:size]:
@@ -82,12 +90,14 @@ def activate(loaded, groups):
                 raise ValueError(f"Ineligible {name} task: {identifier}")
             tasks.append({**record, "group": name})
     return snapshot({"cohort_sha256": loaded["sha256"],
-                     "groups": [name for name in GROUPS if name in requested], "tasks": tasks})
+                     "groups": [name for name in GROUPS if name in requested], "tasks": tasks,
+                     **({"construction_per_phase": construction_per_phase} if construction_per_phase is not None else {})})
 
 
 def _require_activation(loaded, activation):
     """Accept only an activation equal to the one the pinned cohort produces."""
-    if activation != activate(loaded, activation["groups"]):
+    if activation != activate(loaded, activation["groups"],
+                              construction_per_phase=activation.get("construction_per_phase")):
         raise ValueError("Activation differs from the pinned cohort prefixes")
 
 

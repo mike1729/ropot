@@ -473,3 +473,10 @@ request/helper identities and copied metadata, exporting all seven files even fo
 zero-reply runs. Source rows/selections include compact `precision_profile` identity;
 global selections and panel yield remain a mixed acquisition union across recipes
 and precisions. This batch runs no cohort tasks or paired experiment.
+
+`study_tasks.activate(..., construction_per_phase=32)` and the loop factory opt into
+the cohort's recorded feasibility prefix; omission preserves the original probe
+prefix and activation shape. The nested marker canonically binds the choice and
+requires a construction group. Construction uses metadata only; execution loads
+assigned tasks individually. The loop source change requires new execution IDs;
+historical reports retain recorded activations without current-policy rebuilding.

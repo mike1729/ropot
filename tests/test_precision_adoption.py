@@ -85,6 +85,15 @@ class PrecisionAdoptionTests(unittest.TestCase):
                 (False, None, "Missing done", "profile_unproven"), (False, dict(code="runtime", detail="fixture"), None, "profile_failure"), (True, None, "Invalid ready", "profile_protocol")):
             self.assertEqual(self.J.profile_control_reason(dict(profile_guarded=guarded, profile_failure=failure, protocol_error=error, response=object())), reason)
 
+    def test_feasibility_v2_factory_rebuild_without_task_payload(self):
+        cohort = copy.deepcopy(self.cohort); cohort["candidate_budgets"]["construction"]["feasibility_per_phase"] = 3
+        self.loaded = self.rewrite(cohort); (self.pool / "tasks/test_12.json").unlink()
+        bound = self.record(self.fresh(), sources=("actor",))["profiles"]
+        with mock.patch.object(self.L.study, "load_task", side_effect=AssertionError("task payload read")):
+            record = self.L.run_record(self.loaded, "extended", ["shared_pretraining_probe"], {"actor": self.recipe((1,))}, [12], profiles=bound, construction_per_phase=3)
+            self.assertEqual(self.L.validate_run(self.loaded, record), record)
+        self.assertEqual((record["schema_version"], record["profiles"], record["assigned_task_ids"], record["activation"]["construction_per_phase"]), (2, bound, [12], 3))
+
     def test_binding_is_before_reservation_and_direction_is_specific(self):
         for fault in ("legacy", "unprofiled", "arm", "helper", "source", "reference"):
             reason = {"legacy": "Registered profile direction differs", "unprofiled": "Registered profile direction differs",

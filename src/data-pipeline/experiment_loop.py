@@ -31,8 +31,8 @@ def policy_sha256():
     return sha256(encoded(sources).encode("utf-8")).hexdigest()
 
 
-def run_record(loaded, experiment_id, groups, recipes, assigned, *, profiles=None):
-    activation = study.activate(loaded, groups)
+def run_record(loaded, experiment_id, groups, recipes, assigned, *, profiles=None, construction_per_phase=None):
+    activation = study.activate(loaded, groups, construction_per_phase=construction_per_phase)
     record = study.experiment_record(loaded, experiment_id, activation, study.snapshot(recipes))
     if profiles is not None:
         profiles = precision.check_profiles(study.snapshot(profiles), record["recipes"])
@@ -59,7 +59,8 @@ def validate_run(loaded, record):
     record = study.snapshot(record)
     try:
         rebuilt = run_record(loaded, record["experiment_id"], record["activation"]["groups"],
-                             record["recipes"], record["assigned_task_ids"], profiles=record.get("profiles"))
+                             record["recipes"], record["assigned_task_ids"], profiles=record.get("profiles"),
+                             construction_per_phase=record["activation"].get("construction_per_phase"))
     except (KeyError, TypeError):
         raise ValueError("Invalid run record") from None
     require(encoded(rebuilt) == encoded(record), "Run differs from its canonical record or current policy")

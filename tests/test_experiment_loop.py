@@ -57,6 +57,14 @@ class ExperimentLoopTests(unittest.TestCase):
                 with self.assertRaises(ValueError): self.record(**change)
                 generate.assert_not_called()
 
+    def test_feasibility_v1_factory_rebuild_without_task_payload(self):
+        cohort = deepcopy(self.cohort); cohort["candidate_budgets"]["construction"]["feasibility_per_phase"] = 3
+        loaded = self.rewrite(cohort); (self.pool / "tasks/test_12.json").unlink()
+        with mock.patch.object(self.L.study, "load_task", side_effect=AssertionError("task payload read")):
+            record = self.L.run_record(loaded, "extended", ["shared_pretraining_probe"], {"actor": self.recipe}, [12], construction_per_phase=3)
+            self.assertEqual(self.L.validate_run(loaded, record), record)
+        self.assertEqual((record["schema_version"], record["assigned_task_ids"], record["activation"]["construction_per_phase"]), (1, [12], 3))
+
     def test_stateless_messages_and_bounded_first_visible_feedback(self):
         task = dict(question="QUESTION", starter_code="STARTER", solutions="SOLUTION_SECRET",
                     url="URL_SECRET", input_output={"inputs": ["HIDDEN_SECRET"]})

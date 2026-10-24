@@ -549,3 +549,11 @@ without probing a possibly reused PID. The pure historical checker releases only
 the global setup/run resource barrier; the original worker_error, evidence,
 candidate eligibility and cumulative charges stay unchanged. A producer fix
 requires a new plan/member IDs in the same campaign; do not rewrite old history.
+
+Throughput discovery precedes further cohort acquisition. `experiments.batch_throughput`
+freezes a finite job of invented fixtures and declared windows, with strict raw-token
+UID/EOS accounting and an inherited exclusive GPU lease. Its parent retains partial
+output, resource samples, timeout/cancellation and cleanup evidence; failures do not
+refund diagnostic costs. Run files and profile metadata live under private `data/`.
+A separate resident worker supplies numerical batching qualification and timed grids;
+its throughput method remains separate from the archived per-request cold run.

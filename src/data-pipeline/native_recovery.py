@@ -183,8 +183,40 @@ def reconcile_native(campaign):
             if e["kind"] == "native_intent" and e["operation_id"] not in closed]
 
 
-def run_native(campaign, task, task_sha256, program=None):
+def reuse_native(campaign, intent, task, programs):
+    """Re-derive closed retained evidence without dispatch, recovery or journal writes."""
+    opid, events = intent["operation_id"], campaign.events
+    require(type(opid) is str and re.fullmatch(r"[0-9a-f]{12}", opid) is not None, "Invalid native operation")
+    directory = campaign.root / "native" / opid
+    require(directory.resolve() == directory, "Invalid operation directory")
+    closed = [e for e in events if e["kind"] == "native_closed" and e["operation_id"] == opid]
+    verdicts = [e for e in events if e["kind"] == "native_verdict" and e["operation_id"] == opid]
+    require(len(closed) == 1 and len(verdicts) <= 1, "Require closed unique native evidence")
+    require([sha256(p).hexdigest() for p in programs] == intent["program_sha256"], "Native programs differ")
+    if not verdicts:
+        require(closed[0].get("mode") == "operator_attestation", "Closed operation lacks evidence")
+        return None
+    verdict = verdicts[0]
+    require(verdict["log"] in verdict["log_evidence"] and bool(verdict["log_evidence"]), "Missing selected log evidence")
+    for name, digest in verdict["log_evidence"].items():
+        path = campaign.root / name
+        require(path.is_relative_to(directory) and path.resolve() == path
+                and sha256(path.read_bytes()).hexdigest() == digest, "Native log evidence changed")
+    selected = campaign.root / verdict["log"]
+    header = read_eval_log(str(selected), header_only=True)
+    require(header.eval.task == opid and encoded(header.eval.metadata["contract"]) == encoded(intent["contract"])
+            and verification.digest(intent["contract"]) == intent["contract_sha256"], "Native log binding differs")
+    results = verification.reuse(selected, task, intent["task_sha256"], programs)
+    status = verification.gate_status(results) if intent["reference_indices"] is not None else results[0]["status"]
+    require(encoded(results) == encoded(verdict["results"]) and status == verdict["status"], "Native verdict changed")
+    return {**verdict, "results": results}
+
+
+def run_native(campaign, task, task_sha256, program=None, *, reservation_seq=None):
     campaign.require_native_clear()
+    require(reservation_seq is None or (program is not None and type(reservation_seq) is int
+            and any(e["seq"] == reservation_seq and e["kind"] == "generation_reserved" for e in campaign.events)),
+            "Require candidate generation reservation owner")
     task = snapshot(task)
     programs = verification.reference_programs(task) if program is None else [program]
     for value in programs:
@@ -205,7 +237,7 @@ def run_native(campaign, task, task_sha256, program=None):
     intent = campaign._append("native_intent", operation_id=operation_id, task_sha256=task_sha256,
         task_copy_sha256=sha256(raw).hexdigest(), program_sha256=[sha256(p).hexdigest() for p in programs],
         reference_indices=task["passing_reference_indices"] if program is None else None,
-        contract=contract, contract_sha256=verification.digest(contract), daemon_id=daemon)
+        contract=contract, contract_sha256=verification.digest(contract), daemon_id=daemon, reservation_seq=reservation_seq)
     started = monotonic()
     if program is None:
         result = verification.reference_gate(task, task_sha256, directory / "logs", operation_id=operation_id)

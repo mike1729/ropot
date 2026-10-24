@@ -188,10 +188,10 @@ def extract_program(text):
         require(len(fences) == 2 and match is not None, "Require a sole Python fence")
         text = match[1]
     require(bool(text.strip()), "Empty program")
+    program = text.encode("utf-8")
     try:
-        program = text.encode("utf-8")
         compile(program, "candidate.py", "exec", dont_inherit=True)
-    except (SyntaxError, ValueError) as error:
+    except (SyntaxError, ValueError, MemoryError, RecursionError) as error:
         raise ValueError("Invalid Python format") from error
     return program
 

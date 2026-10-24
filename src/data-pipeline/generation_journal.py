@@ -149,8 +149,8 @@ class Campaign:
         else:
             self._append("experiment", experiment_id=identifier, record=record, record_sha256=digest)
 
-    def _accounting(self, additional=None):
-        events = self.events
+    @staticmethod
+    def totals(events, additional=None):
         limits = [e["limits"] for e in events if e["kind"] in ("initial", "limits")][-1]
         limits_checked(limits)
         totals = {}
@@ -162,6 +162,9 @@ class Campaign:
             totals[source] = dict(zip(UNITS, (len(requests), sum(r["max_tokens"] for r in requests),
                                                math.fsum(r["wall_time_seconds"] for r in requests))))
         return limits, totals
+
+    def _accounting(self, additional=None):
+        return self.totals(self.events, additional)
 
     def extend(self, limits):
         limits = limits_checked(limits)

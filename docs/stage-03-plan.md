@@ -271,3 +271,24 @@ Make derivation possible before resolving: retain the directory, pinned image an
 Inspect version. Recorded or newly derivable verdicts require normal reconciliation.
 A changed daemon ID remains blocked in this batch. If proof is missing, keep the
 operation blocked and resume the same campaign only after a human resolves it.
+
+### Integrated loop (batch 6b.2)
+
+`experiment_loop.run(campaign, loaded, record)` reconciles native work, pins one
+`execution_context`, then validates every retained request in a pass with dispatch
+turned off before doing new work. An execution-contract change needs a new experiment.
+Exact task/source/reply slots consume their budgets on every reservation. Only format
+or scientific verification failures permit a planned repair; cleaned cancellation
+ends its cell without retry. A retained cleanup error stops the whole campaign.
+Expected global-budget refusal returns a blocked cell; it never resets spending.
+`attempt_result` binds each reservation to candidate SHA and native operation/sample.
+Completed native keys are re-derived read-only, including all three samples of gates;
+unknown operator-closed work never redispatches. A reply identical to a qualified
+reference reuses that gate sample; retain this link as evidence of reference reproduction.
+`cell_states(events, record)` needs neither Docker nor model directories and projects
+all activated tasks by both sources: unassigned/unrequested, unstarted/pending,
+verified/exhausted/blocked with distinct budget, generation, gate and infrastructure reasons.
+Host parser-stack/recursion errors are format failures. Host compilation retains its
+4,300-digit integer-literal limit; Linux execution uses the documented unlimited setting.
+The later report imports this reducer; edits to loop/generation code change the policy
+hash and require new experiment records. Existing historical projection remains available.

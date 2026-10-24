@@ -131,7 +131,7 @@ class LocalGenerationTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(self.api.extract_program(text), expected)
         for text in ("", " \n", "print(\n", "Explanation\n```python\npass\n```", "\ud800",
-                     "```python\npass\n```\n```python\npass\n```", "```javascript\npass\n```"):
+                     "```python\npass\n```\n```python\npass\n```", "```javascript\npass\n```", "-" * 20000 + "1", "+".join(["1"] * 10000)):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 self.api.extract_program(text)
 

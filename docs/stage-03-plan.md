@@ -364,3 +364,25 @@ driver-memory snapshot was 21.16 GB, not a peak or a 2,048-token fit measurement
 Evidence: `data/03_training_checks/bf16-compatibility-f22oaa6r` and
 `data/03_training_checks/bf16-compatibility-8ydukfzx`. The final-source run took
 19.94 seconds; both retained attempts total 50.76 seconds and zero generator requests.
+
+### Precision input validation (batch 8b.1)
+
+`.venv/bin/python -m experiments.prepare_precision_artifacts` validates both pinned
+official BF16 input directories in one owned worker; it converts or loads no model.
+The request marks this input-only stage, and successful completion explicitly says
+`artifacts_ready: false`. Retained manifests, source snapshots and receipts bind
+the exact attempt. The worker has 1,800 seconds, separate 60-second cleanup grace,
+soft log caps and a 100-GiB free-space floor. Ordinary fixtures exercise the
+stdlib tokenizer/config/header/coverage validators reserved for conversion.
+Batch 8b.2 requires its own plan review before using the cohort's MLX runtime
+to derive paired BF16
+and affine 8-bit/group-64 artifacts, checking canonical tokenizer bytes and all
+nonquantized parameters. Qwen conversion is expected to retain 768 A_log elements
+in FP32 and cast 3,072 source normalization elements to BF16. Input validation
+costs zero generator requests and establishes no model compatibility, yield or
+speed advantage; cohort use also requires reviewed immutable precision profiles.
+
+Both input-only attempts passed: `precision-n2rsy179` and final-source
+`precision-6d5rvwxx` under `data/03_model_artifacts`, totaling
+25.30 seconds and zero generator requests. Final-source evidence/audit:
+`data/03_reviews/batch-08b1-final-actual-audit.json`; all 32 files matched.

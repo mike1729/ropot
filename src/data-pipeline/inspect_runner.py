@@ -11,6 +11,7 @@ from hashlib import sha256
 from importlib.metadata import version
 import json
 from pathlib import Path
+import re
 import subprocess
 from time import monotonic
 
@@ -147,7 +148,7 @@ def contract():
             "docker_platform": {key: info[key] for key in ("Architecture", "OSType")}}
 
 
-def run(programs, log_dir, *, concurrent_inference=False):
+def run(programs, log_dir, *, concurrent_inference=False, operation_id=None):
     """Return native logs for program/cases dictionaries; no model requests occur.
 
     Each entry has ``program: bytes`` and ``cases: [{index: int, input: str}]``.
@@ -157,6 +158,8 @@ def run(programs, log_dir, *, concurrent_inference=False):
     Infrastructure failures stop their sample; other samples finish. Inspect marks
     the final eval as errored if any sample errored; inspect each sample's error/results.
     """
+    if operation_id is not None and (type(operation_id) is not str or re.fullmatch(r"[0-9a-f]{12}", operation_id) is None):
+        raise ValueError("Operation ID must be 12 lowercase hexadecimal characters")
     if version("inspect-ai") != INSPECT_VERSION:
         raise RuntimeError(f"Execution requires inspect-ai=={INSPECT_VERSION}")
     programs = list(programs)
@@ -188,7 +191,7 @@ def run(programs, log_dir, *, concurrent_inference=False):
         "program_base64": base64.b64encode(item["program"]).decode("ascii"), "cases": item["cases"],
         "verification": item.get("verification")})
         for index, item in enumerate(programs)]
-    task = Task(name="linux_execution", dataset=samples, solver=execute_programs(),
+    task = Task(name="linux_execution" if operation_id is None else operation_id, dataset=samples, solver=execute_programs(),
                 sandbox=("docker", str(COMPOSE)), metadata=metadata)
     return inspect_eval(task, model="mockllm/model", log_dir=str(log_dir), log_format="eval",
         max_sandboxes=MAX_SANDBOXES, max_samples=MAX_SANDBOXES, retry_on_error=0,

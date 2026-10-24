@@ -224,3 +224,23 @@ are retained. The routes have different conversions/quantization; this operation
 smoke does not establish acquisition yield. Each route has 600 seconds including
 startup, four replies capped at 256 tokens and 120 seconds per reply. Verification
 runs after inference ends; the 50-task experiment remains behind batch 6's journal.
+
+### Native recovery (batch 6a.2)
+
+`native_recovery.run_native` commits private inputs and an operation intent before
+Inspect dispatch; `reconcile_native` only derives existing evidence. Pending intents
+block generation and new native execution. Verdicts and resource closure are separate:
+all samples must retain the operation's exact Compose label, then current-user CLI
+arguments and running/stopped Docker project labels must be absent on the same daemon.
+Post-creation infrastructure errors can close without a correctness verdict. Missing
+stores, cancelled/incomplete logs and unavailable inventories remain blocked.
+Recovery uses one fixed `recovered.eval`, preserving originals. Inspect's external
+sample buffer can expire after three days, is tied to the absolute log directory,
+and cannot recover a live owner's buffer; reconstructed samples may lose stores.
+Reconcile before editing execution sources: changed contracts block underived evidence.
+Recorded verdicts need only resource closure; later correctness reuse must re-derive.
+This batch changes runner/verifier hashes, invalidating earlier fixture contracts.
+Batch 6b must define a recorded operator resolution for blocked native operations
+before any cohort generation. No automatic host termination or cleanup is provided.
+The low-level native adapter dispatches fresh operations; batch 6b must enforce
+source-independent completed-key reuse (including gate samples) before cohort use.

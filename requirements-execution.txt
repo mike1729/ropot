@@ -1,1 +1,2 @@
 inspect-ai==0.3.283
+psutil==7.2.2

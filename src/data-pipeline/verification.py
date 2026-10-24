@@ -96,10 +96,10 @@ def derive(log, items, current_contract):
              "sample_id": i, **verdict(samples[i], item, current_contract)} for i, item in enumerate(items)]
 
 
-def verify(task, task_sha256, program, log_dir):
+def verify(task, task_sha256, program, log_dir, *, operation_id=None):
     """Run one fresh sandbox; retain exact native evidence and public-only feedback."""
     item = request(task, task_sha256, program)
-    log = runner.run([item], log_dir)[0]
+    log = runner.run([item], log_dir, operation_id=operation_id)[0]
     return {"log": log.location, **derive(log, [item], runner.contract())[0]}
 
 
@@ -113,14 +113,17 @@ def reference_programs(task):
     return programs
 
 
-def reference_gate(task, task_sha256, log_dir):
+def gate_status(results):
+    return "failed" if any(r["status"] == "failed" for r in results) else (
+        "passed" if all(r["status"] == "passed" for r in results) else "error")
+
+
+def reference_gate(task, task_sha256, log_dir, *, operation_id=None):
     """Check the same three qualified references, never replacing a failing one."""
     items = [request(task, task_sha256, p) for p in reference_programs(task)]
-    log = runner.run(items, log_dir, concurrent_inference=False)[0]
+    log = runner.run(items, log_dir, concurrent_inference=False, operation_id=operation_id)[0]
     results = derive(log, items, runner.contract())
-    status = "failed" if any(r["status"] == "failed" for r in results) else (
-        "passed" if all(r["status"] == "passed" for r in results) else "error")
-    return {"status": status, "log": log.location, "reference_indices": task["passing_reference_indices"],
+    return {"status": gate_status(results), "log": log.location, "reference_indices": task["passing_reference_indices"],
             "results": results}
 
 

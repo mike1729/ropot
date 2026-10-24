@@ -89,6 +89,26 @@ class VerificationTests(unittest.TestCase):
                          [c["index"] for c in item["cases"] if c["visible"]])
         self.assertEqual([r["status"] for r in stored["cases"]], ["wrong_answer", "timeout", "passed"])
 
+    def test_operation_id_validation_forwarding_and_task_name(self):
+        opid, item = "012345abcdef", v.request(task(4), "a" * 64, b"pass")
+        for invalid in ("", False, 12, "A" * 12, "a" * 11, "a" * 13, "g" * 12, "a" * 11 + "\n"):
+            with mock.patch.object(v.runner.subprocess, "run") as docker, self.assertRaises(ValueError):
+                v.runner.run([item], "unused", operation_id=invalid)
+            docker.assert_not_called()
+        with mock.patch.object(v.runner, "contract", return_value=CONTRACT), \
+             mock.patch.object(v.runner.subprocess, "run", return_value=NS(stdout='{"NCPU":1,"MemTotal":1,"ServerVersion":"test"}')), \
+             mock.patch.object(v.runner, "inspect_eval") as evaluate:
+            for identity, name in ((None, "linux_execution"), (opid, opid)):
+                v.runner.run([item], "unused", operation_id=identity)
+                self.assertEqual(evaluate.call_args.args[0].name, name)
+        with mock.patch.object(v.runner, "contract", return_value=CONTRACT), \
+             mock.patch.object(v.runner, "run", side_effect=lambda items, *a, **kw: [native(items)]) as dispatch:
+            v.verify(task(4), "a" * 64, b"pass", "unused", operation_id=opid)
+            self.assertEqual(v.reference_gate(task(4), "a" * 64, "unused", operation_id=opid)["status"], "passed")
+            self.assertEqual([call.kwargs["operation_id"] for call in dispatch.call_args_list], [opid, opid])
+        for statuses, expected in ((["passed"] * 3, "passed"), (["passed", "error"], "error"), (["error", "failed"], "failed")):
+            self.assertEqual(v.gate_status([{"status": s} for s in statuses]), expected)
+
     def test_malformed_checked_cases_rejected_before_docker(self):
         for change in (lambda c: c[0].pop("answer"), lambda c: c[0].update(answer=" 0 "),
                        lambda c: c[0].update(visible=1), lambda c: c.reverse()):

@@ -106,7 +106,7 @@ class Campaign:
                 and events[0]["kind"] == "initial" and sum(e["kind"] == "initial" for e in events) == 1,
                 "Invalid campaign history")
         limits_checked(events[0]["limits"])
-        reserved, done = set(), set()
+        reserved, done, native, closed = set(), set(), set(), set()
         for event in events:
             if event["kind"] == "experiment":
                 require(event["record"]["experiment_id"] == event["experiment_id"]
@@ -118,6 +118,14 @@ class Campaign:
                 seq = event["reservation_seq"]
                 require(seq in reserved and seq not in done, "Invalid or duplicate completion")
                 done.add(seq)
+            elif event["kind"] == "native_intent":
+                require(event["operation_id"] not in native, "Duplicate native operation")
+                native.add(event["operation_id"])
+            elif event["kind"] in ("native_verdict", "native_closed", "native_blocked"):
+                require(event["operation_id"] in native, "Native event without intent")
+                if event["kind"] == "native_closed":
+                    require(event["operation_id"] not in closed, "Duplicate native closure")
+                    closed.add(event["operation_id"])
         return events
 
     def _append(self, kind, **payload):
@@ -162,8 +170,15 @@ class Campaign:
         if limits != previous:
             self._append("limits", limits=limits)
 
+    def require_native_clear(self):
+        events = self.events
+        require({e["operation_id"] for e in events if e["kind"] == "native_intent"}
+                == {e["operation_id"] for e in events if e["kind"] == "native_closed"},
+                "Reconcile pending native operations before dispatch")
+
     def generate(self, experiment_id, source, request):
         try:
+            self.require_native_clear()
             request = snapshot(request)
             prepared, raw = generation.prepare_request(request)
             events = self.events

@@ -15,10 +15,12 @@ mx = BatchGenerator = make_sampler = None
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def build_job(descriptor, configs, wall_seconds=1170):
+def build_job(descriptor, configs, wall_seconds=1170, *, panel_size=8):
     B = importlib.import_module("experiments.batch_throughput")
     B.G.require(type(configs) is list and 1 <= len(configs) <= 7
                 and len({json.dumps(c, sort_keys=True) for c in configs}) == len(configs), "Require distinct finite configs")
+    B.G.require(type(panel_size) is int and panel_size in (8, 32)
+                and (panel_size == 8 or len(configs) == 1), "Invalid panel choice")
     questions = [
         "Read n,m and m directed edges with nonnegative weights. Print shortest distances from vertex 1 using Dijkstra; use -1 for unreachable vertices.",
         "Read n and n integers. Print the length of their strictly increasing subsequence using an O(n log n) algorithm.",
@@ -29,6 +31,8 @@ def build_job(descriptor, configs, wall_seconds=1170):
     fixtures = [dict(id=f"fixture-{i}", seed=20261024 + i, messages=[
         dict(role="system", content="Write a complete Python 3.12 program. Return only code, without explanation."),
         dict(role="user", content=questions[i % 4] + ("\nImplementation notes:\n" + note * (14 + i) if i >= 4 else ""))]) for i in range(8)]
+    if panel_size == 32:
+        fixtures = [dict(fixtures[i % 8], id=f"fixture-{i}", seed=20261024 + i) for i in range(32)]
     def row(i, cap, sampling="sample", after=None):
         return dict(fixture_id=fixtures[i]["id"], seed=fixtures[i]["seed"], cap=cap, sampling=sampling, after_row_index=after)
     def window(name, mode, batch, rows):
@@ -39,9 +43,14 @@ def build_job(descriptor, configs, wall_seconds=1170):
         window("q3", "qualification", 2, [row(0, 2, "eos"), row(4, 3, "length"), row(0, 3, "greedy", 0)]),
         window("q4", "qualification", 1, [row(0, 3, "greedy")]),
         window("warm", "warmup", 1, [row(0, 128)])]
+    if panel_size == 32:
+        batch = configs[0]["batch_size"]
+        B.G.require(type(batch) is int and batch in (8, 16, 32), "Invalid expanded capacity")
+        windows[2] = window("q2", "qualification", batch, [row(4 * (i % 2), 16, "greedy") for i in range(batch)])
+        windows[2]["config"]["prefill_step_size"] = 256
     for index, config in enumerate(configs):
         for repeat in range(2):
-            windows.append(dict(id=f"m{index}-r{repeat}", mode="measure", config=config, rows=[row(i, 128) for i in range(8)]))
+            windows.append(dict(id=f"m{index}-r{repeat}", mode="measure", config=config, rows=[row(i, 128) for i in range(panel_size)]))
     request = B.G.request_for(descriptor["source"], fixtures[0]["messages"], profile=descriptor,
         seed=20261024, temperature=.2, top_p=.95, max_tokens=128, wall_time_seconds=wall_seconds)
     return B.build_plan(request, fixtures, windows, worker=__file__, wall_seconds=wall_seconds)
@@ -127,7 +136,7 @@ def rng_check():
 
 
 def qualification_checks(results, rng_ok):
-    return dict(greedy_equal=results["q0"][0] == results["q2"][0] and results["q1"][0] == results["q2"][1],
+    return dict(greedy_equal=all(row == results[f"q{i % 2}"][0] for i, row in enumerate(results["q2"])),
         eos_at_cap=len(results["q3"][0]["tokens"]) == 2 and results["q3"][0]["finish_reason"] == "stop",
         length_cap=len(results["q3"][1]["tokens"]) == 3 and results["q3"][1]["finish_reason"] == "length",
         reinsert_equal=results["q3"][2] == results["q4"][0], seed_independent=rng_ok)
@@ -206,12 +215,13 @@ def main():
         for name in ("profiles", "source", "bits", "configs", "output", "lock"):
             parser.add_argument("--" + name, required=True)
         parser.add_argument("--wall", type=float, default=1170)
+        parser.add_argument("--panel-size", type=int, choices=(8, 32), default=8)
         args = parser.parse_args(sys.argv[2:])
         raw = Path(args.profiles).read_bytes()
         descriptor = json.loads(raw)["profiles"][args.bits][args.source]["descriptor"]
         B = importlib.import_module("experiments.batch_throughput")
         B.G.require(descriptor["source"] == args.source and str(descriptor["bits"]) == args.bits, "Profile label differs")
-        job = build_job(descriptor, json.loads(args.configs), args.wall)
+        job = build_job(descriptor, json.loads(args.configs), args.wall, panel_size=args.panel_size)
         output = Path(args.output).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)
         B._write(output.with_name(output.name + "-inputs.json"), dict(profiles_sha256=sha256(raw).hexdigest(),

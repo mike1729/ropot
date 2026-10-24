@@ -131,3 +131,52 @@ class MlxBatchThroughputTests(unittest.TestCase):
         path.parent.mkdir(parents=True); path.write_text("raise AssertionError('unverified helper executed')")
         with mock.patch.object(self.B, "ROOT", self.root), self.assertRaisesRegex(RuntimeError, "before import"):
             self.B.run_job(dict(source_hashes={str(path): "0" * 64}), "a" * 64, self.emit)
+
+    def test_expanded_panel_preserves_legacy_and_binds_full_batch_qualification(self):
+        legacy = self.B.build_job(self.d, [self.config], wall_seconds=10)
+        explicit = self.B.build_job(self.d, [self.config], wall_seconds=10, panel_size=8)
+        self.assertEqual({k: v for k, v in legacy.items() if k != "source_hashes"}, {k: v for k, v in explicit.items() if k != "source_hashes"})
+        for batch, count, caps in ((8, 79, 8491), (16, 87, 8619), (32, 103, 8875)):
+            config = dict(batch_size=batch, prefill_batch_size=4, prefill_step_size=256)
+            job = self.B.build_job(self.d, [config], wall_seconds=10, panel_size=32)
+            self.assertEqual([f["messages"] for f in job["fixtures"]], [f["messages"] for f in legacy["fixtures"]] * 4)
+            self.assertEqual(len({f["id"] for f in job["fixtures"]}), 32); self.assertEqual(len({f["seed"] for f in job["fixtures"]}), 32)
+            qualification = [w for w in job["windows"] if w["mode"] == "qualification"]
+            self.assertEqual(sum(len(w["rows"]) for w in qualification), batch + 6)
+            q2 = next(w for w in qualification if w["id"] == "q2")
+            self.assertEqual(q2["config"], dict(batch_size=batch, prefill_batch_size=batch, prefill_step_size=256))
+            self.assertEqual([r["fixture_id"] for r in q2["rows"]], [job["fixtures"][i]["id"] for i in (0, 4)] * (batch // 2))
+            measured = [w for w in job["windows"] if w["mode"] == "measure"]
+            self.assertEqual(len(measured), 2)
+            for window in measured:
+                self.assertEqual(window["config"], config)
+                self.assertEqual([r["fixture_id"] for r in window["rows"]], [f["id"] for f in job["fixtures"]])
+                self.assertEqual([r["seed"] for r in window["rows"]], [f["seed"] for f in job["fixtures"]])
+            self.assertEqual(sum(len(w["rows"]) for w in job["windows"]), count)
+            self.assertEqual(sum(r["cap"] for w in job["windows"] for r in w["rows"]), caps)
+
+    def test_expanded_job_refuses_mixed_panels_capacity_counts_and_configs(self):
+        parent = importlib.import_module("experiments.batch_throughput")
+        config = dict(batch_size=16, prefill_batch_size=4, prefill_step_size=256)
+        for panel in (True, 8.0, 9, 31):
+            with self.subTest(panel=panel), self.assertRaises(ValueError): self.B.build_job(self.d, [config], panel_size=panel)
+        for panel, configs in ((8, [config]), (32, [self.config]), (32, [config, {**config, "batch_size": 8}])):
+            with self.subTest(panel=panel, configs=configs), self.assertRaises(ValueError): self.B.build_job(self.d, configs, panel_size=panel)
+        good = self.B.build_job(self.d, [config], panel_size=32)
+        for fault in ("panel", "capacity", "count", "measure_rows", "measure_config"):
+            job = copy.deepcopy(good); q2 = next(w for w in job["windows"] if w["id"] == "q2"); last = job["windows"][-1]
+            if fault == "panel": job["fixtures"].pop()
+            if fault == "capacity": q2["config"].update(batch_size=8, prefill_batch_size=8)
+            if fault == "count": q2["rows"].pop()
+            if fault == "measure_rows": last["rows"].pop()
+            if fault == "measure_config": last["config"]["prefill_step_size"] = 2048
+            with self.subTest(fault=fault), self.assertRaises(ValueError): parent._shape(job)
+
+    def test_full_q2_oracle_rejects_late_raw_text_and_finish_mismatches(self):
+        row = lambda token, count, reason="length": dict(tokens=[token] * count, text=f"decoded-{token}-{count}", finish_reason=reason)
+        results = dict(q0=[row(3, 16)], q1=[row(4, 16)], q2=[row(3 if i % 2 == 0 else 4, 16) for i in range(32)],
+            q3=[dict(tokens=[3, 9], text="decoded-3", finish_reason="stop"), row(3, 3), row(3, 3)], q4=[row(3, 3)])
+        self.assertTrue(all(self.B.qualification_checks(results, True).values()))
+        for field, value in (("tokens", [7] * 16), ("text", "wrong late decode"), ("finish_reason", "stop")):
+            changed = copy.deepcopy(results); changed["q2"][-1][field] = value
+            with self.subTest(field=field): self.assertFalse(self.B.qualification_checks(changed, True)["greedy_equal"])

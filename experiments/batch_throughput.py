@@ -53,7 +53,9 @@ def _shape(job):
     G.require(type(job["source_hashes"]) is dict and set(job["source_hashes"]) == {str(p) for p in paths}
               and all(G.P._sha(h) for h in job["source_hashes"].values()), "Invalid source map")
     fixtures, windows = job["fixtures"], job["windows"]
-    G.require(type(fixtures) is list and 1 <= len(fixtures) <= 8 and type(windows) is list and 1 <= len(windows) <= 56, "Invalid panel bounds")
+    G.require(type(fixtures) is list and (1 <= len(fixtures) <= 8 or len(fixtures) == 32)
+              and type(windows) is list and 1 <= len(windows) <= 56, "Invalid panel bounds")
+    expanded = len(fixtures) == 32
     for fixture in fixtures:
         G.require(type(fixture) is dict and set(fixture) == {"id", "messages", "seed"} and type(fixture["id"]) is str and 0 < len(fixture["id"]) <= 64
                   and type(fixture["seed"]) is int and 0 <= fixture["seed"] < 2**64, "Invalid fixture")
@@ -69,9 +71,10 @@ def _shape(job):
                   and window["mode"] in ("qualification", "warmup", "measure"), "Invalid window")
         config, rows = window["config"], window["rows"]
         G.require(type(config) is dict and set(config) == {"batch_size", "prefill_batch_size", "prefill_step_size"} and all(type(v) is int for v in config.values())
-                  and config["batch_size"] in (1, 2, 4, 8) and 1 <= config["prefill_batch_size"] <= config["batch_size"]
+                  and config["batch_size"] in ((1, 2, 4, 8, 16, 32) if expanded else (1, 2, 4, 8))
+                  and 1 <= config["prefill_batch_size"] <= config["batch_size"]
                   and config["prefill_step_size"] in (256, 1024, 2048), "Invalid batch configuration")
-        G.require(type(rows) is list and 1 <= len(rows) <= 8, "Invalid window rows")
+        G.require(type(rows) is list and 1 <= len(rows) <= (32 if expanded else 8), "Invalid window rows")
         for index, row in enumerate(rows):
             G.require(type(row) is dict and set(row) == {"fixture_id", "seed", "cap", "sampling", "after_row_index"} and row["fixture_id"] in ids
                       and type(row["seed"]) is int and 0 <= row["seed"] < 2**64 and type(row["cap"]) is int and 1 <= row["cap"] <= 128
@@ -80,8 +83,19 @@ def _shape(job):
             caps += row["cap"]
         counts.append(len(rows))
         order.append(("qualification", "warmup", "measure").index(window["mode"]))
+    qualification_count = 8
+    if expanded:
+        measured = [w for w in windows if w["mode"] == "measure"]
+        q2 = [w for w in windows if w["id"] == "q2" and w["mode"] == "qualification"]
+        G.require(len(measured) == 2 and measured[0]["config"] == measured[1]["config"]
+                  and all(len(w["rows"]) == 32 for w in measured), "Expanded measurement differs")
+        batch = measured[0]["config"]["batch_size"]
+        G.require(batch in (8, 16, 32) and len(q2) == 1 and len(q2[0]["rows"]) == batch
+                  and q2[0]["config"] == dict(batch_size=batch, prefill_batch_size=batch, prefill_step_size=256), "Expanded qualification differs")
+        qualification_count = batch + 6
     G.require(len({w["id"] for w in windows}) == len(windows) and order == sorted(order) and sum(counts) <= 128 and caps <= 16384
-              and sum(n for n, o in zip(counts, order) if o == 0) == 8 and sum(n for n, o in zip(counts, order) if o == 1) == 1, "Invalid job workload")
+              and sum(n for n, o in zip(counts, order) if o == 0) == qualification_count
+              and sum(n for n, o in zip(counts, order) if o == 1) == 1, "Invalid job workload")
 
 
 def build_plan(request, fixtures, windows, *, worker, wall_seconds=1200):

@@ -563,6 +563,10 @@ Each owned job qualifies unequal-prompt greedy batching, EOS/cap handling, fresh
 insertion and seeded sampler independence, then warms once and measures two repeats.
 Aggregate throughput uses raw tokens divided by synchronized whole-window wall;
 native MLX rates and process/resource observations retain their separate time bases.
+Optional `--panel-size 32` repeats the eight prompt contents with distinct row seeds.
+It accepts one batch 8/16/32 configuration per job, qualifies that full capacity,
+then measures two windows of 32 pending replies. Compare these cells together;
+retain their timings separately from the original eight-row workload.
 
 `python -m experiments.cpu_throughput --output PATH --lock PATH` runs the fixed
 native verifier grid after GPU work stops: coalesced concurrency 1/2/4 and eight

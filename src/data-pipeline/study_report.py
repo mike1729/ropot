@@ -13,6 +13,7 @@ import tempfile
 from . import experiment_loop as loop, local_generation as generation, native_recovery as native
 from . import study_tasks as study, verification
 from . import precision_profiles as precision
+from . import paired_report
 from .generation_journal import Campaign, encoded, require, sync_directory, limits_checked
 
 RUN_FIELDS = {"schema_version", "experiment_id", "cohort", "activation", "reference_gate",
@@ -320,6 +321,9 @@ def snapshot(campaign, *, selections=None):
         unknown_elapsed_operations=len(intents)-len(elapsed), reuses=sum(e["reused"] for e in results.values())))
     report = dict(runs=runs, cumulative=cumulative, panel_joint=None if panel is None else panel_joint(panel["tasks"], selected),
                   costs=costs, mechanics_baseline=baseline)
+    if any(e["kind"] == "paired_plan" for e in events):
+        report["paired_trials"] = paired_report.derive(events=events, records=records, runs=runs, eligible=eligible,
+            outcomes=outcomes, reservations=reservations, panel=panel)
     if baseline is not None:
         report["combined_known"] = {unit: baseline["combined"][unit] + (sum(v[unit] for v in reserved.values())
             if unit != "observed_generation_tokens" else sum(v[unit] for v in costs["observed_by_source"].values())) for unit in BASE_UNITS}

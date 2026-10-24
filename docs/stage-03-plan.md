@@ -500,3 +500,13 @@ Budget refusals need a recorded funding correction.
 The historical protocol export adds no live producer/model/runtime reads; existing
 snapshot proof checks retain their code, metadata and Docker requirements.
 Fresh continuation will use a separately reviewed new module after reports land.
+
+Paired snapshots add `paired_trials` validity/status from all proven own attempts,
+independently of global selections. The reducer checks the complete frozen plan,
+every owned request and historical confirmation evidence; it reads cohort and
+test-pool manifests lazily, without task payloads or live model/runtime guards.
+Malformed bindings reject; observed control/procedure failures remain publishable
+with invalid reasons and existing costs. Usable completion requires durable guard,
+generation and native proof at the relevant prefix, never later reconciliation.
+Freshness is campaign-local through the decision; cohort restrictions cover prior
+cross-campaign use. This slice adds no paired yield, cost comparison or target claim.

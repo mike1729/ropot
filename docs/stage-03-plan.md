@@ -336,3 +336,31 @@ and requires a new name. SIGKILL staging orphans are ignored. Atomic visibility
 assumes one publisher and stable inputs; unrelated manual directory creation can
 race POSIX rename. Retries require the same execution contract and reachable Docker,
 and perform no generation, native execution, recovery or operator resolution.
+
+### Actual-checkpoint compatibility (batch 8a)
+
+`experiments.bf16_compatibility.run(directory)` records one isolated, bounded
+Transformers/PEFT diagnostic on the pinned official Qwen3.5-9B BF16 text weights.
+Run `.venv/bin/python -m experiments.bf16_compatibility` outside the sandbox,
+where MPS is available in the approved launch context.
+It verifies the input manifest before heavy imports, checks a frozen invented
+128–512-token completion-only fixture, then updates rank-32/alpha-64 adapters on
+all 64 attention targets once in RAM. Final normalized text features must agree
+with the text-model path and reconstruct ordinary logits through the output head.
+The model worker has 1,800 seconds plus a separately recorded cleanup grace.
+File-log size caps are soft: polling detects overflow and retains output up to kill.
+Receipts retain failures, runtime/input/source identity, phase memory snapshots
+(not Metal peaks) and lifecycle evidence. This costs zero generator requests.
+Passing establishes the observed short all-layer backward/update and feature path;
+it does not establish a nonzero gradient path through initially zero-effect LoRA A,
+2,048-token fit, effective batch eight, convergence or learned-probe quality.
+The paired 8-bit/16-bit inference comparison is a separate experiment.
+The direct path uses LoRA-injected modules; this does not measure the adapter's effect.
+
+The first actual run passed on a 361-token fixture with 12 supervised tokens:
+one update, finite loss 2.33144, exact repeated/direct/head feature comparisons,
+30.82 seconds total and confirmed worker-group absence. The largest recorded
+driver-memory snapshot was 21.16 GB, not a peak or a 2,048-token fit measurement.
+Evidence: `data/03_training_checks/bf16-compatibility-f22oaa6r` and
+`data/03_training_checks/bf16-compatibility-8ydukfzx`. The final-source run took
+19.94 seconds; both retained attempts total 50.76 seconds and zero generator requests.

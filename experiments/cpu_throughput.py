@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import signal
 import stat
 import subprocess
@@ -60,6 +61,8 @@ def fixtures():
 
 
 def build_plan():
+    docker = shutil.which("docker")
+    require(docker is not None and Path(docker).is_absolute(), "Require available absolute Docker CLI")
     task, programs, expected = fixtures()
     paths = [WORKER, Path(__file__), Path(H.__file__), Path(H.L.__file__), ROOT / "configs/sandbox/compose.yaml"]
     paths += [ROOT / "src/data-pipeline" / n for n in ("inspect_runner.py", "verification.py", "screen.py", "native_recovery.py")]
@@ -72,7 +75,7 @@ def build_plan():
     return dict(schema_version=1, task=task, programs=[base64.b64encode(p).decode() for p in programs], expected=expected,
         operations=operations, source_hashes={str(p): sha256(p.read_bytes()).hexdigest() for p in paths},
         environment={k: v for k, v in os.environ.items() if k in ("HOME", "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG")}
-                    | {"PATH": "/opt/homebrew/bin:/usr/bin:/bin"}, wall_seconds=WALL_SECONDS - 2 * CLEANUP_SECONDS - .01 * WALL_SECONDS)
+                    | {"PATH": str(Path(docker).parent) + ":/opt/homebrew/bin:/usr/bin:/bin"}, wall_seconds=WALL_SECONDS - 2 * CLEANUP_SECONDS - .01 * WALL_SECONDS)
 
 
 def _native():

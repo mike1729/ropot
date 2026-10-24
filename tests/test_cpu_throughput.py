@@ -15,14 +15,26 @@ class CpuThroughputTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup); self.root = Path(temporary.name)
         self.C = importlib.import_module("experiments.cpu_throughput"); self.V = native.v; self.R = self.V.runner
+        self.discover = self.C.shutil.which
         self.N = NS(_daemon=lambda: "daemon", _docker=lambda *args: '{"NCPU":4,"MemTotal":1024,"ServerVersion":"fixture"}')
         self.worker = self.root / "fake.py"; self.worker.write_text("# fixture")
         self.lock = self.root / "lock"; self.lock.write_bytes(b"existing")
-        for target, name, value in ((self.C, "_native", lambda: (self.R, self.V, self.N)), (self.C, "_inventory", lambda opid: ("daemon", [], False)),
+        for target, name, value in ((self.C.shutil, "which", lambda name: "/fixture/bin/docker"), (self.C, "_native", lambda: (self.R, self.V, self.N)), (self.C, "_inventory", lambda opid: ("daemon", [], False)),
             (self.R, "contract", lambda: native.CONTRACT), (self.C, "INTERPRETER", sys.executable), (self.C, "WORKER", self.worker), (self.C, "WALL_SECONDS", .5), (self.C, "CLEANUP_SECONDS", .05)):
             patch = mock.patch.object(target, name, value); patch.start(); self.addCleanup(patch.stop)
         self.task, self.programs, self.expected = self.C.fixtures(); self.opid = "a" * 12
         self.items = [self.V.request(self.task, "b" * 64, program) for program in self.programs]
+
+    def test_docker_discovery_is_frozen_and_missing_cli_fails_before_launch(self):
+        docker = self.root / "docker"; docker.write_text("#!/bin/sh\nexit 0\n"); docker.chmod(0o755)
+        with mock.patch.object(self.C.shutil, "which", return_value=str(docker)):
+            path = self.C.build_plan()["environment"]["PATH"]
+        self.assertEqual(Path(path.split(":")[0]) / "docker", docker)
+        self.assertEqual(self.discover("docker", path=path), str(docker))
+        for missing in (None, "relative/docker"):
+            with mock.patch.object(self.C.shutil, "which", return_value=missing), self.assertRaisesRegex(ValueError, "Docker CLI"):
+                self.C.run(self.root / "never-created", self.lock)
+            self.assertFalse((self.root / "never-created").exists())
 
     def log(self, items=None, opid=None, concurrency=1):
         items = self.items if items is None else items; opid = opid or self.opid; log = native.native(items)

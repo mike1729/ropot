@@ -570,3 +570,4 @@ separate eval calls (nominal limit 4, effective concurrency 1), two repeats each
 The first condition must pass its native oracle and resource-closure check before
 continuation. Intents retain attempted costs; partial case counts are lower bounds.
 Compare native eval wall separately from total diagnostic ownership/proof overhead.
+The CPU worker freezes the discovered Docker CLI directory into its restricted PATH.

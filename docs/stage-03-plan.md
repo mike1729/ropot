@@ -589,3 +589,10 @@ the runtime default. This changes unused allocator memory, independently of KV s
 one lease. It rebuilds the winner with current source hashes, binds identical GPU
 job bytes across phases and reports full makespan plus actual window/eval overlap.
 The verifier uses independent fixed programs; this benchmark does not measure yield.
+
+`python -m experiments.model_parallel --help` compares matched serial and parallel
+Q8 actor/synthetic jobs, twice each, under one owned lease. A fresh memory screen
+selects the predeclared B32 pair or B8 pair before dispatch, otherwise skips both.
+The screen combines prior allocator observations with a 12 GiB margin; it is a
+heuristic, not a physical-memory bound. Useful rate counts only the 128 measured
+replies per phase; numerical qualification and warmup remain charged separately.

@@ -511,8 +511,9 @@ generation and native proof at the relevant prefix, never later reconciliation.
 Freshness is campaign-local through the decision; cohort restrictions cover prior
 cross-campaign use. This slice adds no paired yield, cost comparison or target claim.
 
-Darwin teardown may observe an exiting group for up to five seconds after reaping;
-only ESRCH proves group absence. This shared cleanup grace also affects local
+After Darwin EPERM, teardown waits up to five seconds for the child to exit, then
+observes its group for up to five seconds after reaping. Existing final waits may
+add five seconds on failure; only ESRCH proves group absence. This grace affects local
 case and diagnostic workers; local-case elapsed excludes cleanup, generation
 parent elapsed includes it. No nonzero signal is sent after the successful reap.
 For a completed, positively guarded request whose only error was cleanup,

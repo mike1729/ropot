@@ -64,7 +64,7 @@ def _kill_group(process):
         os.killpg(process.pid, signal.SIGKILL)
     except PermissionError as error:
         try:
-            process.wait(timeout=0.1)
+            process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill()
             raise error

@@ -25,13 +25,32 @@ class KillGroupObservationTests(unittest.TestCase):
                 else:
                     with self.assertRaises(type(original) if mode in ("live", "denied") else type(failure)) as caught: runner._kill_group(child)
                     self.assertIs(caught.exception, original if mode in ("live", "denied") else failure)
-            child.wait.assert_called_once_with(timeout=0.1); child.kill.assert_not_called()
+            child.wait.assert_called_once_with(timeout=5); child.kill.assert_not_called()
             self.assertEqual(probes[0], signal.SIGKILL); self.assertTrue(all(s == 0 for s in probes[1:])); self.assertLessEqual(len(probes), 7)
         with mock.patch.object(runner.os, "killpg") as kill:
             runner._kill_group(child); kill.assert_called_once_with(child.pid, signal.SIGKILL)
-        child.reset_mock(); child.wait.side_effect = subprocess.TimeoutExpired("fixture", 0.1)
-        with mock.patch.object(runner.os, "killpg", side_effect=original), self.assertRaises(PermissionError): runner._kill_group(child)
+        child.reset_mock(); child.wait.side_effect = subprocess.TimeoutExpired("fixture", 5)
+        with mock.patch.object(runner.os, "killpg", side_effect=original) as kill, self.assertRaises(PermissionError): runner._kill_group(child)
         child.kill.assert_called_once()
+        child.wait.assert_called_once_with(timeout=5); kill.assert_called_once_with(child.pid, signal.SIGKILL)
+
+    def test_delayed_child_exit_is_reaped_before_proving_group_absence(self):
+        runner = importlib.import_module("src.data-pipeline.local_runner")
+        child = mock.Mock(pid=17); reaped = False; signals = []
+        def wait(timeout):
+            nonlocal reaped
+            if timeout < 0.5: raise subprocess.TimeoutExpired("delayed exit", timeout)
+            reaped = True
+            return 0
+        def signal_group(pid, sig):
+            self.assertEqual(pid, child.pid); signals.append(sig)
+            if sig == signal.SIGKILL: raise PermissionError("exiting group")
+            self.assertTrue(reaped)
+            raise ProcessLookupError()
+        child.wait.side_effect = wait
+        with mock.patch.object(runner.os, "killpg", side_effect=signal_group): runner._kill_group(child)
+        child.wait.assert_called_once_with(timeout=5); child.kill.assert_not_called()
+        self.assertEqual(signals, [signal.SIGKILL, 0])
 
 
 class GenerationCleanupTests(unittest.TestCase):

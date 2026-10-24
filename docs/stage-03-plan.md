@@ -563,3 +563,10 @@ Each owned job qualifies unequal-prompt greedy batching, EOS/cap handling, fresh
 insertion and seeded sampler independence, then warms once and measures two repeats.
 Aggregate throughput uses raw tokens divided by synchronized whole-window wall;
 native MLX rates and process/resource observations retain their separate time bases.
+
+`python -m experiments.cpu_throughput --output PATH --lock PATH` runs the fixed
+native verifier grid after GPU work stops: coalesced concurrency 1/2/4 and eight
+separate eval calls (nominal limit 4, effective concurrency 1), two repeats each.
+The first condition must pass its native oracle and resource-closure check before
+continuation. Intents retain attempted costs; partial case counts are lower bounds.
+Compare native eval wall separately from total diagnostic ownership/proof overhead.

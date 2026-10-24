@@ -367,22 +367,49 @@ Evidence: `data/03_training_checks/bf16-compatibility-f22oaa6r` and
 
 ### Precision input validation (batch 8b.1)
 
-`.venv/bin/python -m experiments.prepare_precision_artifacts` validates both pinned
-official BF16 input directories in one owned worker; it converts or loads no model.
-The request marks this input-only stage, and successful completion explicitly says
+Batch 8b.1 validated both pinned official BF16 input directories in one owned
+worker without converting or loading models. Its requests mark the input-only
+stage, and successful completion explicitly says
 `artifacts_ready: false`. Retained manifests, source snapshots and receipts bind
 the exact attempt. The worker has 1,800 seconds, separate 60-second cleanup grace,
 soft log caps and a 100-GiB free-space floor. Ordinary fixtures exercise the
 stdlib tokenizer/config/header/coverage validators reserved for conversion.
-Batch 8b.2 requires its own plan review before using the cohort's MLX runtime
-to derive paired BF16
-and affine 8-bit/group-64 artifacts, checking canonical tokenizer bytes and all
-nonquantized parameters. Qwen conversion is expected to retain 768 A_log elements
-in FP32 and cast 3,072 source normalization elements to BF16. Input validation
-costs zero generator requests and establishes no model compatibility, yield or
-speed advantage; cohort use also requires reviewed immutable precision profiles.
+Input validation costs zero generator requests and establishes no model
+compatibility, yield or speed advantage. Cohort use also requires reviewed
+immutable precision profiles.
 
 Both input-only attempts passed: `precision-n2rsy179` and final-source
 `precision-6d5rvwxx` under `data/03_model_artifacts`, totaling
 25.30 seconds and zero generator requests. Final-source evidence/audit:
 `data/03_reviews/batch-08b1-final-actual-audit.json`; all 32 files matched.
+
+### Paired precision artifacts (batch 8b.2)
+
+Run `.venv/bin/python -m experiments.prepare_precision_artifacts` for the full
+controlled preparation. Each source's official BF16 checkpoint is converted once
+to MLX-native BF16 text weights, then quantized from that artifact with affine
+8-bit/group-64. The owned 1,800-second worker rechecks inputs, pins runtime sources, strictly loads
+each output and checks module/dtype coverage, exact nonquantized identity between
+the paired BF16 and 8-bit loads, and paired prompt/BOS/EOS identity. It evaluates
+one uncached full-sequence forward per artifact; this is distinct from generation's cached prefill and samples no reply.
+Four hash-bound records enter the exclusive receipt only after successful worker
+cleanup and validation; `artifacts_ready` requires a passed receipt. Failures retain
+partial evidence. Phase wall times, native MLX allocator peaks, output hashes and
+forward-logit differences are diagnostics, with zero generator requests. They do
+not establish yield, speed advantage or 2,048-token fit. Immutable generation
+profiles and the paired task experiment remain separate reviewed batches.
+
+The actual four-artifact run passed in 74.81 seconds with 122 forced-forward tokens
+and zero generator requests: `data/03_model_artifacts/precision-cj08t4az`. The four
+outputs contain 46 files totaling 53,536,317,502 bytes; the receipt binds their
+records and confirmed cleanup. Audit: `data/03_reviews/batch-08b2-actual-audit.json`.
+
+The BF16 arm uses the native MLX conversion. Qwen's public sanitizer applies its
+BF16 norm offset, and conversion casts 3,072 source normalization elements from
+FP32 to BF16 while preserving 768 A_log elements in FP32. Both arms share these
+transformations; paired identity checks establish no repeated offset after conversion.
+
+The final-source run `precision-u_uycdio` also passed in 70.84 seconds, with
+all four model manifests identical to the first attempt. Both attempts are retained:
+145.65 seconds total, 244 forced-forward tokens and zero generator requests.
+Use its passed receipt for profiles; audit: `data/03_reviews/batch-08b2-final-actual-audit.json`.

@@ -6,6 +6,21 @@ import unittest
 from unittest import mock
 from tests import test_bf16_compatibility as fixture
 
+RECORDS = '''
+if MODE=='stale': emit('done',request_sha256=identity,result={'inputs_verified':True,'artifacts_ready':False,'generator_requests':0}); sys.exit(0)
+bindings=[]; (p.parent/'records').mkdir()
+for source in ('actor','synthetic'):
+ parent=None
+ for bits in (16,8):
+  name=f'records/{source}-{bits}.json'
+  body=dict(request_sha256=identity,source=source,bits=bits,model_path=f'models/{source}-{bits}',parent16_record_sha256=parent)
+  raw=json.dumps(body,sort_keys=True).encode(); (p.parent/name).write_bytes(raw); digest=hashlib.sha256(raw).hexdigest()
+  bindings.append(dict(source=source,bits=bits,record=name,sha256=digest))
+  if bits==16: parent=digest
+if MODE=='missing_record': (p.parent/bindings[-1]['record']).unlink()
+emit('done',request_sha256=identity,result=dict(inputs_verified=True,artifacts_ready=True,generator_requests=0,records=bindings))
+'''
+
 
 class PrecisionArtifactsTests(unittest.TestCase):
     def setUp(self):
@@ -24,15 +39,17 @@ class PrecisionArtifactsTests(unittest.TestCase):
         job = dict(source="actor", model_path=str(self.model), manifest_path=str(self.B.MANIFEST_PATH),
                    upstream_path=str(self.B.UPSTREAM_PATH), revision="fixture", repo_id="fixture/repo", file_count=6)
         for name, value in dict(INTERPRETER=sys.executable, WORKER=self.worker, JOBS=[job], MIN_FREE_BYTES=0,
-                WALL_SECONDS=1.0, CLEANUP_SECONDS=3.0, STDOUT_LIMIT=512, STDERR_LIMIT=512).items():
+                WALL_SECONDS=1.0, CLEANUP_SECONDS=3.0, STDOUT_LIMIT=1024, STDERR_LIMIT=512).items():
             patch = mock.patch.object(self.P, name, value); patch.start(); self.addCleanup(patch.stop)
 
     def invoke(self, mode):
-        worker = fixture.FAKE.replace("{'fixture':True}", "{'inputs_verified':True,'artifacts_ready':False,'generator_requests':0}")
+        worker = fixture.FAKE.replace("emit('done',request_sha256=identity,result={'fixture':True})", RECORDS)
         self.worker.write_text("MODE=" + repr(mode) + "\n" + worker); self.index += 1; directory = self.root / str(self.index)
         result = self.P.prepare(directory)
         self.assertEqual(result, json.loads((directory / "receipt.json").read_text()))
         self.assertTrue(result["group_absent"]); self.assertTrue(fixture.process_gone(result["pid"]))
+        self.assertEqual(bool(result["records"]), result["status"] == "passed")
+        self.assertEqual(result["artifacts_ready"], result["status"] == "passed"); self.assertFalse((directory / "bundle.json").exists())
         return result, directory
 
     def test_canonical_tokenizers_and_only_approved_config_changes(self):
@@ -66,12 +83,14 @@ class PrecisionArtifactsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Shard inventory"): self.P.headers(directory)
 
     def test_storage_coverage_and_nonquantized_identity(self):
-        tensors = {f"language_model.model.misc_{i}.weight": dict(dtype="BF16", shape=[1]) for i in range(403)}
-        tensors.pop("language_model.model.misc_402.weight"); conv = "language_model.model.layers.0.linear_attn.conv1d.weight"; tensors[conv] = dict(dtype="BF16", shape=[4, 4, 1])
+        tensors = {f"language_model.model.misc_{i}.weight": dict(dtype="BF16", shape=[1]) for i in range(379)}
+        convs = {f"language_model.model.layers.{i}.linear_attn.conv1d.weight": dict(dtype="BF16", shape=[4, 4, 1]) for i in range(32) if i % 4 != 3}
+        tensors.update(convs); conv = next(iter(convs))
         tensors.update({f"language_model.model.layers.{i}.linear_attn.A_log": dict(dtype="F32", shape=[32]) for i in range(32) if i % 4 != 3})
         self.P.storage_checked(tensors, "actor", 16)
         with self.assertRaisesRegex(ValueError, "dtype/layout"):
             self.P.storage_checked({**tensors, conv: dict(dtype="BF16", shape=[4, 1, 4])}, "actor", 16)
+        with self.assertRaisesRegex(ValueError, "conv|Conv"): self.P.storage_checked({k: v for k, v in tensors.items() if k != conv} | {"language_model.other": dict(dtype="BF16", shape=[1])}, "actor", 16)
         with self.assertRaises(ValueError): self.P.storage_checked({**tensors, "language_model.extra": dict(dtype="BF16", shape=[1])}, "actor", 16)
         changed = {**tensors, "language_model.model.misc_0.weight": dict(dtype="F8_E4M3", shape=[1])}
         with self.assertRaisesRegex(ValueError, "dtype/layout"): self.P.storage_checked(changed, "actor", 16)
@@ -111,21 +130,49 @@ class PrecisionArtifactsTests(unittest.TestCase):
             if Path(path).name == "receipt.json": self.assertTrue({(Path(path).parent / n).stat().st_ino for n in ("stdout.jsonl", "stderr.txt")} <= synced)
             return write(path, value)
         with mock.patch.object(self.P.os, "fsync", side_effect=observed), mock.patch.object(self.P.B, "_write", side_effect=receipt): self.invoke("ok")
-        for mode, status in (("ok", "passed"), ("pid", "worker_error"), ("hash", "worker_error"), ("malformed", "worker_error"), ("object", "worker_error"),
+        for mode, status in (("ok", "passed"), ("stale", "worker_error"), ("missing_record", "worker_error"), ("pid", "worker_error"), ("hash", "worker_error"), ("malformed", "worker_error"), ("object", "worker_error"),
                              ("nan", "worker_error"), ("stdout", "output_limit"), ("stderr", "output_limit"), ("timeout", "timeout")):
             result, directory = self.invoke(mode); self.assertEqual(result["status"], status)
             self.assertEqual(result["request_sha256"], fixture.sha256((directory / "request.json").read_bytes()).hexdigest())
             if mode == "timeout": self.assertIn(b"partial", (directory / "stdout.jsonl").read_bytes()); self.assertTrue(fixture.process_gone(int((directory / "child.pid").read_text())))
         with mock.patch.object(self.P.B, "_exited", side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt): self.invoke("timeout")
-        self.assertEqual(json.loads((self.root / str(self.index) / "receipt.json").read_text())["status"], "cancelled")
+        cancelled = json.loads((self.root / str(self.index) / "receipt.json").read_text())
+        self.assertEqual(cancelled["status"], "cancelled"); self.assertFalse(cancelled["artifacts_ready"])
         kill = self.P.B._kill_group
         def failed(process): kill(process); raise OSError("cleanup fixture")
         with mock.patch.object(self.P.B, "_kill_group", side_effect=failed): self.assertEqual(self.invoke("ok")[0]["status"], "worker_error")
 
+    def test_four_receipt_records_require_exact_pairs_hashes_identities_and_parent_links(self):
+        changes = dict(request=("request_sha256", "0" * 64), source=("source", "synthetic"), bits=("bits", 16),
+                       model=("model_path", "models/actor-16"), parent=("parent16_record_sha256", "0" * 64))
+        errors = dict(missing="Four artifact bindings required", duplicate="Four artifact bindings required",
+                      missing_file="Invalid artifact record path", path="Artifact binding differs", hash="Artifact record digest differs",
+                      symlink="Invalid artifact record path", directory="Invalid records directory")
+        for damage in ("missing", "duplicate", "missing_file", "path", "hash", "request", "source", "bits", "model", "parent", "symlink", "directory"):
+            receipt, directory = self.invoke("ok"); bindings = [dict(row) for row in receipt["records"]]; identity = receipt["request_sha256"]
+            self.assertEqual(self.P.records_checked(directory, identity, bindings), bindings)
+            row = bindings[1]; path = directory / row["record"]
+            if damage == "missing": bindings.pop()
+            if damage == "duplicate": bindings[-1] = dict(bindings[0])
+            if damage == "missing_file": path.unlink()
+            if damage == "path": row["record"] = "records/wrong.json"
+            if damage == "hash": path.write_bytes(path.read_bytes() + b" ")
+            if damage in changes:
+                record = json.loads(path.read_text()); key, value = changes[damage]; record[key] = value
+                path.write_text(json.dumps(record)); row["sha256"] = fixture.sha256(path.read_bytes()).hexdigest()
+            if damage == "symlink":
+                twin = directory / "identical"; path.rename(twin); path.symlink_to(twin)
+            if damage == "directory":
+                twin = directory / "identical-records"; (directory / "records").rename(twin); (directory / "records").symlink_to(twin, target_is_directory=True)
+            with self.subTest(damage=damage), self.assertRaisesRegex(ValueError, errors.get(damage, "Artifact record identity/parent differs")):
+                self.P.records_checked(directory, identity, bindings)
+
     def test_real_worker_rejects_corrupt_inputs_before_mlx_and_never_publishes_artifacts(self):
+        frozen = {k: v for k, v in self.P.JOBS[0].items() if k not in ("manifest_path", "upstream_path")}
+        self.P.validate_inputs(dict(jobs=[{**frozen, "manifest": self.manifest, "upstream": self.upstream}]))
         errors = dict(bytes="Manifest file differs", repo="Official identity differs", count="Official identity differs",
                       index="Official index differs", lfs="Official shard differs", selection="Official shard selection differs")
-        for failure in ("valid", "bytes", "repo", "count", "index", "lfs", "selection", "overflow"):
+        for failure in ("bytes", "repo", "count", "index", "lfs", "selection", "overflow"):
             manifest, upstream = json.loads(json.dumps(self.manifest)), json.loads(json.dumps(self.upstream))
             (self.model / "weights").write_bytes(b"changed" if failure == "bytes" else b"fixture")
             if failure == "repo": manifest["repo_id"] = "wrong/repo"
@@ -136,11 +183,10 @@ class PrecisionArtifactsTests(unittest.TestCase):
             Path(self.B.MANIFEST_PATH).write_text(json.dumps(manifest)); Path(self.B.UPSTREAM_PATH).write_text(json.dumps(upstream))
             directory = self.root / failure
             with mock.patch.object(self.P, "WORKER", self.real_worker), mock.patch.object(self.P, "STDERR_LIMIT", 16384), mock.patch.object(self.P, "STDOUT_LIMIT", 8 if failure == "overflow" else 512): result = self.P.prepare(directory)
-            self.assertEqual(result["status"], "passed" if failure == "valid" else "output_limit" if failure == "overflow" else "worker_error")
-            self.assertEqual(result["inputs_verified"], failure == "valid")
-            if failure == "valid": self.assertEqual(result["events"][-1]["result"], dict(inputs_verified=True, artifacts_ready=False, generator_requests=0))
-            elif failure != "overflow":
+            self.assertEqual(result["status"], "output_limit" if failure == "overflow" else "worker_error")
+            self.assertFalse(result["artifacts_ready"])
+            if failure != "overflow":
                 error = next(e for e in result["events"] if e.get("event") == "error" and e.get("phase") == "inputs")
                 self.assertIn(errors[failure], error["error"])
-            self.assertEqual(json.loads((directory / "request.json").read_text())["stage"], "inputs-only")
-            self.assertFalse((directory / "artifacts.json").exists())
+            self.assertEqual(json.loads((directory / "request.json").read_text())["stage"], "artifacts")
+            self.assertFalse((directory / "runtime.json").exists()); self.assertFalse((directory / "records").exists())

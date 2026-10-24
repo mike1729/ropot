@@ -85,7 +85,7 @@ class BatchReservationTests(unittest.TestCase):
             c, rows = self.campaign(limits)
             with self.subTest(unit=unit): self.rejected(c, rows, pattern="Campaign budget exhausted")
 
-    def test_cross_experiment_duplicate_hashes_charge_full_caps_and_reopen_pending(self):
+    def test_cross_experiment_duplicate_hashes_charge_full_caps_and_reopen_without_execution(self):
         c, rows = self.campaign(); before = len(c.events)
         with mock.patch.object(self.H, "run", side_effect=AssertionError("Dispatch")): batch = c.reserve_batch(rows, self.method)
         events = c.events; self.assertEqual(len(events), before + 3)
@@ -94,14 +94,15 @@ class BatchReservationTests(unittest.TestCase):
         self.assertEqual(len({r["request_sha256"] for r in job["rows"]}), 1)
         self.assertEqual(self.J.Campaign.totals(events)[1]["actor"], dict(zip(self.J.UNITS, (2, 4096, 480))))
         retained = self.stored(c.root); c.close()
-        with mock.patch.object(self.H, "read_qualification", side_effect=AssertionError("Historical authority read")), \
-             mock.patch.object(self.q.f.M, "build_wave", side_effect=AssertionError("Rebuild/replay")), self.J.Campaign(c.root) as reopened:
+        with mock.patch.object(self.q.f.M, "build_wave", side_effect=AssertionError("Rebuild/replay")), self.J.Campaign(c.root) as reopened:
             for i, row in enumerate(batch["rows"]):
                 outcome = reopened.outcome(row["reservation_seq"])
-                self.assertEqual(outcome, dict(reservation_seq=row["reservation_seq"], session_seq=batch["seq"], row_index=i,
-                    method="program-wave-v1", status="pending", eligible=False, response=None))
+                self.assertEqual((outcome["reservation_seq"], outcome["session_seq"], outcome["row_index"]), (row["reservation_seq"], batch["seq"], i))
+                self.assertEqual((outcome["method"], outcome["status"], outcome["eligible"]), ("program-wave-v1", "interrupted", False))
+                self.assertNotIn("response", outcome)
                 self.assertFalse(self.J.generation_resources_cleared(reopened.events, outcome))
-        self.assertEqual(self.stored(c.root), retained)
+        self.assertEqual(len(self.stored(c.root)), len(retained) + 3)
+        retained = self.stored(c.root)
         for route in ("batch", "scalar", "native"):
             with self.J.Campaign(c.root) as reopened, mock.patch.object(self.f.G, "generate", side_effect=AssertionError("Dispatch")):
                 with self.subTest(route=route), self.assertRaisesRegex(ValueError, "Unresolved batch"):
@@ -137,7 +138,7 @@ class BatchReservationTests(unittest.TestCase):
                 with self.subTest(fault=fault), self.assertRaises((OSError, sqlite3.OperationalError)): c.reserve_batch(rows, self.method)
             self.assertIsNone(c.db)
             with self.J.Campaign(c.root) as reopened:
-                self.assertEqual(len(reopened.events), len(before) + (3 if fault == "after" else 0))
+                self.assertEqual(len(reopened.events), len(before) + (6 if fault == "after" else 0))
                 self.assertEqual(self.J.Campaign.totals(reopened.events)[1]["actor"]["replies"], 2 if fault == "after" else 0)
 
     def test_reopen_rejects_partial_interleaved_and_misbound_atomic_groups(self):

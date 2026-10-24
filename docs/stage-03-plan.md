@@ -634,3 +634,11 @@ and recipe before charging every row's reply, token and wall caps. Pending sessi
 remain inspectable on reopen and block scalar generation, batch admission and
 native dispatch. This admission prerequisite launches no generation; session
 execution and atomic settlement belong to the following batch.
+
+`generate_batch` starts one owned session after its durable reservation. Reopening
+reconciles each session once and commits its shared evidence plus every row outcome
+atomically, without rerunning generation. Every successful row requires the full
+session inventory, copied qualification and decoded proof. Unknown cleanup blocks
+all further dispatch; a proven closed failure remains ineligible. Row outcomes hold
+text, raw tokens and latency with shared-session references; the session owns wall
+and process evidence once. Shared export and the cohort driver remain separate.

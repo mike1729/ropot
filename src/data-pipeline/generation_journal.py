@@ -47,6 +47,12 @@ class ProfileControlError(RuntimeError):
 
 
 def profile_control_reason(outcome):
+    if outcome.get("method") == "program-wave-v1":
+        require({"profile_guarded", "profile_ready", "protocol_error"} <= outcome.keys()
+                and type(outcome.get("profile_guarded")) is bool and type(outcome.get("profile_ready")) is bool
+                and (outcome.get("protocol_error") is None or type(outcome["protocol_error"]) is str), "Invalid batch control outcome")
+        if not outcome["profile_guarded"]: return "profile_unproven"
+        return None if outcome["protocol_error"] in (None, "Missing done", "Incomplete protocol tail") else "profile_protocol"
     fields = {"profile_guarded", "profile_failure", "protocol_error"}
     present = fields & outcome.keys()
     if not present: return None
@@ -63,6 +69,7 @@ def require_profile_outcome(outcome):
 
 
 def _clearance_payload(events, outcome):
+    require("session_seq" not in outcome, "Generation is not eligible for resource clearance")
     response = outcome["response"]
     evidence = outcome.get("evidence", {}).get("response.json", {})
     require(outcome.get("status") == "worker_error" and outcome.get("finish_reason") in ("stop", "length")
@@ -81,7 +88,11 @@ def _clearance_payload(events, outcome):
 
 def generation_resources_cleared(events, outcome):
     if "session_seq" in outcome:
-        return False  # J1a has no batch executor or resource-closure evidence.
+        done = next((e for e in events if e["kind"] == "batch_done" and e["session_seq"] == outcome["session_seq"]), None)
+        row = next((e for e in events if e["kind"] == "generation_done" and e["reservation_seq"] == outcome["reservation_seq"]), None)
+        require(done is not None and row is not None and encoded({k: v for k, v in row.items() if k not in ("kind", "seq")}) == encoded(outcome)
+                and row["batch_done_seq"] == done["seq"] and row["job_sha256"] == done["job_sha256"], "Batch outcome binding differs")
+        return done["shared"]["resources_closed"] is True
     markers = [e for e in events if e["kind"] == "generation_resources_cleared"
                and e["reservation_seq"] == outcome["reservation_seq"]]
     if not markers:
@@ -108,8 +119,81 @@ def _batch_method(method, campaign=None):
         path = campaign.root / reference["path"]
         require(path.resolve() == path, "Batch qualification path differs")
         host = importlib.import_module("experiments.batch_throughput")
-        retained, _ = host.read_qualification(path, reference["response_sha256"])
+        retained, files = host.read_qualification(path, reference["response_sha256"])
         require(encoded(retained) == encoded(authority), "Batch qualification authority differs")
+        return files
+
+
+def _batch_projection(campaign, intent):
+    host = importlib.import_module("experiments.batch_throughput")
+    worker = importlib.import_module("experiments.mlx_batch_throughput")
+    method, job = intent["method_spec"], json.loads(intent["job_text"])
+    qualified = _batch_method(method, campaign)
+    directory = campaign.root / "sessions" / f"{intent['seq']:06d}"
+    limits = {n: host.STDOUT_LIMIT for n in ("stdout.jsonl", "response.json", "decoded.jsonl", "telemetry.jsonl")}
+    limits.update({n: 4 * 1024**2 for n in ("job.json", "launch.json", *(f"source-{i}.py" for i in range(6)),
+                  *(f"requests/{i}.json" for i in range(len(job["rows"]))))})
+    limits.update({"stderr.txt": host.STDERR_LIMIT, **{"qualification/" + n: host.QUALIFICATION_LIMITS[n] for n in qualified}})
+    if "cache_limit_bytes" in job: limits["cache-control.json"] = 4096
+    raws, errors = {}, []
+    if directory.exists():
+        require(directory.resolve() == directory, "Invalid batch session directory")
+        entries = list(directory.rglob("*"))
+        require(all(not p.is_symlink() for p in entries), "Invalid batch session entry")
+        unknown = {str(p.relative_to(directory)) for p in entries if not p.is_dir()} - set(limits)
+        if unknown: errors.append("Unexpected session files")
+        limits.update({n: 4 * 1024**2 for n in sorted(unknown)})
+        extra_dirs = sorted(str(p.relative_to(directory)) for p in entries if p.is_dir() and str(p.relative_to(directory)) not in ("requests", "qualification"))
+        if extra_dirs: errors.append("Unexpected session directories: " + encoded(extra_dirs))
+    for name, limit in limits.items():
+        if not os.path.lexists(directory / name): errors.append("Missing session file: " + name); continue
+        raws[name] = host._qualification_file(directory, name, limit)
+    copied = all(raws.get("qualification/" + n) == raw for n, raw in qualified.items())
+    if not copied: errors.append("Session qualification copy differs")
+    if raws.get("job.json") != intent["job_text"].encode(): errors.append("Session job differs")
+    if any(raws.get(f"requests/{i}.json") != r["request_text"].encode() for i, r in enumerate(job["rows"])): errors.append("Session requests differ")
+    try:
+        launch = snapshot(json.loads(raws.get("launch.json", b"")))
+        require(set(launch) == {"argv", "environment", "lease_fd", "lease_dev", "lease_ino", "sources"}
+                and launch["argv"] == [job["request"]["precision_profile"]["descriptor"]["expected_runtime"]["executable"],
+                    "-I", "-B", job["worker"], str(directory / "job.json")]
+                and encoded(launch["environment"]) == encoded(job["request"]["environment"])
+                and all(type(launch[k]) is int and launch[k] >= 0 for k in ("lease_fd", "lease_dev", "lease_ino"))
+                and type(launch["sources"]) is list and len(launch["sources"]) == 6 and set(launch["sources"]) == set(job["source_hashes"])
+                and all(sha256(raws.get(f"source-{i}.py", b"")).hexdigest() == job["source_hashes"][p]
+                        for i, p in enumerate(launch["sources"])), "Session launch/source copies differ")
+        response = snapshot(json.loads(raws.get("response.json", b"")))
+        require(raws.get("telemetry.jsonl") == b"".join(host._raw(s) for s in response["telemetry"]), "Session telemetry differs")
+        if "cache_limit_bytes" in job:
+            cache = snapshot(json.loads(raws.get("cache-control.json", b"")))
+            require(set(cache) == {"job_sha256", "requested_bytes", "observed_bytes", "previous_bytes"}
+                    and type(cache["previous_bytes"]) is int and cache["previous_bytes"] >= 0
+                    and cache["job_sha256"] == intent["job_sha256"] and all(type(cache[k]) is int
+                    and cache[k] == job["cache_limit_bytes"] for k in ("requested_bytes", "observed_bytes")), "Session cache proof differs")
+    except (ValueError, KeyError, TypeError): errors.append("Session launch/source/telemetry/cache proof differs")
+    projected = worker.project_wave(job, raws.get("stdout.jsonl"), raws.get("response.json"), raws.get("decoded.jsonl"), qualification_files=qualified)
+    captured = {str((directory / n).relative_to(campaign.root)): raw for n, raw in raws.items()}
+    captured.update({method["qualification"]["path"] + "/" + n: raw for n, raw in qualified.items()})
+    for name in captured:
+        with (campaign.root / name).open("rb") as file: os.fsync(file.fileno())
+    for path in (directory / "requests", directory / "qualification", directory, directory.parent, campaign.root):
+        if path.is_dir(): sync_directory(path)
+    return projected, copied, errors, {n: dict(sha256=sha256(raw).hexdigest(), bytes=len(raw)) for n, raw in captured.items()}
+
+
+def _batch_completions(intent, projected, copied, errors, evidence, first):
+    eligible = projected["shared"]["complete"] and copied and not errors
+    shared = dict(seq=first, kind="batch_done", session_seq=intent["seq"], job_sha256=intent["job_sha256"],
+                  shared=projected["shared"], session_copy_complete=copied, evidence_errors=errors, evidence=evidence, eligible=eligible)
+    entries = [shared]
+    for i, (binding, row) in enumerate(zip(intent["rows"], projected["rows"])):
+        require(all(row[k] == binding[k] for k in ("row_id", "request_sha256")), "Batch projected row binding differs")
+        entries.append(dict(seq=first + i + 1, kind="generation_done", reservation_seq=binding["reservation_seq"],
+            session_seq=intent["seq"], row_index=i, batch_done_seq=first, method="program-wave-v1", job_sha256=intent["job_sha256"],
+            **{k: row[k] for k in ("row_id", "request_sha256", "uid", "tokens", "text", "finish_reason", "admit_seconds", "first_seconds", "finish_seconds")},
+            status=row["finish_reason"] if eligible else "interrupted", eligible=eligible, observed_generation_tokens=len(row["tokens"]),
+            profile_guarded=projected["shared"]["profile_guarded"], profile_ready=projected["shared"]["ready"], protocol_error=projected["shared"]["protocol_error"]))
+    return entries
 
 
 def _batch_rows(rows, method, events, campaign=None):
@@ -180,11 +264,43 @@ def _batch_groups(events):
         limits, totals = Campaign.totals(events[:index + len(rows) + 1])
         require(all(totals[s][u] <= limits[s][u] for s in SOURCES for u in UNITS), "Batch reservation exceeds budget")
         batches[event["seq"]] = event
-    require(all((e["seq"] in members) == ("session_seq" in e) for e in events if e["kind"] == "generation_reserved")
-            and not any(e["kind"] == "generation_done" and e["reservation_seq"] in members for e in events), "Invalid batch reservation membership")
-    if batches:
-        require(len(batches) == 1 and not any(e["seq"] > min(batches) and e["kind"] in ("native_intent", "batch_reserved", "generation_reserved")
-                and e["seq"] not in members for e in events), "Work follows unresolved batch")
+    require(all((e["seq"] in members) == ("session_seq" in e) for e in events if e["kind"] == "generation_reserved"), "Invalid batch reservation membership")
+    completed, settled = {}, set()
+    for index, event in enumerate(events):
+        if event["kind"] != "batch_done": continue
+        session = event.get("session_seq")
+        require(set(event) == {"seq", "kind", "session_seq", "job_sha256", "shared", "session_copy_complete", "evidence_errors", "evidence", "eligible"}
+                and type(session) is int and session in batches and session not in completed
+                and event["job_sha256"] == batches[session]["job_sha256"] and type(event["session_copy_complete"]) is bool
+                and type(event["evidence_errors"]) is list and all(type(s) is str for s in event["evidence_errors"])
+                and type(event["shared"]) is dict and type(event["shared"]["resources_closed"]) is bool
+                and event["shared"]["job_sha256"] == event["job_sha256"]
+                and type(event["shared"]["complete"]) is bool and type(event["eligible"]) is bool
+                and type(event["evidence"]) is dict and all(type(n) is str and not Path(n).is_absolute()
+                    and ".." not in Path(n).parts and type(v) is dict and set(v) == {"sha256", "bytes"}
+                    and precision._sha(v["sha256"]) and type(v["bytes"]) is int and v["bytes"] >= 0
+                    for n, v in event["evidence"].items()), "Invalid batch completion")
+        rows = events[index + 1:index + len(batches[session]["rows"]) + 1]
+        expected = _batch_completions(batches[session], dict(shared=event["shared"], rows=rows),
+                                     event["session_copy_complete"], event["evidence_errors"], event["evidence"], event["seq"])
+        require(len(rows) == len(batches[session]["rows"]) and encoded([event] + rows) == encoded(expected)
+                and event["seq"] > session + len(rows), "Batch completion group differs")
+        for row in rows:
+            require(type(row["tokens"]) is list and len(row["tokens"]) <= 2048 and all(type(t) is int and t >= 0 for t in row["tokens"])
+                    and (row["uid"] is None or type(row["uid"]) is int) and (row["text"] is None or type(row["text"]) is str)
+                    and row["finish_reason"] in (None, "stop", "length") and all(row[k] is None or type(row[k]) in (int, float)
+                        and math.isfinite(row[k]) and row[k] >= 0 for k in ("admit_seconds", "first_seconds", "finish_seconds")), "Invalid batch row outcome")
+            require(not row["eligible"] or row["finish_reason"] in ("stop", "length") and row["uid"] is not None
+                    and type(row["text"]) is str, "Invalid eligible batch row")
+            profile_control_reason(row)
+            settled.add(row["reservation_seq"])
+        completed[session] = event
+    require(all((e["reservation_seq"] in settled) == ("session_seq" in e) for e in events if e["kind"] == "generation_done"), "Batch completion membership differs")
+    for session, intent in batches.items():
+        done = completed.get(session)
+        boundary = done["seq"] + len(intent["rows"]) if done and done["shared"]["resources_closed"] else math.inf
+        require(not any(session < e["seq"] <= boundary and e["kind"] in ("native_intent", "batch_reserved", "generation_reserved")
+                        and e["seq"] not in {r["reservation_seq"] for r in intent["rows"]} for e in events), "Work follows unresolved batch")
     return batches
 
 
@@ -210,9 +326,14 @@ class Campaign:
         self._open(Path(root).resolve(), create=False)
         try:
             events = self.events
+            sessions = set()
             for event in events:
                 if event["kind"] == "generation_reserved":
-                    self._finish(event["seq"], events)
+                    session = event.get("session_seq")
+                    if session is None: self._finish(event["seq"], events)
+                    elif session not in sessions:
+                        self._finish_batch(session, events)
+                        sessions.add(session)
         except BaseException:
             self.close()
             raise
@@ -283,7 +404,10 @@ class Campaign:
                 if event["kind"] == "native_closed":
                     require(event["operation_id"] not in closed, "Duplicate native closure")
                     closed.add(event["operation_id"])
-        _batch_groups(events)
+        try:
+            _batch_groups(events)
+        except (KeyError, TypeError) as error:
+            raise ValueError("Invalid batch history") from error
         return events
 
     def _append(self, kind, **payload):
@@ -347,7 +471,9 @@ class Campaign:
 
     def require_native_clear(self):
         events = self.events
-        require(not any(e["kind"] == "batch_reserved" for e in events), "Unresolved batch generation resources")
+        for event in events:
+            if event["kind"] == "batch_reserved":
+                require(self._finish_batch(event["seq"])["shared"]["resources_closed"], "Unresolved batch generation resources")
         require({e["operation_id"] for e in events if e["kind"] == "native_intent"}
                 == {e["operation_id"] for e in events if e["kind"] == "native_closed"},
                 "Reconcile pending native operations before dispatch")
@@ -427,6 +553,45 @@ class Campaign:
             self.close()
             raise
 
+    def generate_batch(self, rows, method_spec):
+        try:
+            intent = self.reserve_batch(rows, method_spec)
+            directory = self.root / "sessions"
+            directory.mkdir(exist_ok=True)
+            require(directory.resolve() == directory, "Invalid batch sessions directory")
+            sync_directory(directory)
+            sync_directory(self.root)
+            host = importlib.import_module("experiments.batch_throughput")
+            host.run(json.loads(intent["job_text"]), directory / f"{intent['seq']:06d}", self.root / "lock",
+                     lease_fd=self._lock.fileno(), qualification_files=_batch_method(intent["method_spec"], self))
+            self._finish_batch(intent["seq"])
+            outcomes = [{k: v for k, v in e.items() if k not in ("seq", "kind")} for e in self.events
+                        if e["kind"] == "generation_done" and e.get("session_seq") == intent["seq"]]
+            for outcome in outcomes: require_profile_outcome(outcome)
+            return outcomes
+        except BaseException:
+            self.close()
+            raise
+
+    def _finish_batch(self, session, events=None):
+        events = self.events if events is None else events
+        intent = next(e for e in events if e["kind"] == "batch_reserved" and e["seq"] == session)
+        prior = next((e for e in events if e["kind"] == "batch_done" and e["session_seq"] == session), None)
+        projected, copied, errors, evidence = _batch_projection(self, intent)
+        first = prior["seq"] if prior else events[-1]["seq"] + 1
+        entries = _batch_completions(intent, projected, copied, errors, evidence, first)
+        if prior:
+            require(encoded(events[first - 1:first + len(intent["rows"])]) == encoded(entries), "Completed batch evidence changed")
+        else:
+            _batch_groups(events + entries)
+            self._append_group(entries)
+        return entries[0]
+
+    def _batch_outcome(self, intent):
+        self._finish_batch(intent["session_seq"])
+        row = next(e for e in self.events if e["kind"] == "generation_done" and e["reservation_seq"] == intent["seq"])
+        return {k: v for k, v in row.items() if k not in ("kind", "seq")}
+
     def outcome(self, seq):
         try:
             return self._finish(seq)
@@ -460,8 +625,7 @@ class Campaign:
         events = self.events if events is None else events
         intent = next(e for e in events if e["seq"] == seq and e["kind"] == "generation_reserved")
         if "session_seq" in intent:
-            return dict(reservation_seq=seq, session_seq=intent["session_seq"], row_index=intent["row_index"],
-                        method="program-wave-v1", status="pending", eligible=False, response=None)
+            return self._batch_outcome(intent)
         raw = intent["request_text"].encode()
         require(sha256(raw).hexdigest() == intent["request_sha256"], "Reserved request digest differs")
         request = snapshot(json.loads(raw))  # Reconciliation never needs the model directory to still exist.

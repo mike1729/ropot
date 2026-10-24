@@ -49,6 +49,11 @@ def validate(request):
     return {**request, "environment": dict(ENVIRONMENT)}
 
 
+def prepare_request(request):
+    request = validate(request)
+    return request, (json.dumps(request, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
+
+
 def protocol(raw, request, identity):
     """Return the valid event prefix and a private protocol error, retaining raw bytes."""
     events, tokens, text, ready, terminal, done, error = [], [], [], None, None, False, None
@@ -97,15 +102,21 @@ def protocol(raw, request, identity):
             "protocol_error": error, "complete": done and error is None}
 
 
-def generate(request, request_dir):
+def checked_protocol(raw, request, identity, pid):
+    result = protocol(raw, request, identity)
+    if result["events"] and pid is not None and result["events"][0]["pid"] != pid:
+        result.update(complete=False, protocol_error="Worker PID differs")
+    return result
+
+
+def generate(request, request_dir, lease_fd=None):
     """Save an exclusive request, run once, reap its group, and save every outcome.
 
     The deadline includes hashing/loading/generation. Cancellation writes evidence,
     then re-raises. Token counts include EOS; interrupted counts are lower bounds.
     No retry, response cache, shared prompt cache or persistent server is used.
     """
-    request = validate(request)
-    raw = (json.dumps(request, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n").encode()
+    request, raw = prepare_request(request)
     directory = Path(request_dir).resolve()
     directory.mkdir(parents=True, exist_ok=False)
     request_file = directory / "request.json"
@@ -120,7 +131,7 @@ def generate(request, request_dir):
         try:
             process = subprocess.Popen([str(INTERPRETER), "-I", "-B", str(WORKER), str(request_file)],
                 cwd=directory, env=request["environment"], stdin=subprocess.PIPE,
-                stdout=stdout, stderr=stderr, start_new_session=True)
+                stdout=stdout, stderr=stderr, start_new_session=True, pass_fds=() if lease_fd is None else (lease_fd,))
             while not _exited(process):
                 remaining = request["wall_time_seconds"] - (monotonic() - started)
                 if remaining <= 0:
@@ -138,10 +149,8 @@ def generate(request, request_dir):
                     except BaseException as error:
                         cleanup_failure = cleanup_failure or error
     elapsed = monotonic() - started
-    result = protocol((directory / "stdout.jsonl").read_bytes(), request, identity)
+    result = checked_protocol((directory / "stdout.jsonl").read_bytes(), request, identity, process.pid if process is not None else None)
     returncode = process.returncode if process is not None else None
-    if result["events"] and process is not None and result["events"][0]["pid"] != process.pid:
-        result.update(complete=False, protocol_error="Worker PID differs")
     successful = failure is None and cleanup_failure is None and returncode == 0 and result["complete"]
     result.update(status=status or (result["finish_reason"] if successful else "worker_error"),
                   request_sha256=identity, pid=process.pid if process is not None else None,

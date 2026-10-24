@@ -48,8 +48,9 @@ weights, quantization, tokenizer, template and runtime for each experiment.
 
 ## Experiment accounting and selection
 
-Give each experiment explicit reply, token and wall-time limits. Record extensions
-before further dispatch and report cumulative effort across experiments and restarts.
+Give each experiment explicit per-cell budgets (enforced by the batch-6b loop).
+The journal enforces cumulative per-source reply, token and generation-wall limits.
+Record extensions before dispatch and report cumulative effort across experiments and restarts.
 An experiment ID never erases earlier attempts. Use a small durable append-only
 journal so per-request accounting survives interruptions; reconcile unfinished
 dispatches before resuming. Preserve native Inspect logs as execution evidence.
@@ -71,6 +72,19 @@ and keep monitor outcomes out of generation, candidate selection and recipe choi
 The consuming stage chooses recipes from construction/development evidence only,
 fixes their use for data in each monitor comparison, and reports each export's
 recipe mix. Stage 03 exploration can continue independently.
+
+Batch 6a's `generation_journal.Campaign` exclusively creates a directory (parent must
+exist), or opens existing state. Register a record; `generate(experiment_id, source, request)` reserves before dispatch.
+Use one designated cohort campaign; new IDs retain spending. Absolute limits use
+`replies`, `reserved_output_tokens` and `reserved_generation_wall_seconds`;
+monotone extensions commit before dispatch, and reservations are never refunded.
+Delivered counts include EOS; interrupted observations are lower bounds. Observed
+elapsed includes teardown and can exceed deadlines. Gate/verifier time is excluded.
+Opening reconciles without generation replay; incomplete parent/request evidence
+remains interrupted. One host and one dispatch per campaign are supported; the
+inherited flock covers owned workers. History is logically append-only, without
+tamper resistance. Acceptance uses `status`, never `finish_reason` alone. Late writes
+after parent/cleanup errors can fail closed and require investigation; charges remain.
 
 ## Implementation batches
 

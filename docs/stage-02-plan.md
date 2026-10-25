@@ -8,7 +8,7 @@ only when its learning curve justifies more data.
 
 1. Load the test pool, analysis and existing known-use metadata.
 2. Apply the fast profile and freeze task owners, construction phases and reserves.
-3. Publish the allocation manifest and report.
+3. Publish reduced task files, their hashes, the allocation manifest and report.
 4. Run 8 development candidates, then 16 construction candidates per phase.
 5. Check acquisition feasibility after 32 construction candidates per phase.
 6. Train on nested accepted sets, validate the twins, then acquire repair/holdout data.
@@ -43,8 +43,8 @@ Record incomplete coverage as a limitation on holdout status.
 
 The fast profile requires statements ≤700 Qwen tokens, each passing reference
 ≤500 tokens, each input ≤16 KiB, and total input ≤64 KiB. It contains **1,169 tasks:
-285 introductory / 884 interview**. Keep every stored case; impose no case-count
-cutoff. The other 279 qualified test tasks stay inactive until their profile is widened.
+285 introductory / 884 interview**. Preserve every case in the original pool;
+impose no task exclusion based on case count. The other 279 qualified test tasks stay inactive until their profile is widened.
 
 ## Frozen allocation
 
@@ -116,17 +116,30 @@ claim. Predeclare the primary comparison and report paired task-level uncertaint
 
 ## Verification and feedback
 
-Re-verify all three references on all stored cases in the actual Inspect Linux
-sandbox before generation. Allocation preserves this gate.
+At the end of Stage 02, publish independent task copies containing at most 20
+cases: all visible cases in original index order, then hidden cases ranked by
+SHA-256 of `ropot-cases-v1|<split>|<id>|<index>`, with index as tie-breaker, filling
+the remaining slots. Preserve original indices and case contents. Reject duplicate
+or noninteger indices, missing/nonboolean visibility and more than 20 visible
+cases. Small suites retain every case, ordered visible first. The selection is
+independent of program bytes and generator source.
 
-For generated programs, rank case indices by SHA-256 of
-`ropot-screen-v1|test|<id>|<index>`, with index as tie-breaker. Select the first
-visible and first nonvisible case, then fill to `min(8, case_count)` from remaining
-ranked cases. Fix membership before execution. Execute selected visible cases,
-remaining visible cases, selected nonvisible cases, then remaining nonvisible cases,
-in rank order within each group, rejecting on first failure. This completes every
-visible check before hidden execution. Acceptance requires every stored case;
-reuse recorded passes only for identical program bytes and execution contracts.
+Schema 3 publishes these reduced files under `02_cohort/tasks`. Manifest task
+`sha256` values bind published bytes; `source_sha256` binds the corresponding
+original pool file at the same relative path. Record selection version/cap/order
+in manifest policy, and original/published case totals in the report. Recompute
+visible/nonvisible counts. Leave `original_row`, `verification_attempts`, `lengths`
+and `reference_counts` in the original pool: they duplicate omitted cases or
+measure the historical full suite. Keep sources, reference indices, example
+mappings and problem metadata in reduced files. All pool files remain unchanged.
+
+For Stage 03 onward, re-verify all three references on every published case in
+Inspect Linux before generation. Every program on a task uses this same saved
+suite, with visible checks before hidden execution and rejection on first failure.
+Acceptance covers the published suite with no later full-suite pass. Stage 03
+reads all cases without selection logic. Reuse verification only for identical
+program bytes, published task digest and execution contract. Historical Stage 01
+full-suite qualification evidence remains unchanged.
 
 Only visible-case diagnostics may enter retry prompts. Nonvisible inputs, outputs,
 indices, stderr and case-level results remain in verifier logs. A nonvisible failure
@@ -143,13 +156,13 @@ not add independent tasks.
 1. Reuse the qualified-task reader; extend the loader and pure allocation policy
    with the input checks, known-use override and frozen rules above.
 2. Add the CLI and atomically publish `data/02_cohort/manifest.json` and
-   `report.json`, refusing an existing destination. Record input hashes, metadata
+   `report.json` plus reduced `tasks/*.json`, refusing an existing destination. Record input hashes, metadata
    coverage, groups/phases, budgets, accepted targets, counts and shortfalls.
 
 Batch 2 implements `python -m src.data-pipeline cohort` and a standard-library
 publisher composing the existing loader and allocator. `load_inputs` validates
-identities and difficulties; `allocate` trusts those records. Both versioned JSON files
-publish together; tasks remain referenced in the test pool. Construction activation
+identities and difficulties; `allocate` trusts those records. The manifests and reduced task files
+publish together; original tasks remain in the test pool. Construction activation
 uses the phase groups, deferred tasks remain inactive, and acquisition retry ceilings
 remain pending. The inherited Linux verification gate still applies before generation.
 
@@ -186,3 +199,9 @@ redirects 8 fast-profile tasks (11 including deferred); all 32 known-use tasks
 Keep each batch at or below 500 additions plus deletions and stop for review, as
 required by [repository instructions](AGENTS.md). Acquisition, execution and
 training remain in their consuming stages.
+
+The schema-3 reduced publication preserves schema-2 assignments and group/phase
+order. Its predecessor is archived at `data/archive/stage02-before-reduced-v3`.
+`data/runs/stage02-reduced-v3.json` records source snapshots, pool hashes and
+publication comparisons. Stage 03 pins the new manifest and reads task paths
+relative to the publication root, with an optional relocated task-root override.

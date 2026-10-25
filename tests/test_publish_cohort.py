@@ -33,20 +33,72 @@ class PublishCohortTests(unittest.TestCase):
         return p.publish_cohort(self.pool, self.analysis, output or self.output,
                                 self.records_path, self.coverage_path)
 
+    def test_reduction_is_task_scoped_deterministic_and_retains_all_visible_cases(self):
+        task = {"split": "test", "id": 7, "cases": [
+            {"index": i, "input": str(i), "answer": str(i), "visible": i in (0, 7, 29)} for i in range(30)]}
+        reduced = p.reduce_task(task)
+        expected = [0, 7, 29, 28, 8, 21, 11, 2, 9, 18, 17, 13, 14, 3, 22, 27, 6, 5, 23, 16]
+        self.assertEqual([case["index"] for case in reduced["cases"]], expected)
+        self.assertEqual((reduced["visible_case_count"], reduced["nonvisible_case_count"]), (3, 17))
+        self.assertEqual(reduced, p.reduce_task({**task, "cases": list(reversed(task["cases"]))}))
+        self.assertNotEqual(reduced["cases"], p.reduce_task({**task, "id": 8})["cases"])
+        self.assertEqual(len(task["cases"]), 30)
+        for count in (0, 5, 20):
+            small = {**task, "cases": task["cases"][:count]}
+            self.assertEqual({c["index"] for c in p.reduce_task(small)["cases"]}, set(range(count)))
+        for cases in ([{"index": i, "visible": True} for i in range(21)],
+                      [{"index": 0, "visible": False}] * 2, [{"index": 0}],
+                      [{"index": True, "visible": False}], [{"index": 0, "visible": 1}]):
+            with self.subTest(cases=cases), self.assertRaises(ValueError):
+                p.reduce_task({**task, "cases": cases})
+
+    def test_reduced_publication_keeps_pool_intact_and_binds_original_and_reduced_hashes(self):
+        task = self.tasks[0]
+        task["cases"] = [{"index": i, "input": str(i), "answer": str(i), "visible": i in (0, 7, 29)}
+                         for i in range(30)]
+        for field in ("verification_attempts", "lengths", "reference_counts"):
+            task[field] = {"historical": "full suite"}
+        relative = "tasks/test_7.json"
+        raw = json.dumps(task).encode()
+        (self.pool / relative).write_bytes(raw)
+        for provenance in (self.manifest["provenance"], self.summary["provenance"]):
+            provenance["task_sha256"][relative] = c.sha256(raw)
+        self.rows[0].update(cases=30, visible_cases=3, nonvisible_cases=27)
+        self.save()
+        before = {path: path.read_bytes() for path in self.pool.rglob("*") if path.is_file()}
+        manifest = self.publish()
+        record = next(t for t in manifest["tasks"] if t["id"] == 7)
+        reduced_raw = (self.output / record["path"]).read_bytes()
+        reduced = json.loads(reduced_raw)
+        self.assertEqual(record["source_sha256"], c.sha256(raw))
+        self.assertEqual(record["sha256"], c.sha256(reduced_raw))
+        self.assertNotEqual(record["source_sha256"], record["sha256"])
+        self.assertEqual(reduced, p.reduce_task(task))
+        for field in ("original_row", "verification_attempts", "lengths", "reference_counts"):
+            self.assertNotIn(field, reduced)
+        self.assertEqual({path: path.read_bytes() for path in before}, before)
+        self.assertEqual(json.loads((self.output / "report.json").read_text())["cases"],
+                         {"original": 32, "published": 22})
+
     def test_roundtrip_preserves_allocation_inputs_and_frozen_contract(self):
         before = {path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
         loaded = c.load_inputs(self.pool, self.analysis, self.records_path, self.coverage_path)
         expected = c.allocate(loaded["tasks"])
         manifest = self.publish()
-        self.assertEqual(sorted(path.name for path in self.output.iterdir()), ["manifest.json", "report.json"])
+        self.assertEqual(sorted(path.name for path in self.output.iterdir()), ["manifest.json", "report.json", "tasks"])
         self.assertEqual(json.loads((self.output / "manifest.json").read_text()), manifest)
-        self.assertEqual(manifest["schema_version"], 2)
+        self.assertEqual(manifest["schema_version"], 3)
         task_fields = {"split", "id", "difficulty", "path", "sha256", "owner", "block", "defer_reasons", "known_uses"}
         optional_fields = {"phase", "redirected_from"}
         for published, allocated in zip(manifest["tasks"], expected["tasks"], strict=True):
             fields = task_fields | (optional_fields & allocated.keys())
-            self.assertEqual(set(published), fields)
-            self.assertEqual(published, {key: allocated[key] for key in fields})
+            self.assertEqual(set(published), fields | {"source_sha256"})
+            self.assertEqual({key: published[key] for key in fields - {"sha256"}},
+                             {key: allocated[key] for key in fields - {"sha256"}})
+            self.assertEqual(published["source_sha256"], allocated["sha256"])
+            raw = (self.output / published["path"]).read_bytes()
+            self.assertEqual(published["sha256"], c.sha256(raw))
+            self.assertEqual(json.loads(raw), p.reduce_task(json.loads((self.pool / published["path"]).read_bytes())))
         for key in ("groups", "construction_phases"):
             self.assertEqual(manifest[key], expected[key])
         for key in ("shortfalls", "sequential_remaining"):
@@ -93,6 +145,7 @@ class PublishCohortTests(unittest.TestCase):
         report = json.loads((self.output / "report.json").read_text())
         records = manifest["tasks"]
         self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["cases"], {"original": 4, "published": 4})
         self.assertEqual(report["counts"], {"tasks": 2, "fast_profile": 1, "deferred": 1,
                                             "difficulty": {"introductory": 1, "interview": 1}})
         for key, field, names in (("by_owner", "owner", c.QUOTAS),
@@ -121,8 +174,9 @@ class PublishCohortTests(unittest.TestCase):
         self.publish()
         second = self.root / "other-cohort"
         self.publish(second)
-        for name in ("manifest.json", "report.json"):
-            self.assertEqual((self.output / name).read_bytes(), (second / name).read_bytes())
+        for path in self.output.rglob("*"):
+            if path.is_file():
+                self.assertEqual(path.read_bytes(), (second / path.relative_to(self.output)).read_bytes())
 
     def test_saved_groups_partition_tasks_and_stage03_consumes_them_directly(self):
         manifest = self.publish()
@@ -140,7 +194,7 @@ class PublishCohortTests(unittest.TestCase):
         with mock.patch.object(study, "COHORT_SHA256", digest), \
                 mock.patch.object(c, "allocate", side_effect=AssertionError("must not repartition")):
             loaded = study.load_cohort(self.output)
-            self.assertEqual(study.load_task(loaded, 7)[1], self.tasks[0])
+            self.assertEqual(study.load_task(loaded, 7)[1], p.reduce_task(self.tasks[0]))
         self.assertEqual(set(loaded["groups"]), {"construction", "development"})
 
     def test_existing_dangling_symlink_and_nested_destinations_are_refused(self):

@@ -53,8 +53,9 @@ This document does not authorize model runs.
   ownership and ordered reserves: start with 8 development tasks, then a 32-task
   construction probe, targeting 256 usable construction tasks and capping development
   at 50 tasks total, including the smoke, with an option to expand construction to 512.
-- Preserve the eligible difficulty mix in each group; retain all stored cases and
-  use a small verification screen before complete checks on surviving programs.
+- Preserve the eligible difficulty mix in each group and all original pool cases.
+  Publish independent task copies with all visible cases followed by deterministic
+  hidden cases, capped at 20 total; downstream verification uses every published case.
 - Keep groups isolated and preserve source-independent acquisition and the required
   Inspect Linux reference gate. Final panel sizes and acquisition budgets follow
   the fixed group capacities: target 24 calibration and 48 evaluation tasks,
@@ -66,12 +67,16 @@ This document does not authorize model runs.
 **03_benigns — generate and verify.**
 
 - Follow the [Stage 03 plan](stage-03-plan.md): consume frozen cohort ownership,
-  then re-verify the same three references on every stored case in Inspect Linux.
+  then re-verify the same three references on the selected suite in Inspect Linux.
 - Load only saved construction/development IDs from initial/reserve blocks, keeping
   protected and deferred tasks unavailable. Check task-file digests when reading.
 - Experiment with prompts, scaffolding, sampling and repair budgets independently
-  for each generator. Verify every stored case, completing all visible checks
-  before hidden execution; retries receive only public feedback.
+  for each generator. Cap execution at 20 cases per program: all visible cases,
+  then a deterministic hidden subset published in reduced Stage 02 task files. Use the same
+  selection for every program on a task; acceptance covers the selected suite
+  without a later full-suite pass. Complete visible checks before hidden execution;
+  retries receive only public feedback. Stage 03 reads and executes every case in
+  the reduced file without selection; the original pool retains all stored cases.
 - Retain every attempt and immutable candidate; program selection may evolve.
   Publish versioned selections, provenance, cumulative effort and yield reports.
   Benign acceptance alone does not establish attack yield or final matched fit.

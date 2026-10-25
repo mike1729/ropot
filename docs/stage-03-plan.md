@@ -10,16 +10,17 @@ strategies and budgets can evolve throughout the stage.
 
 ## Starting point
 
-Consume Stage 02's canonical `data/02_cohort/manifest.json`. Its schema-2 group
-metadata was regenerated from the working tree without changing the assignment
-published from `e42628b`; the previous publication is retained under `data/archive`.
+Consume Stage 02's canonical `data/02_cohort/manifest.json`. The schema-3
+publication includes reduced task files under `data/02_cohort/tasks`, while the
+original full-suite pool remains intact. Previous publications are archived under
+`data/archive`. Reduction preserves assignments and group/phase order.
 Preserve its task ownership, construction phases, group order and profile status.
 Stage 02 generates and saves every group once in `groups` and `construction_phases`.
 Stage 03 loads only saved construction/development IDs from initial/reserve blocks;
 protected and deferred tasks are unavailable. Experiments record a worklist of those
 IDs without redefining groups or running allocation. Task reads retain digest checks.
 Metadata validation belongs to Stage 02. The reader verifies the cohort hash and
-restricts membership; task reads check current path containment and file digests.
+restricts membership; task reads check containment within the publication and file digests.
 Bindings are shared read-only metadata, without copying or repeated schema checks.
 The [cohort plan](stage-02-plan.md) governs activation; the [pilot](pilot.md)
 defines the later monitor experiment.
@@ -40,7 +41,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 | --- | --- |
 | 1 | Load the saved construction/development groups, pin the reviewed manifest hash, and define candidate identity. Preserve ownership and provenance; group assignment belongs to Stage 02. |
 | 2 | Establish Inspect Docker execution with one fresh sample/sandbox per program and fresh case processes sharing `/work`. Check sample failure isolation, output completeness and limits; use native teardown and document shared writable state/background processes within a program. |
-| 3 | Add the three-reference gate and deterministic candidate verification. Run visible cases before hidden ones, retain all stored cases and test the public-feedback boundary. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
+| 3 | Add the three-reference gate and deterministic candidate verification. Use the 20-case selection below for references and candidates, retain all stored cases and test the public-feedback boundary. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
 | 5 | Establish the synthetic runtime using the same small adapter interface. Resolve MLX versus GGUF from observed compatibility, output quality, cost and provenance. |
 | 6 | Implement the experimental generate/verify/repair loop with experiment records and interruption-safe accounting. Keep generation caching and automatic retries off, and confirm server idleness after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
@@ -53,11 +54,23 @@ adapters for experimental rules. Avoid building a general scheduler or inference
 
 ### Inspect execution contract
 
-Batch 2's `src/data-pipeline/inspect_runner.py` exposes
+Batch 2's `src/data-pipeline/stage03/inspect_runner.py` exposes
 `run(programs, log_dir, *, concurrent_inference=False)`, returning Inspect logs.
-Each program is `{"program": bytes, "cases": [{"index": int, "input": str}]}`;
-case indices must be distinct integers (excluding booleans) within each program,
-validated before Docker starts.
+Each program is `{"program": bytes, "cases": [{"index": int, "input": str}]}`.
+Supply every case from the reduced Stage 02 task file, in publication order.
+The runner executes all supplied cases without filtering or sampling, stopping on
+the first execution failure. Case indices remain the original pool indices and
+must be distinct integers (excluding booleans), validated before Docker starts.
+Expected answers stay on the host; sample metadata records the supplied inputs
+and indices. The task-file digest binds the frozen selected suite. Selection
+policy/version and original/reduced task hashes belong to the Stage 02 manifest.
+
+Stage 02 publication keeps all visible cases in index order, then fills to at
+most 20 with deterministic hidden cases. This is the acceptance suite for every
+reference, benign and attack program, with no later full-suite pass. Omitted cases
+remain available in the original pool and are not verified by Stage 03. Changing
+the publication changes task digests and invalidates verification reuse.
+
 `async prepare_program(program: bytes)` writes `/work/program.py` once per active
 sample. `async run_case(stdin: str) -> dict` executes that file
 with `/work` as both working directory and `TMPDIR` and returns status, streams, exit code and

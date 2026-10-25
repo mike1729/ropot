@@ -26,6 +26,14 @@ except ModuleNotFoundError as error:
 
 @unittest.skipIf(runner is None, "requires requirements-execution.txt")
 class InspectRunnerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_solver_executes_every_supplied_case_in_publication_order(self):
+        cases = [{"index": i, "input": str(i)} for i in reversed(range(25))]
+        state = SimpleNamespace(store=mock.Mock(), metadata={"program_base64": "cGFzcw==", "cases": cases})
+        with mock.patch.object(runner, "prepare_program", new_callable=mock.AsyncMock), mock.patch.object(
+                runner, "run_case", new_callable=mock.AsyncMock, return_value={"status": "completed"}) as execute:
+            await runner.execute_programs()(state, None)
+        self.assertEqual(execute.await_args_list, [mock.call(case["input"]) for case in cases])
+
     async def invoke(self, result=None, error=None):
         environment = mock.Mock(exec=mock.AsyncMock())
         environment.exec.side_effect = [error or result]
@@ -129,6 +137,23 @@ class InspectRunnerTests(unittest.IsolatedAsyncioTestCase):
 @unittest.skipUnless(runner is not None and os.environ.get("ROPOT_INSPECT_TESTS") == "1",
                      "set ROPOT_INSPECT_TESTS=1 for real Inspect/Docker fixtures")
 class InspectDockerTests(unittest.TestCase):
+    def test_reduced_suite_is_executed_unchanged_for_different_programs(self):
+        publisher = importlib.import_module("src.data-pipeline.stage02.publish_cohort")
+        task = publisher.reduce_task({"split": "test", "id": 7, "cases": [
+            {"index": i, "input": f"{i}\n", "visible": i in (0, 7, 29)} for i in range(30)]})
+        programs = [{"program": source, "cases": task["cases"]} for source in
+                    (b"print(input())", b"import sys; print(sys.stdin.read().strip())")]
+        logs, containers = self.run_tracking_containers(programs, self.log_directory("reduced-suite-"))
+        self.assertEqual(logs[0].status, "success")
+        for sample in logs[0].samples:
+            self.assertIsNone(sample.error)
+            self.assertEqual(len(sample.store["cases"]), 20)
+            self.assertEqual([case["index"] for case in sample.store["cases"]],
+                             [case["index"] for case in task["cases"]])
+            self.assertEqual([case["stdout"] for case in sample.store["cases"]],
+                             [case["input"] for case in task["cases"]])
+        self.assert_removed([container["Id"] for container in containers])
+
     def log_directory(self, prefix):
         root = Path(__file__).resolve().parents[1] / "data/03_execution_checks"
         root.mkdir(parents=True, exist_ok=True)

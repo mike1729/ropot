@@ -33,8 +33,8 @@ class StudyTaskTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
         self.pool, self.cohort_dir = self.root / "pool", self.root / "cohort"
-        (self.pool / "tasks").mkdir(parents=True)
-        self.cohort_dir.mkdir()
+        self.pool.mkdir()
+        (self.cohort_dir / "tasks").mkdir(parents=True)
         records = [{"split": "test", "id": identifier, "difficulty": difficulty, "path": f"tasks/test_{identifier}.json",
                     "owner": owner, "block": block, **({"phase": phase} if phase else {}),
                     "defer_reasons": ["statement_tokens"] if block == "deferred" else [], "known_uses": ["unresolved"] if identifier == 20 else []}
@@ -58,7 +58,7 @@ class StudyTaskTests(unittest.TestCase):
         record = self.records[identifier]
         record["path"] = path or record["path"]
         raw = json.dumps(task, ensure_ascii=False).encode()
-        target = self.pool / record["path"]
+        target = self.cohort_dir / record["path"]
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(raw)
         record["sha256"] = self.pool_manifest["provenance"]["task_sha256"][record["path"]] = study.sha256(raw)
@@ -81,7 +81,8 @@ class StudyTaskTests(unittest.TestCase):
         self.assertEqual(self.loaded["test_pool_manifest_sha256"],
                          self.cohort["provenance"]["input_manifest_sha256"])
         moved = self.root / "moved"
-        self.pool.rename(moved)
+        moved.mkdir()
+        (self.cohort_dir / "tasks").rename(moved / "tasks")
         with self.assertRaises(FileNotFoundError):
             study.load_task(study.load_cohort(self.cohort_dir), 1)
         loaded = study.load_cohort(self.cohort_dir, moved)
@@ -113,38 +114,38 @@ class StudyTaskTests(unittest.TestCase):
         self.assertEqual(study.load_task(loaded, 13)[0], self.records[13])
 
     def test_load_task_reads_only_the_requested_verified_artifact(self):
-        (self.pool / "tasks/test_2.json").unlink()
-        (self.pool / "tasks/test_10.json").write_bytes(b"corrupt")
+        (self.cohort_dir / "tasks/test_2.json").unlink()
+        (self.cohort_dir / "tasks/test_10.json").write_bytes(b"corrupt")
         with mock.patch.object(Path, "read_bytes", autospec=True, side_effect=Path.read_bytes) as read:
             binding, task = study.load_task(self.loaded, 1)
         self.assertEqual([call.args[0].name for call in read.call_args_list], ["test_1.json"])
         self.assertEqual(binding, self.records[1])
-        self.assertEqual(task, json.loads((self.pool / "tasks/test_1.json").read_bytes()))
+        self.assertEqual(task, json.loads((self.cohort_dir / "tasks/test_1.json").read_bytes()))
 
     def test_load_task_rejects_protected_deferred_unknown_and_corrupt_tasks(self):
         with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("must not read denied tasks")):
             for identifier in (30, 31, 32, 33, 9999, True, "1"):
                 with self.subTest(identifier=identifier), self.assertRaisesRegex(ValueError, "not in the saved"):
                     study.load_task(self.loaded, identifier)
-        (self.pool / "tasks/test_1.json").write_bytes(b"{}")
+        (self.cohort_dir / "tasks/test_1.json").write_bytes(b"{}")
         with self.assertRaisesRegex(ValueError, "Task bytes differ"):
             study.load_task(self.loaded, 1)
 
     def test_load_task_rejects_paths_outside_the_pool(self):
-        task = json.loads((self.pool / "tasks/test_1.json").read_bytes())
+        task = json.loads((self.cohort_dir / "tasks/test_1.json").read_bytes())
         for path in ("../outside/test_1.json", str(self.root / "outside.json")):
             with self.subTest(path=path):
                 self.write_task(1, task, path)
                 loaded = self.rewrite()
-                with self.assertRaisesRegex(ValueError, "leaves the test pool"):
+                with self.assertRaisesRegex(ValueError, "leaves the published task root"):
                     study.load_task(loaded, 1)
 
     def test_load_task_rechecks_paths_after_loading_the_cohort(self):
-        path = self.pool / "tasks/test_1.json"
+        path = self.cohort_dir / "tasks/test_1.json"
         outside = self.root / "outside.json"
         path.rename(outside)
         path.symlink_to(outside)
-        with self.assertRaisesRegex(ValueError, "leaves the test pool"):
+        with self.assertRaisesRegex(ValueError, "leaves the published task root"):
             study.load_task(self.loaded, 1)
 
     def test_candidate_identity_hashes_exact_bytes_per_source(self):

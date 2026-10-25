@@ -204,10 +204,13 @@ def _isolation_shape(job):
 
 def _wave_shape(job):
     admission, rows = job["admission"], job["rows"]
+    isolation = type(admission) is dict and admission.get("schema_version") == 2
     fields = set("schema_version request_controls config source_hashes prompt_ceiling_tokens stress_prompt_tokens inputs".split())
+    if isolation: fields.add("contract")
     G.require(type(admission) is dict and set(admission) - {"cache_limit_bytes"} == fields
-        and type(admission["schema_version"]) is int and admission["schema_version"] == 1, "Wave admission differs")
-    G.require(type(job["prompt_ceiling_tokens"]) is int and 0 < job["prompt_ceiling_tokens"] <= admission["prompt_ceiling_tokens"] <= 4096
+        and type(admission["schema_version"]) is int and admission["schema_version"] == (2 if isolation else 1)
+        and (not isolation or admission["contract"] == "peer-isolation-v2"), "Wave admission differs")
+    G.require(type(job["prompt_ceiling_tokens"]) is int and 0 < job["prompt_ceiling_tokens"] <= admission["prompt_ceiling_tokens"] <= (8192 if isolation else 4096)
         and job["wall_seconds"] == 240 and type(rows) is list and 1 <= len(rows) <= admission["config"]["batch_size"], "Wave bounds differ")
     requests = []
     for row in rows:
@@ -283,7 +286,8 @@ def validate_events(raw, job, pid=None):
                 G.require(type(event["fixtures"]) is list and len(event["fixtures"]) == len(job["fixtures"]), "Ready fixtures differ")
                 for fixture, planned in zip(event["fixtures"], job["fixtures"]):
                     G.require(set(fixture) == {"id", "prompt", "prompt_ids"} and fixture["id"] == planned["id"] and type(fixture["prompt"]) is str
-                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <= (8192 if isolation else 4096 if long or wave else 1536)
+                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <=
+                              (8192 if isolation or wave and job["admission"]["schema_version"] == 2 else 4096 if long or wave else 1536)
                               and all(type(t) is int and t >= 0 for t in fixture["prompt_ids"]), "Ready fixtures differ")
                 if wave: G.require(all(len(f["prompt_ids"]) <= job["prompt_ceiling_tokens"] for f in event["fixtures"]), "Wave prompt exceeds qualified ceiling")
                 if isolation:
@@ -465,7 +469,7 @@ def qualification_checked(files):
     try:
         job, response = (G.snapshot(json.loads(files[name])) for name in ("job.json", "response.json"))
         _shape(job, historical=True)
-        G.require(job["schema_version"] == 2 and files["job.json"] == _raw(job), "Qualification job differs")
+        G.require(job["schema_version"] in (2, 4) and files["job.json"] == _raw(job), "Qualification job differs")
         G.require(("cache-control.json" in files) == ("cache_limit_bytes" in job), "Qualification cache files differ")
         request = job["request"]; descriptor = G._profile(request)
         G.require(set(request) == G.FIELDS | {"environment", "precision_profile"} and type(request["max_tokens"]) is int
@@ -491,10 +495,11 @@ def qualification_checked(files):
             G.require(proof["job_sha256"] == response["job_sha256"] and all(type(proof[k]) is int
                 and proof[k] == job["cache_limit_bytes"] for k in ("requested_bytes", "observed_bytes")), "Qualification cache proof differs")
         stress = parsed["long_stress"]
-        admission = dict(schema_version=1, request_controls={k: v for k, v in request.items() if k not in ("messages", "seed")},
+        admission = dict(schema_version=2 if job["schema_version"] == 4 else 1, request_controls={k: v for k, v in request.items() if k not in ("messages", "seed")},
             config=job["windows"][-1]["config"], source_hashes=job["source_hashes"], prompt_ceiling_tokens=stress["prompt_token_ceiling"],
             stress_prompt_tokens=dict(min=stress["prompt_tokens_min"], max=stress["prompt_tokens_max"]),
             inputs={name: dict(sha256=sha256(raw).hexdigest(), bytes=len(raw)) for name, raw in files.items()})
+        if job["schema_version"] == 4: admission["contract"] = "peer-isolation-v2"
         if "cache_limit_bytes" in job: admission["cache_limit_bytes"] = job["cache_limit_bytes"]
         return G.snapshot(admission)
     except (KeyError, TypeError) as error:

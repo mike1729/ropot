@@ -611,7 +611,7 @@ only after a proven resource/deadline failure; retain every attempt and cleanup.
 Run actual qualification after all captured adapter/helper sources are final.
 
 The throughput helper's qualification reader validates a pinned response SHA,
-reparses the copied raw schema 2 protocol, and derives the proven configuration
+reparses the copied raw schema 2 or 4 protocol, and derives the proven configuration
 and minimum stress-context bound. Historical validation needs only retained bytes;
 new launches separately require the entire qualified source map to match current
 files. Qualification copies preserve exact job, raw output, parent receipt and
@@ -699,4 +699,7 @@ The native producer uses `--isolation-qualification` with one declared configura
 It observes only row zero in the six target windows and reuses one safe forced
 token throughout the job. The original sampler input and returned object remain
 unchanged, with at most seventeen native calls per sixteen-token target.
-The admission reader still rejects schema 4 pending its separate authority bridge.
+Complete schema 4 evidence yields admission schema 2 with the fixed contract
+`peer-isolation-v2`; historical schema 2 jobs retain their exact schema 1 admission.
+Program waves accept that authority up to its actual qualified minimum, at most
+8,192 tokens. New collection setup enforcement remains a separate consumer batch.

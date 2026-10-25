@@ -8,12 +8,23 @@ class IsolationQualificationTests(unittest.TestCase):
         self.f = long_fixture.LongBatchQualificationTests(methodName="runTest"); self.f.setUp(); self.addCleanup(self.f.doCleanups)
         self.H, self.M = self.f.H, self.f.M
 
-    def protocol(self):
-        job = self.M.build_isolation_job(self.f.f.d, dict(self.f.config, batch_size=2, prefill_batch_size=2))
+    def protocol(self, *, descriptor=None, config=None, prompt_tokens=7168):
+        job = self.M.build_isolation_job(self.f.f.d if descriptor is None else descriptor,
+            dict(self.f.config, batch_size=2, prefill_batch_size=2) if config is None else config)
         self.f.f.windows, self.f.f.fixtures = job["windows"], job["fixtures"]
         events = [e for e in self.f.f.rows() if e["event"] != "qualification"]
         ready = events[2]["fixtures"]
-        for fixture, count, token in zip(ready, (40, 7168, 7168), (3, 3, 4)): fixture["prompt_ids"] = [token] * count
+        for fixture, count, token in zip(ready, (40, prompt_tokens, prompt_tokens), (3, 3, 4)): fixture["prompt_ids"] = [token] * count
+        if descriptor is not None:
+            P = self.f.f.P; sources = descriptor["expected_runtime"]["sources"]
+            def roles(post=False):
+                required = P.role_suffixes(descriptor["source"], post)
+                return P.bind_roles(sources, required, {role: next(p for p in sources if p.endswith(suffix or "/transformers/fixture.py")) for role, suffix in required.items()})
+            proof = copy.deepcopy(self.f.f.proof)
+            proof.update(descriptor_sha256=P.digest(descriptor), model_files=descriptor["model_files"], critical_sources=roles(),
+                guard_sha256=job["request"]["precision_profile"]["guard_sha256"], runtime_guard_sha256=descriptor["runtime_guard_sha256"])
+            events[1]["proof"] = proof
+            events[2]["provenance"] = dict(precision_controls=proof, precision_postload=roles(True), sources=sources)
         plans = {w["id"]: w for w in job["windows"]}
         for event in events:
             if "t_seconds" in event: event["t_seconds"] *= .001
@@ -35,7 +46,8 @@ class IsolationQualificationTests(unittest.TestCase):
                 ordered.append(event)
             events[start + 1:end] = ordered
         self.f.reinsert_chronology(events)
-        stress = dict(batch_size=2, prompt_tokens_min=7168, prompt_tokens_max=7168, prompt_token_ceiling=7168, max_tokens=2048, raw_generation_tokens=4096)
+        batch = job["windows"][-1]["config"]["batch_size"]
+        stress = dict(batch_size=batch, prompt_tokens_min=prompt_tokens, prompt_tokens_max=prompt_tokens, prompt_token_ceiling=prompt_tokens, max_tokens=2048, raw_generation_tokens=2048 * batch)
         draws = {name: {"17": list(range(8)), "29": list(range(8, 16))} for name in ("serial", "interleaved", "reversed")}
         events.insert(-1, dict(event="qualification", rng_draws=draws, diagnostics=dict(greedy_equal=True, reinsert_equal=True), stress=stress))
         return job, events
@@ -152,7 +164,7 @@ class IsolationQualificationTests(unittest.TestCase):
         bad = copy.deepcopy(events); next(e for e in bad if e["event"] == "score" and e["window"] == "short-B")["observed_f32_sha256"] = "b" * 64
         self.assertFalse(self.parse(job, bad)["complete"])
 
-    def test_legacy_projection_false_gate_and_no_v4_admission(self):
+    def test_legacy_projection_false_gate_and_v4_contract(self):
         job, events = self.f.protocol(); parsed = self.f.parse(job, events)
         self.assertEqual(set(parsed), set("events protocol_error complete observations windows observed_generation_tokens finished_sequences long_stress".split()))
         legacy = long_fixture.fixture.BatchThroughputTests(methodName="runTest"); legacy.setUp(); self.addCleanup(legacy.doCleanups)
@@ -160,7 +172,8 @@ class IsolationQualificationTests(unittest.TestCase):
         next(e for e in events if e["event"] == "qualification")["checks"]["greedy_equal"] = False
         self.assertFalse(self.f.parse(job, events)["complete"])
         job, events = self.protocol()
-        with self.assertRaises(ValueError): self.H.qualification_checked(admission_fixture.QualificationAdmissionTests.pack(self, job, events))
+        admission = self.H.qualification_checked(admission_fixture.QualificationAdmissionTests.pack(self, job, events))
+        self.assertEqual((admission["schema_version"], admission["contract"]), (2, "peer-isolation-v2"))
 
     def test_v4_exit_between_polls_still_exceeds_deadline(self):
         self.f.protocol = self.protocol

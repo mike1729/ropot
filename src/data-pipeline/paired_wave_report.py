@@ -1,6 +1,8 @@
-"""Historical resident-wave structure checks; scientific assessment is provisional."""
+"""Historical resident-wave structure, scientific assessment and session costs."""
 
 import json
+import math
+from collections import Counter
 from pathlib import Path
 from . import paired_collection as PC, paired_report as PR, paired_wave_collection as W
 from .paired_collection import J, L, study, digest
@@ -323,7 +325,106 @@ def _confirmation(fact, *, events, ready_by_session, layout):
         prior_exposed_tasks=[dict(zip(("split", "id", "task_sha256"), key)) for key in exposed], invalid_reasons=invalid)
 
 
+def _metrics(fact, *, layout, events, eligible, reservations, comparison_valid):
+    """Count own proven passes separately from first/final assessment coverage."""
+    members = {m["experiment_id"]: m for m, _, _ in fact["rows"]}
+    cells = {(PR._key(m["task"]), m["bits"], c["source"]): c for m, _, assigned in fact["rows"] for c in assigned}
+    mapped = {seq for seq, r in reservations.items() if r["experiment_id"] in members
+        and fact["session_opportunities"].get(r.get("session_seq")) is not None}
+    assessed = {first: {key: all(s in mapped for s in (c["attempt_seqs"][:1] if first else c["attempt_seqs"]))
+        and _usable(c, events, first=first) for key, c in cells.items()} for first in (True, False)}
+    passed = {True: set(), False: set()}
+    for item in eligible:
+        member = members.get(item["experiment_id"])
+        if member is None or item["record_sha256"] != member["record_sha256"]: continue
+        key = (PR._key(item), member["bits"], item["source"])
+        cell, seq = cells.get(key), item["reservation_seq"]
+        if cell is None or seq not in mapped or seq not in cell["attempt_seqs"]: continue
+        reservation = reservations[seq]
+        if (reservation["experiment_id"] != item["experiment_id"] or reservation["source"] != item["source"]
+            or PR._key(reservation["attempt"]) != PR._key(item) or reservation["session_seq"] != item["session_seq"]
+            or type(item["reply_index"]) is not int or item["reply_index"] not in range(3)
+            or reservation["attempt"]["reply_index"] != item["reply_index"] or not _result_usable(seq, events)): continue
+        passed[False].add(key)
+        if item["reply_index"] == 0: passed[True].add(key)
+    panel_keys = {PR._key(t) for t in layout[2]["tasks"]}
+    subsets = [("primary50", layout[2]["tasks"]), ("tuning40", layout[3]), ("fresh32", layout[4]),
+        ("extra22", [t for t in layout[1]["tasks"] if PR._key(t) not in panel_keys]), ("full72", layout[1]["tasks"])]
+    output = []
+    for name, tasks in subsets:
+        keys = [PR._key(t) for t in tasks]
+        terminal = sum(assessed[False][(k, b, s)] for k in keys for b in (8, 16) for s in study.SOURCES)
+        arms, joints = [], {}
+        for bits in (8, 16):
+            verified = {}
+            for first in (True, False):
+                sets = {s: {k for k in keys if (k, bits, s) in passed[first]} for s in study.SOURCES}
+                joint = set.intersection(*sets.values()); joints[(bits, first)] = joint
+                verified[first] = {**{s: len(v) for s, v in sets.items()}, "joint": len(joint)}
+            arms.append(dict(bits=bits, first_verified=verified[True], final_verified=verified[False]))
+        contingencies = {}
+        for first, label in ((True, "first_reply"), (False, "final_policy")):
+            counts = dict.fromkeys(("both", "8_only", "16_only", "neither", "unassessed"), 0)
+            for key in keys:
+                known = all(assessed[first][(key, b, s)] for b in (8, 16) for s in study.SOURCES)
+                a, b = key in joints[(8, first)], key in joints[(16, first)]
+                category = "unassessed" if not known else "both" if a and b else "8_only" if a else "16_only" if b else "neither"
+                counts[category] += 1
+            contingencies[label] = counts
+        subset = dict(name=name, denominator=len(keys), terminal_cells=terminal, complete=terminal == 4 * len(keys),
+            arms=arms, joint_contingency=contingencies)
+        if name == "primary50":
+            subset["target_met"] = [dict(bits=a["bits"], first_reply=a["first_verified"]["joint"] >= 15 if comparison_valid and subset["complete"] else None,
+                final_policy=a["final_verified"]["joint"] >= 15 if comparison_valid and subset["complete"] else None) for a in arms]
+        output.append(subset)
+    return output
+
+
+def _costs(fact, *, runs, reservations, sessions):
+    """Retain all own references; allocate wall only to wholly owned sessions."""
+    run_map, ledger = {r["experiment_id"]: r for r in runs}, {s["session_seq"]: s for s in sessions}
+    all_members = {}
+    for seq, r in reservations.items():
+        if "session_seq" in r: all_members.setdefault(r["session_seq"], set()).add(seq)
+    output = []
+    for bits in (8, 16):
+        names = {m["experiment_id"] for m, _, _ in fact["rows"] if m["bits"] == bits}
+        sources = []
+        for source in study.SOURCES:
+            rows = [r for name in names for r in run_map[name]["sources"] if r["source"] == source]
+            own = {seq for seq, r in reservations.items() if r["experiment_id"] in names and r["source"] == source}
+            refs = sorted({reservations[seq]["session_seq"] for seq in own})
+            owned = [ledger[seq] for seq in refs if seq in ledger and fact["session_opportunities"].get(seq) is not None
+                and ledger[seq]["source"] == source and ledger[seq]["bits"] == bits and ledger[seq]["reservation_seqs"]
+                and set(ledger[seq]["reservation_seqs"]) == all_members[seq] and all_members[seq] <= own]
+            reserved = {unit: (math.fsum(r["reserved"][unit] for r in rows) if unit == "reserved_generation_wall_seconds"
+                else sum(r["reserved"][unit] for r in rows)) for unit in J.UNITS}
+            sources.append(dict(source=source, reserved=reserved,
+                observed_generation_tokens=sum(r["observed"]["observed_generation_tokens"] for r in rows),
+                generation_session_seqs=refs, known_owned_elapsed_seconds=math.fsum(s["owned_elapsed_seconds"] for s in owned if s["owned_elapsed_seconds"] is not None),
+                unknown_elapsed_sessions=sum(s["owned_elapsed_seconds"] is None for s in owned)))
+        output.append(dict(bits=bits, sources=sources))
+    return output
+
+
 def derive(*, events, records, runs, eligible, outcomes, reservations, panel, sessions, ready_by_session):
-    return [dict(report_scope="resident_wave", validation_scope="structure_only", provisional=True,
-        plan_id=f["plan"]["payload"]["plan_id"], plan_sha256=f["plan"]["payload_sha256"], structure_valid=not f["invalid_reasons"], invalid_reasons=f["invalid_reasons"])
-        for f in _validate(events=events, records=records, runs=runs, outcomes=outcomes, reservations=reservations, panel=panel, ready_by_session=ready_by_session)]
+    facts = _validate(events=events, records=records, runs=runs, outcomes=outcomes, reservations=reservations,
+        panel=panel, ready_by_session=ready_by_session)
+    if not facts: return []
+    layout, output = PR._layout(), []
+    for fact in facts:
+        confirmation = _confirmation(fact, events=events, ready_by_session=ready_by_session, layout=layout)
+        invalid = confirmation["invalid_reasons"]
+        valid = not invalid
+        metrics = _metrics(fact, layout=layout, events=events, eligible=eligible, reservations=reservations, comparison_valid=valid)
+        terminal = metrics[-1]["terminal_cells"]
+        cells = [c for _, _, assigned in fact["rows"] for c in assigned]
+        output.append(dict(report_scope="resident_wave", plan_id=fact["plan"]["payload"]["plan_id"], plan_sha256=fact["plan"]["payload_sha256"],
+            comparison_valid=valid, complete=valid and confirmation["prefix_valid"] and terminal == 288,
+            confirmation_seq=confirmation["decision"]["seq"] if confirmation["decision"] is not None else None,
+            fresh_confirmation_valid=confirmation["prefix_valid"] and not confirmation["prior_exposed_tasks"],
+            prior_exposed_tasks=confirmation["prior_exposed_tasks"], invalid_reasons=invalid,
+            progress=dict(planned_records=144, planned_cells=288, terminal_cells=terminal,
+                status_counts=dict(Counter(c["status"] for c in cells)), reason_counts=dict(Counter(c["reason"] for c in cells if c["reason"] is not None))),
+            metrics=metrics, costs=_costs(fact, runs=runs, reservations=reservations, sessions=sessions)))
+    return output

@@ -1,9 +1,10 @@
 import copy
 import importlib
 import json
+from types import SimpleNamespace
 import unittest
 from unittest import mock
-from tests import test_paired_wave_collection as wave, test_paired_report as paired, test_batch_report as batch
+from tests import test_paired_wave_collection as wave, test_paired_report as paired, test_batch_report as batch, test_loop_wave as loop_wave
 
 
 class PairedWaveReportTests(unittest.TestCase):
@@ -12,6 +13,9 @@ class PairedWaveReportTests(unittest.TestCase):
     def setUpClass(cls):
         cls.generate_batch = staticmethod(importlib.import_module("src.data-pipeline.generation_journal").Campaign.generate_batch)
         cls.native_run = staticmethod(importlib.import_module("src.data-pipeline.native_recovery").run_native)
+        cls.prepare_cell = staticmethod(importlib.import_module("src.data-pipeline.experiment_loop").prepare_cell)
+        cls.settle_cell = staticmethod(importlib.import_module("src.data-pipeline.experiment_loop").settle_cell)
+        cls.load_task = staticmethod(importlib.import_module("src.data-pipeline.study_tasks").load_task)
         cls.f = wave.PairedWaveCollectionTests(methodName="runTest"); cls.f.setUp()
         cls.addClassCleanup(cls.f.doCleanups)
         for task in cls.f.loaded["cohort"]["tasks"]: task["sha256"] = cls.f.C.sha256(str(task["id"]).encode()).hexdigest()
@@ -28,8 +32,16 @@ class PairedWaveReportTests(unittest.TestCase):
     def inputs(self):
         # These unit maps enter AFTER S's retained artifact/native proof boundary.
         records = {e["experiment_id"]: e for e in self.events if e["kind"] == "experiment"}
-        return dict(events=self.events, records=records, runs=[dict(experiment_id=n, cells=self.L.cell_states(self.events, e["record"])) for n, e in records.items()],
-            outcomes=self.outcomes, reservations={e["seq"]: e for e in self.events if e["kind"] == "generation_reserved"}, panel=self.built["panel"], ready_by_session=self.ready)
+        reservations = {e["seq"]: e for e in self.events if e["kind"] == "generation_reserved"}; runs = []
+        for name, event in records.items():
+            sources = []
+            for source in event["record"]["recipes"]:
+                own = [r for r in reservations.values() if (r["experiment_id"], r["source"]) == (name, source)]; requests = [json.loads(r["request_text"]) for r in own]
+                sources.append(dict(source=source, reserved=dict(zip(self.J.UNITS, (len(own), sum(r["max_tokens"] for r in requests), sum(r["wall_time_seconds"] for r in requests)))),
+                    observed=dict(observed_generation_tokens=sum(self.outcomes.get(r["seq"], {}).get("observed_generation_tokens", 0) for r in own),
+                        generation_session_seqs=sorted({r["session_seq"] for r in own if "session_seq" in r}), shared_wall_allocation="unallocated")))
+            runs.append(dict(experiment_id=name, cells=self.L.cell_states(self.events, event["record"]), sources=sources))
+        return dict(events=self.events, records=records, runs=runs, outcomes=self.outcomes, reservations=reservations, panel=self.built["panel"], ready_by_session=self.ready)
 
     def facts(self): return self.R._validate(**self.inputs())[0]
     def reasons(self): return {r["kind"] for r in self.facts()["invalid_reasons"]}
@@ -155,15 +167,19 @@ class PairedWaveReportTests(unittest.TestCase):
         # Accepted S event projections, not a fabricated retained/native log proof.
         intent, rows = self.session(opportunity, names, messages)
         group = next(e for e in self.events if e["kind"] == "batch_done" and e["session_seq"] == intent["seq"])
-        group.update(session_copy_complete=True, evidence_errors=[]); group["shared"]["status"] = "passed"
+        intent["job_sha256"] = self.S.digest(dict(session_seq=intent["seq"]))
+        group.update(session_copy_complete=True, evidence_errors=[], job_sha256=intent["job_sha256"])
+        group["shared"].update(status="passed", elapsed_seconds=239.5, work_seconds=239, cleanup_seconds=.5)
         for row in rows:
             done = self.outcomes[row["seq"]]; result = next(e for e in self.events if e["kind"] == "attempt_result" and e["reservation_seq"] == row["seq"])
-            if status == "format_failed": continue
+            done["observed_generation_tokens"] = 2 if row["row_index"] == 0 else 1
+            selected_status = status[row["experiment_id"]] if type(status) is dict else status
+            if selected_status == "format_failed": continue
             program = self.L.generation.extract_program("print(0)"); candidate = self.S.sha256(program).hexdigest(); op = f"{row['seq']:012x}"
-            done["text"] = program.decode(); result.update(status=status, candidate_sha256=candidate, operation_id=op, sample_id=0)
+            done["text"] = program.decode(); result.update(status=selected_status, candidate_sha256=candidate, operation_id=op, sample_id=0)
             self.emit("native_intent", operation_id=op, reservation_seq=row["seq"], task_sha256=row["attempt"]["task_sha256"], reference_indices=None,
                 contract_sha256=self.built["plan"]["contract_sha256"], program_sha256=[candidate])
-            native_status = {"verified": "passed", "verification_failed": "failed", "verification_error": "error"}[status]
+            native_status = {"verified": "passed", "verification_failed": "failed", "verification_error": "error"}[selected_status]
             self.emit("native_verdict", operation_id=op, status=native_status, results=[dict(sample_id=0, status=native_status,
                 key=dict(program_sha256=candidate, task_sha256=row["attempt"]["task_sha256"], contract_sha256=self.built["plan"]["contract_sha256"]))])
             self.emit("native_closed", operation_id=op)
@@ -173,21 +189,39 @@ class PairedWaveReportTests(unittest.TestCase):
         record = next(r for r in self.built["records"] if r["experiment_id"] == row["experiment_id"])
         return next(c for c in self.L.cell_states(self.events, record) if c["id"] == row["attempt"]["id"] and c["source"] == row["source"])
 
-    def tuning_complete(self):
-        tuning = self.R.PR._layout()[3]; target = tuning[0]["id"]; generated = []
-        for task in tuning[1:]:
+    def fail_gates(self, tasks):
+        for task in tasks:
             op = task["sha256"][:12]
             self.emit("native_intent", operation_id=op, task_sha256=task["sha256"], reference_indices=[0, 1, 2], contract_sha256=self.built["plan"]["contract_sha256"])
             self.emit("native_verdict", operation_id=op, status="failed"); self.emit("native_closed", operation_id=op)
-        target_names = {m["experiment_id"] for m in self.built["plan"]["records"] if m["task"]["id"] == target}
+
+    def tuning_complete(self, modes=None):
+        tuning = self.R.PR._layout()[3]; modes = {tuning[0]["id"]: {}} if modes is None else modes; generated = []
+        self.fail_gates([t for t in tuning if t["id"] not in modes])
+        members = {m["experiment_id"]: m for m in self.built["plan"]["records"] if m["task"]["id"] in modes}
         for opportunity in self.built["plan"]["opportunities"]:
             if opportunity["block"].endswith("fresh"): break
-            names = [n for n in opportunity["experiment_ids"] if n in target_names]
-            if names and opportunity["reply_index"] == 0:
-                session, rows = self.scientific(opportunity["id"], names); generated.extend(rows)
+            limits = {n: modes[members[n]["task"]["id"]].get((opportunity["bits"], opportunity["source"]), 0) for n in opportunity["experiment_ids"] if n in members}
+            names = [n for n, limit in limits.items() if limit is None or opportunity["reply_index"] <= limit]
+            if names:
+                status = {n: "format_failed" if limits[n] is None or opportunity["reply_index"] < limits[n] else "verified" for n in names}; messages = None
+                if opportunity["reply_index"]:
+                    first = next(r for r in generated if r["experiment_id"] == names[0] and r["source"] == opportunity["source"])
+                    messages = json.loads(first["request_text"])["messages"] + [dict(role="assistant", content="not python !"), dict(role="user", content=self.L.FORMAT_REPAIR)]
+                session, rows = self.scientific(opportunity["id"], names, status, messages); generated.extend(rows)
                 self.step(opportunity["id"], session["seq"])
             else: self.step(opportunity["id"], None)
         return generated
+
+    def own_eligible(self):
+        records = {e["experiment_id"]: e for e in self.events if e["kind"] == "experiment"}; reservations = {e["seq"]: e for e in self.events if e["kind"] == "generation_reserved"}
+        return [dict(**{k: v for k, v in reservations[e["reservation_seq"]]["attempt"].items()}, experiment_id=reservations[e["reservation_seq"]]["experiment_id"],
+            source=reservations[e["reservation_seq"]]["source"], reservation_seq=e["reservation_seq"], session_seq=reservations[e["reservation_seq"]]["session_seq"],
+            record_sha256=records[reservations[e["reservation_seq"]]["experiment_id"]]["record_sha256"]) for e in self.events if e["kind"] == "attempt_result" and e["status"] == "verified"]
+
+    def trial(self):
+        args = self.inputs(); sessions = self.S._session_costs(self.events, args["reservations"], self.outcomes)
+        return self.R.derive(**args, eligible=self.own_eligible(), sessions=sessions)[0]
 
     def confirm(self):
         return self.anchor("wave_confirmation", dict(plan_id="trial", plan_sha256=next(e["payload_sha256"] for e in self.events if e["kind"] == "wave_plan"), decision="unchanged", rationale="Fixture pooled review"))
@@ -411,14 +445,157 @@ class PairedWaveReportTests(unittest.TestCase):
                 observed = self.confirmation(fact); self.assertTrue(observed["prefix_valid"])
                 self.assertEqual("native_after_supersession" in {r["kind"] for r in observed["invalid_reasons"]}, owned)
 
-    def test_facts_provisional_contract_and_pending_setup(self):
+    def test_facts_scientific_contract_and_pending_setup(self):
         facts = self.facts(); self.assertEqual(set(facts), {"setup", "plan", "rows", "session_opportunities", "steps", "confirmations", "invalid_reasons"})
         self.assertEqual((len(facts["rows"]), facts["invalid_reasons"]), (144, []))
         trial = self.R.derive(**self.inputs(), eligible=[], sessions=[])[0]
-        self.assertEqual(trial, dict(report_scope="resident_wave", validation_scope="structure_only", provisional=True,
-            plan_id="trial", plan_sha256=facts["plan"]["payload_sha256"], structure_valid=True, invalid_reasons=[]))
+        self.assertEqual(set(trial), set("report_scope plan_id plan_sha256 comparison_valid complete confirmation_seq fresh_confirmation_valid prior_exposed_tasks invalid_reasons progress metrics costs".split()))
+        self.assertEqual((trial["comparison_valid"], trial["complete"], trial["confirmation_seq"], trial["fresh_confirmation_valid"]), (True, False, None, False))
+        self.assertEqual(trial["progress"], dict(planned_records=144, planned_cells=288, terminal_cells=0, status_counts=dict(not_started=288), reason_counts={}))
+        self.assertEqual([(m["name"], m["denominator"]) for m in trial["metrics"]], [("primary50", 50), ("tuning40", 40), ("fresh32", 32), ("extra22", 22), ("full72", 72)])
+        self.assertEqual(trial["metrics"][0]["target_met"], [dict(bits=b, first_reply=None, final_policy=None) for b in (8, 16)])
+        for subset in trial["metrics"]:
+            self.assertEqual(set(subset), set("name denominator terminal_cells complete arms joint_contingency".split()) | ({"target_met"} if subset["name"] == "primary50" else set()))
+            self.assertEqual(subset["joint_contingency"]["final_policy"]["unassessed"], subset["denominator"])
         self.events = [e for e in self.events if e["kind"] != "wave_plan"]
         self.assertEqual(self.R.derive(**self.inputs(), eligible=[], sessions=[]), [])
+
+    def test_own_joint_first_final_primary200_and_complete288(self):
+        layout = self.R.PR._layout(); targets = layout[3][:16]; modes = {t["id"]: {} for t in targets}
+        for task in targets[10:15]: modes[task["id"]] = {(8, "synthetic"): 1}
+        modes[targets[15]["id"]] = {(8, "synthetic"): None, (16, "actor"): None}
+        self.tuning_complete(modes); self.confirm(); panel = {self.R.PR._key(t) for t in layout[2]["tasks"]}
+        partial = self.trial(); self.assertEqual((partial["comparison_valid"], partial["metrics"][0]["terminal_cells"]), (True, 160))
+        self.assertEqual(partial["metrics"][0]["target_met"], [dict(bits=b, first_reply=None, final_policy=None) for b in (8, 16)])
+        primary = [t for t in layout[4] if self.R.PR._key(t) in panel]; extra = [t for t in layout[4] if self.R.PR._key(t) not in panel]
+        self.assertEqual((len(primary), len(extra)), (10, 22)); self.fail_gates(primary); trial = self.trial(); metric = trial["metrics"][0]
+        self.assertEqual((trial["progress"]["terminal_cells"], metric["terminal_cells"], trial["complete"], trial["fresh_confirmation_valid"]), (200, 200, False, True))
+        self.assertEqual(metric["arms"], [dict(bits=8, first_verified=dict(actor=16, synthetic=10, joint=10), final_verified=dict(actor=16, synthetic=15, joint=15)),
+            dict(bits=16, first_verified=dict(actor=15, synthetic=16, joint=15), final_verified=dict(actor=15, synthetic=16, joint=15))])
+        self.assertEqual(metric["joint_contingency"], dict(first_reply={"both": 10, "8_only": 0, "16_only": 5, "neither": 35, "unassessed": 0},
+            final_policy={"both": 15, "8_only": 0, "16_only": 0, "neither": 35, "unassessed": 0}))
+        targets_expected = [dict(bits=8, first_reply=False, final_policy=True), dict(bits=16, first_reply=True, final_policy=True)]
+        self.assertEqual(metric["target_met"], targets_expected); self.fail_gates(extra); self.assertTrue(self.trial()["complete"])
+        for task, expected in ((primary[0], None), (extra[0], targets_expected)):
+            closed = next(e for e in self.events if e["kind"] == "native_closed" and e["operation_id"] == task["sha256"][:12]); self.events.remove(closed)
+            observed = self.trial(); self.assertFalse(observed["complete"])
+            self.assertEqual(observed["metrics"][0]["target_met"], [dict(bits=b, first_reply=None, final_policy=None) for b in (8, 16)] if expected is None else expected)
+            self.events.append(closed)
+        self.supersede("collection_setup"); self.emit("native_intent", operation_id="b" * 12, task_sha256=targets[0]["sha256"], reference_indices=[0], contract_sha256=self.built["plan"]["contract_sha256"])
+        observed = self.trial(); self.assertFalse(observed["comparison_valid"]); self.assertTrue(observed["fresh_confirmation_valid"]); self.assertFalse(observed["complete"])
+        self.assertEqual(observed["metrics"][0]["arms"], metric["arms"]); self.assertEqual(observed["invalid_reasons"], [dict(kind="native_after_supersession")])
+        self.assertTrue(all(t["first_reply"] is None and t["final_policy"] is None for t in observed["metrics"][0]["target_met"]))
+
+    def test_metrics_exact_own_proof_identity_mapping_and_unassessed_repair(self):
+        rows = self.tuning_complete(); args = self.inputs(); fact = self.facts(); eligible = self.own_eligible()
+        def metrics(items, current=fact):
+            return self.R._metrics(current, layout=self.R.PR._layout(), events=self.events, eligible=items, reservations=args["reservations"], comparison_valid=True)[0]
+        baseline = metrics(eligible); self.assertEqual(baseline["arms"][0]["final_verified"]["actor"], 1)
+        for field, value in (("experiment_id", "superseded-peer"), ("record_sha256", "0" * 64), ("task_sha256", "0" * 64), ("id", -1),
+                ("source", "other"), ("reservation_seq", -1), ("session_seq", -1), ("reply_index", 1), ("reply_index", True)):
+            items = copy.deepcopy(eligible); items[0][field] = value
+            with self.subTest(field=field, value=value): self.assertEqual(metrics(items)["arms"][0]["final_verified"]["actor"], 0)
+        self.assertTrue(all(a["final_verified"]["joint"] == 0 for a in metrics([{**e, "experiment_id": "superseded-peer"} for e in eligible])["arms"]))
+        fact["session_opportunities"][rows[0]["session_seq"]] = None; observed = metrics(eligible)
+        self.assertEqual(observed["arms"][0]["final_verified"]["actor"], 0); self.assertEqual(observed["joint_contingency"]["final_policy"]["unassessed"], baseline["joint_contingency"]["final_policy"]["unassessed"] + 1)
+        self.restore_science((self.baseline, {})); task = self.R.PR._layout()[3][0]; self.tuning_complete({task["id"]: {(8, "actor"): 1}})
+        first = next(e for e in self.events if e["kind"] == "generation_reserved"); pending = next(e for e in self.events if e["kind"] == "attempt_result" and e["status"] == "verified" and next(r for r in self.events if r["kind"] == "generation_reserved" and r["seq"] == e["reservation_seq"])["attempt"]["reply_index"] == 1)
+        baseline = self.trial()["metrics"][0]; self.events.remove(pending); observed = self.trial()["metrics"][0]
+        self.assertEqual(observed["joint_contingency"]["first_reply"], baseline["joint_contingency"]["first_reply"]); self.assertEqual(observed["joint_contingency"]["final_policy"]["unassessed"], 11)
+        self.events.append(pending); next(e for e in self.events if e["kind"] == "batch_done" and e["session_seq"] == first["session_seq"])["session_copy_complete"] = False
+        observed = self.trial()["metrics"][0]; self.assertEqual(observed["arms"][0]["final_verified"]["actor"], 1); self.assertEqual(observed["joint_contingency"]["final_policy"]["unassessed"], 11)
+
+    def test_full72_costs_unique_known_unknown_mixed_and_cross_subset_sessions(self):
+        layout = self.R.PR._layout(); members = {m["experiment_id"]: m for m in self.built["plan"]["records"]}
+        self.tuning_complete({members[n]["task"]["id"]: {} for n in self.built["plan"]["opportunities"][0]["experiment_ids"][:2]}); self.confirm()
+        args = self.inputs(); fact = self.facts(); ledger = self.S._session_costs(self.events, args["reservations"], self.outcomes)
+        def costs(current=fact, sessions=ledger, reservations=args["reservations"]):
+            return self.R._costs(current, runs=args["runs"], reservations=reservations, sessions=sessions)[0]["sources"][0]
+        base = costs(); self.assertEqual((base["reserved"]["replies"], base["observed_generation_tokens"], base["known_owned_elapsed_seconds"], base["unknown_elapsed_sessions"]), (2, 3, 239.5, 0))
+        self.assertEqual(set(base), set("source reserved observed_generation_tokens generation_session_seqs known_owned_elapsed_seconds unknown_elapsed_sessions".split()))
+        for fault in ("unknown", "foreign", "bits", "source", "mapping", "incomplete"):
+            # Defensive post-S projections isolate each wall-ownership requirement.
+            sessions = copy.deepcopy(ledger); current = copy.deepcopy(fact); reservations = copy.deepcopy(args["reservations"]); session = sessions[0]
+            if fault == "unknown": session["owned_elapsed_seconds"] = None
+            if fault == "foreign":
+                reservations[999999] = {**reservations[session["reservation_seqs"][0]], "seq": 999999, "experiment_id": "foreign"}; session["reservation_seqs"].append(999999)
+            if fault in ("bits", "source"): session[fault] = 16 if fault == "bits" else "synthetic"
+            if fault == "mapping": current["session_opportunities"][session["session_seq"]] = None
+            if fault == "incomplete": session["reservation_seqs"].pop()
+            observed = costs(current, sessions, reservations); self.assertEqual(observed["generation_session_seqs"], base["generation_session_seqs"])
+            self.assertEqual(observed["reserved"], base["reserved"]); self.assertEqual(observed["known_owned_elapsed_seconds"], 0)
+            self.assertEqual(observed["unknown_elapsed_sessions"], int(fault == "unknown"))
+        ledger[0]["reported_timing"]["cleanup_seconds"] = 9999; self.assertEqual(costs()["known_owned_elapsed_seconds"], 239.5)
+        fresh = next(o for o in self.built["plan"]["opportunities"] if o["block"].endswith("fresh")); self.scientific(fresh["id"])
+        trial = self.trial(); source = next(a for a in trial["costs"] if a["bits"] == fresh["bits"])["sources"][0]
+        self.assertEqual((source["reserved"]["replies"], source["known_owned_elapsed_seconds"]), (2 + len(fresh["experiment_ids"]), 479))
+        panel = {self.R.PR._key(t) for t in layout[2]["tasks"]}; members = {m["experiment_id"]: m for m in self.built["plan"]["records"]}
+        self.assertEqual({self.R.PR._key(members[n]["task"]) in panel for n in fresh["experiment_ids"]}, {True, False})
+        for subset in trial["metrics"]: self.assertFalse(set(subset) & {"costs", "wall", "timing", "native_rates", "generation_tps"})
+
+    def test_failed_format_repair_charges_and_distinct_unknown_owned_session(self):
+        task = self.R.PR._layout()[3][0]; self.tuning_complete({task["id"]: {(8, "actor"): 1}}); trial = self.trial(); cost = trial["costs"][0]["sources"][0]
+        self.assertEqual(trial["metrics"][0]["arms"][0]["final_verified"]["actor"], 1)
+        self.assertEqual(cost["reserved"], dict(zip(self.J.UNITS, (2, 4096, 480))))
+        self.assertEqual((cost["observed_generation_tokens"], len(cost["generation_session_seqs"]), cost["known_owned_elapsed_seconds"]), (4, 2, 479))
+        args = self.inputs(); sessions = self.S._session_costs(self.events, args["reservations"], self.outcomes); sessions[1]["owned_elapsed_seconds"] = None
+        unknown = self.R._costs(self.facts(), runs=args["runs"], reservations=args["reservations"], sessions=sessions)[0]["sources"][0]
+        self.assertEqual((unknown["known_owned_elapsed_seconds"], unknown["unknown_elapsed_sessions"]), (239.5, 1)); self.assertEqual(unknown["reserved"], cost["reserved"])
+
+    def test_nonempty_retained_wave_owned_candidates_session_publication_and_offline_replay(self):
+        self.metadata_patch.stop(); b = batch.BatchReportTests(methodName="runTest"); b.setUp(); self.addCleanup(b.doCleanups)
+        w = wave.PairedWaveCollectionTests(methodName="runTest"); w.setUp(); self.addCleanup(w.doCleanups)
+        # Two invented, actually pinned task files; the other70 remain metadata only.
+        loaded = w.loaded
+        for record in loaded["cohort"]["tasks"][:4:2]:
+            task = dict(copy.deepcopy(b.task), split=record["split"], id=record["id"], difficulty=record["difficulty"])
+            raw = (self.J.encoded(task) + "\n").encode(); path = loaded["test_pool_dir"] / record["path"]
+            path.parent.mkdir(exist_ok=True); path.write_bytes(raw); record["sha256"] = self.S.sha256(raw).hexdigest()
+            w.s.pool_manifest["provenance"]["task_sha256"][record["path"]] = record["sha256"]
+        w.loaded = w.s.rewrite(loaded["cohort"])
+        # Match admission default7200 to common method7200 in the existing runner.
+        w.make_qualification(8, "actor", 8, 7200); c = w.fresh(); contract = batch.native.fixture.CONTRACT
+        with mock.patch.object(b.N.verification.runner, "contract", return_value=contract): w.setup(c)
+        b.campaign = c
+        plan = next(e["payload"] for e in c.events if e["kind"] == "wave_plan"); opportunity = plan["opportunities"][0]
+        registered = {e["experiment_id"]: e["record"] for e in c.events if e["kind"] == "experiment"}
+        records = [registered[n] for n in opportunity["experiment_ids"][:2]]; method = records[0]["generation_method"]["actor"]
+        _, qualification_files = w.H.read_qualification(c.root / method["qualification"]["path"], method["qualification"]["response_sha256"])
+        b.b.method = method; b.b.q.pin = method["qualification"]["response_sha256"]
+        b.b.q.events = [json.loads(line) for line in qualification_files["stdout.jsonl"].splitlines()]
+        proxy = SimpleNamespace(f=b, b=b.b, H=w.H)
+        with mock.patch.object(self.R.PR.study, "load_cohort", return_value=w.loaded), \
+             mock.patch.object(self.L.study, "load_task", self.load_task), mock.patch.object(b.N.verification.runner, "contract", return_value=contract), \
+             mock.patch.object(self.J.Campaign, "generate_batch", self.generate_batch), mock.patch.object(b.N, "run_native", self.native_run), \
+             mock.patch.object(self.L, "prepare_cell", self.prepare_cell), mock.patch.object(self.L, "settle_cell", self.settle_cell):
+            prepared = [self.L.prepare_cell(c, w.loaded, record, "actor", record["assigned_task_ids"][0]) for record in records]
+            outcomes = loop_wave.LoopWaveTests.generate(proxy, c, prepared, texts=("print(1)", "print(1)"))
+            states = [self.L.settle_cell(c, w.loaded, record, "actor", record["assigned_task_ids"][0]) for record in records]
+            self.assertEqual([s["status"] for s in states], ["verified", "verified"])
+            snapshot = self.S.snapshot(c); trials = snapshot["report"]["wave_trials"]; self.assertEqual(len(trials), 1); trial = trials[0]
+            self.assertEqual((trial["comparison_valid"], trial["complete"], trial["confirmation_seq"], trial["progress"]["terminal_cells"]), (True, False, None, 2))
+            self.assertEqual(trial["metrics"][0]["arms"][0], dict(bits=8, first_verified=dict(actor=2, synthetic=0, joint=0), final_verified=dict(actor=2, synthetic=0, joint=0)))
+            cost = trial["costs"][0]["sources"][0]
+            self.assertEqual((cost["reserved"]["replies"], cost["observed_generation_tokens"], cost["known_owned_elapsed_seconds"], cost["unknown_elapsed_sessions"]), (2, 3, 239.5, 0))
+            self.assertEqual(cost["generation_session_seqs"], [outcomes[0]["session_seq"]]); self.assertEqual(len(snapshot["manifest"]["selections"]), 2)
+            self.assertTrue(all((c.root / "requests" / f"{r['reservation_seq']:06d}" / "candidate.py").read_bytes() == b"print(1)" for r in outcomes))
+            published = self.S.publish(c, "wave"); self.assertEqual(self.S.publish(c, "wave"), published)
+            self.assertEqual(json.loads((self.R.Path(published["path"]) / "report.json").read_bytes())["wave_trials"], trials)
+            originals = set(method["admission"]["source_hashes"]); read = self.R.Path.read_bytes
+            def offline(path):
+                if str(path) in originals: raise AssertionError("Original producer source read")
+                return read(path)
+            with mock.patch.object(self.L, "policy_sha256", return_value="0" * 64), \
+                 mock.patch.object(self.L.study, "load_task", side_effect=AssertionError("Original task read")), \
+                 mock.patch.object(w.H, "current_source_compatible", side_effect=AssertionError("Live source check")), \
+                 mock.patch.object(w.H.G, "prepare_request", side_effect=AssertionError("Renormalization")), \
+                 mock.patch.object(self.J.Campaign, "generate_batch", side_effect=AssertionError("Generation")), mock.patch.object(b.N, "run_native", side_effect=AssertionError("Native execution")):
+                with mock.patch.object(self.R.Path, "read_bytes", offline): self.assertEqual(self.S.snapshot(c), snapshot)
+                # Publication additionally fingerprints current Python sources.
+                self.assertEqual(self.S.publish(c, "wave"), published)
+            (c.root / "requests" / f"{outcomes[0]['reservation_seq']:06d}" / "candidate.py").write_bytes(b"print(999)")
+            with self.assertRaisesRegex(ValueError, "Artifact changed"): self.S.snapshot(c)
+            with self.assertRaisesRegex(ValueError, "Artifact changed"): self.S.publish(c, "tampered")
 
     def test_canonical_schema_matrix_methods_opportunities_and_funding_reject(self):
         baseline = copy.deepcopy(self.events)

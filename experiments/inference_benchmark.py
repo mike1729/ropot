@@ -170,7 +170,8 @@ solve()
     return rows
 
 
-def window(model, tokenizer, requests, config, directory, seconds=600, fixed=False, *, reuse_prefix_tokens=0):
+def window(model, tokenizer, requests, config, directory, seconds=600, fixed=False, *, reuse_prefix_tokens=0,
+           max_peak_bytes=None):
     import mlx.core as mx
     from mlx_lm.generate import BatchGenerator
     from mlx_lm.sample_utils import make_sampler
@@ -179,7 +180,8 @@ def window(model, tokenizer, requests, config, directory, seconds=600, fixed=Fal
         raise ValueError("Prefix reuse length must be a nonnegative integer")
     start = perf_counter()
     recorder = Recorder(directory, {"requests": requests, "config": config, "fixed_length": fixed,
-                                  "soft_window_seconds": seconds, "reuse_prefix_tokens": reuse_prefix_tokens})
+                                  "soft_window_seconds": seconds, "reuse_prefix_tokens": reuse_prefix_tokens,
+                                  "max_peak_bytes": max_peak_bytes})
     rows = [{**{k: r[k] for k in ("id", "kind", "max_tokens", "seed")}, "status": "not_run",
              "token_ids": [], "prompt_tokens": len(r["prompt_ids"]), "first_progress_seconds": None,
              "first_token_seconds": None, "finished_seconds": None} for r in requests]
@@ -230,6 +232,8 @@ def window(model, tokenizer, requests, config, directory, seconds=600, fixed=Fal
                         recorder.append(row, tokenizer.decode(text_ids))
                 if not progress and not responses:
                     raise RuntimeError("Native generator ended with unsettled requests")
+                if max_peak_bytes is not None and mx.get_peak_memory() > max_peak_bytes:
+                    raise MemoryError("Benchmark peak-memory ceiling exceeded")
                 if now >= seconds:
                     raise TimeoutError("Soft benchmark window deadline")
         if stats.generation_tokens != sum(len(r["token_ids"]) for r in rows):

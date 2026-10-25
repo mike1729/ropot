@@ -151,7 +151,7 @@ desired experiment window.
 
 The next increment will run two bounded local Q8 checks on new invented fixtures:
 
-1. Natural, substantive 4k+ repair histories, comparing conservative and wider
+1. Natural, substantive roughly 2k and 7k repair histories, comparing conservative and wider
    batching with identical finite worklists, including queue tails, memory and
    cancellation. Requalify large-context settings before using the short-queue
    defaults for them.
@@ -162,3 +162,4 @@ The next increment will run two bounded local Q8 checks on new invented fixtures
 
 These checks do not consume cohort IDs or replace the later full-pipeline useful
 yield comparison. BF16 and cloud runs remain deferred.
+The frozen matrix and run commands are in the [follow-up plan](inference-followup-plan.md).

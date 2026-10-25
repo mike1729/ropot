@@ -76,14 +76,21 @@ class BenchmarkTests(unittest.TestCase):
                 "mlx_lm.generate": NS(BatchGenerator=Generator),
                 "mlx_lm.sample_utils": NS(make_sampler=lambda **kw: NS(**kw))}
 
-    def invoke(self, name="window", prefix=0, **failures):
+    def invoke(self, name="window", prefix=0, max_peak_bytes=None, **failures):
         rows = [{"id": i, "kind": "fixture", "max_tokens": 2, "seed": 17+i,
                  "temperature": .2, "top_p": .95, "prompt_ids": [5+i]} for i in range(3)]
         with mock.patch.dict("sys.modules", self.fake_runtime(**failures)), \
              mock.patch.object(b, "resources", return_value={}):
             return b.window(object(), NS(eos_token_ids=[9], decode=lambda ids: str(ids)), rows,
                 dict(completion_batch_size=2, prefill_batch_size=2, prefill_step_size=256), self.root/name,
-                reuse_prefix_tokens=prefix)
+                reuse_prefix_tokens=prefix, max_peak_bytes=max_peak_bytes)
+
+    def test_peak_memory_abort_preserves_partial_rows_and_closes_generator(self):
+        with self.assertRaisesRegex(MemoryError, "peak-memory"):
+            self.invoke(max_peak_bytes=122)
+        rows, _ = b.replay(self.root/"window")
+        self.assertEqual({r['id']:r['status'] for r in rows}, {0:'interrupted',1:'stop',2:'not_run'})
+        self.assertTrue(self.closed)
 
     def test_prefix_options_are_forwarded_and_shared_state_is_checked_after_cleanup(self):
         prefix = NS(build_seconds=0., insertion=mock.Mock(return_value=([[5], [6], [7]],

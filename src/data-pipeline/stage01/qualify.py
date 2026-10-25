@@ -152,7 +152,7 @@ def qualify(input_dir=DESTINATION, output_dir=OUTPUT, workers=MAX_CONCURRENT_CAS
     under a temporary sibling, then rename it into place after processing all rows.
     This assumes stable inputs and a single publisher; rename gives atomic
     visibility without a power-loss durability guarantee. Qualification is local;
-    the manifest records the required later Inspect Linux verification gate.
+    the manifest retains legacy next-gate metadata for historical provenance.
     """
     if sys.version_info[:2] != (3, 12):
         raise RuntimeError("Qualification preprocessing requires Python 3.12")

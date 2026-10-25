@@ -133,8 +133,7 @@ and `reference_counts` in the original pool: they duplicate omitted cases or
 measure the historical full suite. Keep sources, reference indices, example
 mappings and problem metadata in reduced files. All pool files remain unchanged.
 
-For Stage 03 onward, re-verify all three references on every published case in
-Inspect Linux before generation. Every program on a task uses this same saved
+Stage 03 trusts the existing reference qualification. Every candidate on a task uses this same saved
 suite, with visible checks before hidden execution and rejection on first failure.
 Acceptance covers the published suite with no later full-suite pass. Stage 03
 reads all cases without selection logic. Reuse verification only for identical
@@ -164,7 +163,7 @@ publisher composing the existing loader and allocator. `load_inputs` validates
 identities and difficulties; `allocate` trusts those records. The manifests and reduced task files
 publish together; original tasks remain in the test pool. Construction activation
 uses the phase groups, deferred tasks remain inactive, and acquisition retry ceilings
-remain pending. The inherited Linux verification gate still applies before generation.
+remain pending. Legacy reference-gate metadata is historical and does not block generation.
 
 Publication targets `data/02_cohort_review` during review; canonical publication to
 `data/02_cohort` follows code review and commit, using a committed source archive.

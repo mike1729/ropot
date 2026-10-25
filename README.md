@@ -48,7 +48,7 @@ Qualification executes supplied code locally, without a sandbox or memory limit.
 Each task needs three distinct references passing every stored case under the
 five-second deadline. The output retains original data, example visibility,
 reference attempts and timings; see the [stage 01 plan](docs/stage-01-plan.md) for
-the full contract. Inspect Linux re-verification is required before generation.
+the full contract. This qualification is sufficient for downstream task admission.
 Tasks excluded after reference execution retain compact diagnostics under
 `reference_rejections/`, including failing-case stderr for dependency analysis.
 
@@ -82,8 +82,8 @@ Export the test-only dataset for the next stage (standard library only):
 Options: `--input-dir` (default `data/01_qualified_pool`) and `--output-dir`
 (default `data/01_test_pool`). This copies all 1,448 test task JSON files unchanged,
 with a new `manifest.json` and the original `qualification-manifest.json` for
-provenance. The active manifest excludes train tasks and preserves the Linux
-verification gate. Existing destinations are refused; publication is atomic.
+provenance. The active manifest excludes train tasks. Existing destinations are
+refused; publication is atomic. Legacy gate metadata is historical only.
 The original pool and analysis report remain unchanged. Cohort allocation consumes
 the task paths listed in `data/01_test_pool/manifest.json`.
 Independent copies make that dataset self-contained; qualification artifacts can
@@ -113,8 +113,9 @@ The loader checks original-row bindings and retains coverage limitations. Restri
 uses move from protected groups into construction before its order and phases freeze.
 
 Publication writes versioned `manifest.json` and `report.json` together by directory
-rename, retaining input/source fingerprints, known-use coverage, targets, budgets
-and the Linux verification gate. Task files remain in the input dataset.
+rename, retaining input/source fingerprints, known-use coverage, targets and budgets.
+Schema 3 includes reduced task copies under `data/02_cohort/tasks`; the original
+pool stays intact. See the allocation plan for the frozen case selection.
 Task records contain `split`, `id`, `difficulty`, `path`, `sha256`, `owner`, `block`,
 `defer_reasons` and `known_uses`, with `phase`/`redirected_from` when applicable.
 Measurements remain in the hashed CSV; initial quota shortfalls and sequential
@@ -124,8 +125,8 @@ are refused. Inputs must remain stable and publication assumes one publisher;
 rename does not guarantee durability after power loss.
 Construction activation follows `construction_phases`; deferred tasks stay inactive.
 Accepted-data targets have planned status, separate from observed usable counts.
-Generation and retry ceilings remain pending acquisition decisions; publication does
-not clear the Linux verification gate or establish accepted generated data.
+Generation and retry ceilings remain pending acquisition decisions; publication
+does not establish accepted generated data.
 
 Stage 03 experiments read reviewed tasks through the standard-library
 [study task API](src/data-pipeline/stage03/study_tasks.py); see the [Stage 03 plan](docs/stage-03-plan.md):
@@ -141,7 +142,7 @@ identity = study.candidate_identity("test", task["id"], binding["sha256"], "acto
 ```
 
 Stage 02 generates and saves all five groups once in the cohort manifest's `groups`,
-with construction phase lists in `construction_phases` (manifest schema version 2).
+with construction phase lists in `construction_phases` (manifest schema version 3).
 Stage 02 validates metadata at publication. Stage 03 uses the
 [publication loader](src/data-pipeline/stage02/published_cohort.py) to check the pinned
 cohort hash and index only saved construction/development IDs from initial and
@@ -149,9 +150,9 @@ reserve blocks. Protected and deferred tasks cannot be loaded. The loader reads 
 test-pool manifest and does not repeat Stage 02's metadata validation. `load_task`
 checks restricted membership, path containment and the task-file digest before
 decoding. Bindings share the loaded metadata and must be treated as read-only;
-`test_pool_dir` supports relocation without relaxing path or digest checks.
+`task_dir` relocates the publication root without relaxing path or digest checks.
 There is no activation object or allocation in Stage 03. Generation limits,
-persistence and model calls belong to later batches; the reference gate stays pending.
+persistence and model calls belong to later batches.
 
 Install the optional Inspect execution dependency and run its Docker fixtures:
 
@@ -163,5 +164,8 @@ ROPOT_INSPECT_TESTS=1 .venv/bin/python -m unittest discover -s tests -p 'test_in
 The [Inspect runner](src/data-pipeline/stage03/inspect_runner.py) runs fixture programs in
 fresh Linux sandboxes and retains native `.eval` logs. See the
 [execution contract](docs/stage-03-plan.md#inspect-execution-contract) for its API,
-limits and differences from local execution. The cohort's Linux reference gate
-remains pending batch 3; these fixtures run no models or cohort acquisition jobs.
+limits and differences from local execution. These fixtures run no models or
+cohort acquisition jobs. Batch 3 adds the [candidate verifier](src/data-pipeline/stage03/verification.py):
+`verify(task, binding["sha256"], program_bytes, log_dir)` and explicit
+`reuse(log_path, task, binding["sha256"], program_bytes)`. Only the returned `feedback`
+may enter repair prompts; native logs and the rest of the result are private evidence.

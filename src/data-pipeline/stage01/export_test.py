@@ -2,7 +2,7 @@
 
 Copy task bytes into an independent dataset; preserve the original pool and archive
 its manifest as historical evidence. The active manifest describes only this export
-and retains the required Inspect Linux verification gate. Inputs must remain stable;
+and retains legacy gate metadata as provenance only. Inputs must remain stable;
 publication assumes one publisher and refuses an existing destination.
 """
 

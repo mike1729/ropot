@@ -2,7 +2,7 @@
 
 See docs/stage-02-plan.md. Task records reference unchanged input artifacts, keeping
 every stored case and qualification evidence in place. Load inputs before allocate;
-neither function executes programs, counts new tokens or clears the Linux gate.
+neither function executes programs or counts new tokens.
 """
 
 import csv
@@ -37,7 +37,7 @@ def load_inputs(input_dir, analysis_dir, known_use_records=RECORDS, known_use_co
 
     Measurements come from the fingerprinted analysis CSV; no local tokenizer or
     original qualification directory is needed. Return compact task
-    records, input fingerprints, known-use coverage and the inherited next gate.
+    records, input fingerprints, known-use coverage and historical gate metadata.
     """
     input_dir, analysis_dir = Path(input_dir), Path(analysis_dir)
     known_use = load_known_use(known_use_records, known_use_coverage)

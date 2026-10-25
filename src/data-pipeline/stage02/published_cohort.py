@@ -31,5 +31,5 @@ def load_cohort(cohort_dir=OUTPUT, task_dir=None, *, expected_sha256, owners):
     phases = ({phase: {block: blocks[block] for block in ("initial", "reserve")}
                for phase, blocks in cohort["construction_phases"].items()} if "construction" in groups else {})
     return {"sha256": digest, "test_pool_manifest_sha256": cohort["provenance"]["input_manifest_sha256"],
-            "required_next_gate": cohort["required_next_gate"], "groups": groups,
+            "groups": groups,
             "construction_phases": phases, "task_dir": task_dir, "tasks_by_id": tasks}

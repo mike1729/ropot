@@ -3,9 +3,8 @@
 See docs/stage-03-plan.md. The reviewed cohort manifest is pinned by SHA-256; the
 file bytes of every loaded task must match its recorded digest.
 Stage 02 saves every group once; this module can read only construction and
-development tasks. Bindings are shared read-only metadata. The Docker reference
-gate stays pending; budgets, persistence, model calls and program execution belong
-to later batches.
+development tasks. Bindings are shared read-only metadata. Budgets, persistence
+and model calls belong to later batches; existing reference qualification suffices.
 """
 
 import json

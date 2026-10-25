@@ -78,6 +78,7 @@ class StudyTaskTests(unittest.TestCase):
 
     def test_pinned_cohort_loads_and_allows_task_relocation(self):
         self.assertEqual(set(self.loaded["tasks_by_id"]), {1, 2, 3, 10, 11, 12, 13, 20, 21})
+        self.assertNotIn("required_next_gate", self.loaded)
         self.assertEqual(self.loaded["test_pool_manifest_sha256"],
                          self.cohort["provenance"]["input_manifest_sha256"])
         moved = self.root / "moved"

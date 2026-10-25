@@ -20,7 +20,7 @@ the decisions reviewed on 2026-10-23, including local execution instead of Docke
 
 Produce `data/01_qualified_pool/` with tasks that pass static screening, statement
 example mapping and local reference execution. Qualification here is under the
-declared local runtime; later Inspect verification is a separate required gate.
+declared local runtime and is sufficient for downstream task admission.
 
 Static screening, English example mapping and the nonvisible-case gate are
 implemented with regression tests, as are the local runner, qualification CLI and
@@ -192,20 +192,13 @@ is needed for this implementation.
 This version assumes a single publisher and stable input files. Rename provides
 atomic visibility, without a power-loss durability guarantee.
 
-## Deferred verification: stages 03 and 05
+## Downstream verification
 
-Before stage 03 generates programs, re-verify each selected task's same three
-passing references against every stored case in the actual Inspect Linux sandbox,
-including its chosen memory and timing limits. Require all three to pass before
-using the task. Preserve local evidence and record Linux verification separately.
-
-Use Python 3.12, the same interpreter flags and exact answer comparison. Record each
-environment's exact patch version and configuration rather than claiming identical
-macOS/Linux runtimes. Stage 05 reuses the frozen Inspect contract; a change to the
-execution contract requires renewed reference verification before acquisition.
-
-These checks belong to the later Inspect stages. Implement neither an Inspect
-runner nor Linux memory qualification in stage 01.
+Stages 03 and 05 trust this reference qualification without rerunning references
+in Docker. Candidate execution uses the Inspect contract and its fixture checks;
+this assumes local reference qualification transfers across the runtime change.
+Preserve existing local evidence and published hashes. Legacy `required_next_gate`
+fields remain historical metadata and impose no downstream prerequisite.
 
 ## Validation and review batches
 

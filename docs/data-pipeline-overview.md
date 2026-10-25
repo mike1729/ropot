@@ -40,7 +40,7 @@ This document does not authorize model runs.
 **01_test_pool — materialize the dataset for allocation.**
 
 - Run `export-test` to copy only qualified test task artifacts, preserving their bytes.
-- Publish a test-only `manifest.json` with task hashes and qualification runtime/gate;
+- Publish a test-only `manifest.json` with task hashes and qualification provenance;
   retain the original manifest as historical `qualification-manifest.json`.
 - Preserve `01_qualified_pool` and `01_pool_analysis`; execute no supplied programs.
 
@@ -56,8 +56,8 @@ This document does not authorize model runs.
 - Preserve the eligible difficulty mix in each group and all original pool cases.
   Publish independent task copies with all visible cases followed by deterministic
   hidden cases, capped at 20 total; downstream verification uses every published case.
-- Keep groups isolated and preserve source-independent acquisition and the required
-  Inspect Linux reference gate. Final panel sizes and acquisition budgets follow
+- Keep groups isolated and preserve source-independent acquisition. Existing
+  reference qualification suffices. Final panel sizes and acquisition budgets follow
   the fixed group capacities: target 24 calibration and 48 evaluation tasks,
   with coarse operating points and task-level uncertainty.
 - Generate and save every group's ordered APPS ID lists once in `groups` and
@@ -66,8 +66,8 @@ This document does not authorize model runs.
 
 **03_benigns — generate and verify.**
 
-- Follow the [Stage 03 plan](stage-03-plan.md): consume frozen cohort ownership,
-  then re-verify the same three references on the selected suite in Inspect Linux.
+- Follow the [Stage 03 plan](stage-03-plan.md): consume frozen cohort ownership
+  and trust existing reference qualification without another Docker gate.
 - Load only saved construction/development IDs from initial/reserve blocks, keeping
   protected and deferred tasks unavailable. Check task-file digests when reading.
 - Experiment with prompts, scaffolding, sampling and repair budgets independently

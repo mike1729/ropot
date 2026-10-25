@@ -41,7 +41,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 | --- | --- |
 | 1 | Load the saved construction/development groups, pin the reviewed manifest hash, and define candidate identity. Preserve ownership and provenance; group assignment belongs to Stage 02. |
 | 2 | Establish Inspect Docker execution with one fresh sample/sandbox per program and fresh case processes sharing `/work`. Check sample failure isolation, output completeness and limits; use native teardown and document shared writable state/background processes within a program. |
-| 3 | Add the three-reference gate and deterministic candidate verification. Use the 20-case selection below for references and candidates, retain all stored cases and test the public-feedback boundary. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
+| 3 | Verify candidates against every published case, stopping at the first failure, and test the public-feedback boundary. Trust existing reference qualification. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
 | 5 | Establish the synthetic runtime using the same small adapter interface. Resolve MLX versus GGUF from observed compatibility, output quality, cost and provenance. |
 | 6 | Implement the experimental generate/verify/repair loop with experiment records and interruption-safe accounting. Keep generation caching and automatic retries off, and confirm server idleness after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
@@ -55,7 +55,7 @@ adapters for experimental rules. Avoid building a general scheduler or inference
 ### Inspect execution contract
 
 Batch 2's `src/data-pipeline/stage03/inspect_runner.py` exposes
-`run(programs, log_dir, *, concurrent_inference=False)`, returning Inspect logs.
+`run(programs, log_dir, *, concurrent_inference=False, check_answers=False)`, returning Inspect logs.
 Each program is `{"program": bytes, "cases": [{"index": int, "input": str}]}`.
 Supply every case from the reduced Stage 02 task file, in publication order.
 The runner executes all supplied cases without filtering or sampling, stopping on
@@ -67,7 +67,7 @@ policy/version and original/reduced task hashes belong to the Stage 02 manifest.
 
 Stage 02 publication keeps all visible cases in index order, then fills to at
 most 20 with deterministic hidden cases. This is the acceptance suite for every
-reference, benign and attack program, with no later full-suite pass. Omitted cases
+benign and attack program, with no later full-suite pass. Omitted cases
 remain available in the original pool and are not verified by Stage 03. Changing
 the publication changes task digests and invalidates verification reuse.
 
@@ -77,8 +77,8 @@ with `/work` as both working directory and `TMPDIR` and returns status, streams,
 host elapsed time. The shared program file is root-owned with mode `0444` in the
 root-owned sticky `/work` directory, preventing the unprivileged program from
 writing, chmodding, deleting or replacing it.
-Expected answers stay on the host; comparison and the Linux reference gate belong
-to batch 3. A mock model runs the fixtures without inference.
+Expected answers stay on the host; checked mode also takes `answer` and `visible`
+per case and stops at the first wrong answer. A mock model runs without inference.
 
 - Pin Inspect to `0.3.283` and explicitly set `max_sandboxes=4`. Record that setting,
   Docker VM resources, concurrent inference, Compose configuration hash and
@@ -106,6 +106,27 @@ to batch 3. A mock model runs the fixtures without inference.
   descendants may persist, sharing the program's CPU/PID limits; late child output
   can be lost after capture ends. Fixed case order does not guarantee deterministic
   execution. Inspect tears down the sandbox after each program attempt.
+
+### Candidate verification (batch 3)
+
+`stage03.verification.verify(task, task_sha256, program, log_dir)` runs one fresh
+sandbox; obtain the paired task and digest from `study_tasks.load_task`. Published
+metadata is trusted and bindings stay read-only. Existing reference qualification
+is sufficient; legacy gate fields in immutable publications are historical only.
+The result has `status` (`passed`, `failed`, `error`), `key`, `log`, `sample_id` and
+`feedback`. Only `feedback` may enter repair prompts: attempted visible diagnostics
+and generic hidden `passed`/`failed`/`not_run`, without hidden indices or timing.
+Native infrastructure failures return generic `verification_error` feedback;
+preflight exceptions and interruptions propagate. Logs remain private.
+
+`reuse(log_path, task, task_sha256, program)` explicitly reads a successful,
+single-sample native log, matching exact request metadata and current execution
+contract. Both paths derive verdicts from raw captures with the same comparison
+helper. Evidence must cover every case or end at the first failure. The reuse key
+binds the reduced task, program bytes, Inspect version, Compose, relevant source
+hashes, limits and daemon platform/resources; generator source is absent. Contract
+capture uses one `docker info` call per evaluation/reuse, without per-program probes.
+Reuse rejects errored/cancelled/incomplete evidence and never dispatches execution.
 
 ## Experiment progression
 

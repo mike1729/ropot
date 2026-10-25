@@ -3,7 +3,7 @@
 Task paths are relative to this publication and contain reduced case suites.
 Construction consumers use construction_phases, appending initial then reserve.
 Deferred tasks require a reviewed profile change. Targets describe desired usable
-data, not observed yields. Generation/retry ceilings and Linux verification remain
+data, not observed yields. Generation/retry ceilings remain
 pending. Publication assumes stable inputs and a single publisher; directory rename
 provides atomic visibility, without a power-loss durability guarantee.
 """

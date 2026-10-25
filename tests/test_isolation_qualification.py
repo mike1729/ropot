@@ -1,6 +1,5 @@
 import copy
 import unittest
-from unittest import mock
 from tests import test_long_batch_qualification as long_fixture, test_qualification_admission as admission_fixture
 
 
@@ -48,7 +47,7 @@ class IsolationQualificationTests(unittest.TestCase):
             if event["event"] == "controls_checked": event["request_sha256"] = identity
         return self.f.parse(job, events)
 
-    def test_fixed_recipe_workload_and_worker_boundary(self):
+    def test_fixed_recipe_and_workload(self):
         for batch in (2, 4, 8):
             job = self.M.build_isolation_job(self.f.f.d, dict(self.f.config, batch_size=batch, prefill_batch_size=min(4, batch)))
             self.assertEqual((job["schema_version"], job["request"]["max_tokens"], job["wall_seconds"]), (4, 2048, 240))
@@ -60,8 +59,6 @@ class IsolationQualificationTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError): self.H._shape(bad)
         bad = copy.deepcopy(job); bad["fixtures"][2]["messages"] = copy.deepcopy(bad["fixtures"][1]["messages"])
         with self.assertRaises(ValueError): self.H._shape(bad)
-        with mock.patch.object(self.M.Path, "read_bytes", side_effect=AssertionError("helper read")), self.assertRaisesRegex(ValueError, "deferred"):
-            self.M.run_job(job, "a" * 64, mock.Mock())
 
     def test_complete_lookahead_and_retained_partial_packets(self):
         job, events = self.protocol(); parsed = self.parse(job, events)

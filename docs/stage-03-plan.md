@@ -695,5 +695,8 @@ new contract; historical qualification verdicts retain their original meaning.
 The fixed long contexts must render within 7,168–8,192 tokens, with equal peer
 lengths and different token contents. A tokenizer preflight precedes inference;
 the tested minimum remains the actual future context ceiling.
-The first slice defines the fixed job and independent parser using mock evidence;
-the native observer and admission reader require separate reviewed batches.
+The native producer uses `--isolation-qualification` with one declared configuration.
+It observes only row zero in the six target windows and reuses one safe forced
+token throughout the job. The original sampler input and returned object remain
+unchanged, with at most seventeen native calls per sixteen-token target.
+The admission reader still rejects schema 4 pending its separate authority bridge.

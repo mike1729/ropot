@@ -5,14 +5,17 @@ from hashlib import sha256
 import importlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import sys
+import struct
 import threading
 from time import monotonic
 
 mx = BatchGenerator = make_sampler = None
 ROOT = Path(__file__).resolve().parents[1]
+TARGET_WINDOWS = ("short-A", "short-B", "long-A", "long-B", "short-A-replay", "long-A-replay")
 
 
 def build_job(descriptor, configs, wall_seconds=1170, *, panel_size=8, cache_limit_bytes=None):
@@ -110,7 +113,8 @@ def long_stress(job, ready_fixtures, completed_rows):
     window = job["windows"][-1]; batch = window["config"]["batch_size"]
     lengths = {f["id"]: len(f["prompt_ids"]) for f in ready_fixtures}
     prompts = [lengths[r["fixture_id"]] for r in window["rows"]]
-    if not (len(completed_rows) == len(prompts) == batch and 2826 < min(prompts) <= max(prompts) <= 4096
+    lower, upper = (7167, 8192) if job["schema_version"] == 4 else (2826, 4096)
+    if not (len(completed_rows) == len(prompts) == batch and lower < min(prompts) <= max(prompts) <= upper
         and all(len(r["tokens"]) == 2048 and all(type(t) is int and t >= 0 for t in r["tokens"])
         and r["finish_reason"] == ("stop" if i % 2 == 0 else "length") for i, r in enumerate(completed_rows))):
         raise ValueError("Long stress incomplete")
@@ -213,13 +217,44 @@ def configure_cache(job, identity):
         raise RuntimeError("Allocator cache limit not honored")
 
 
-def sampler_for(row, eos, safe):
+def _observe_score(scores, result, *, window, seq, emit):
+    dtype, native_shape = str(scores.dtype), scores.shape
+    if not (dtype in ("mlx.core.bfloat16", "mlx.core.float16", "mlx.core.float32")
+        and type(native_shape) in (tuple, list) and len(native_shape) == 2
+        and all(type(n) is int for n in native_shape) and native_shape[0] == 1
+        and 1 <= native_shape[1] <= 1048576 and type(seq) is int and 1 <= seq <= 17):
+        raise ValueError("Unsupported native score observation")
+    shape = list(native_shape)
+    values = scores.tolist()
+    if not (type(values) is list and len(values) == 1 and type(values[0]) is list and len(values[0]) == shape[1]
+        and all(type(v) is float and math.isfinite(v) for v in values[0])):
+        raise ValueError("Invalid native score values")
+    token = result.item()
+    if type(token) is not int or not 0 <= token < shape[1]:
+        raise ValueError("Invalid native sampler result")
+    packed = struct.pack(f"<{shape[1]}f", *values[0])
+    emit("score", window=window, row_index=0, seq=seq, native_dtype=dtype, shape=shape,
+        finite=True, returned_token=token, observed_f32_sha256=sha256(packed).hexdigest())
+
+
+def sampler_for(row, eos, safe, observer=None):
     mode = row["sampling"]
     if mode in ("sample", "greedy"):
         sampler = make_sampler(temp=.2 if mode == "sample" else 0, top_p=.95, seed=row["seed"])
         if mode == "sample" and getattr(sampler, "seed", None) != row["seed"]:
             raise RuntimeError("Sampler seed not honored")
-        return lambda logits: sampler(logits)
+        if observer is None:
+            return lambda logits: sampler(logits)
+        count = 0
+        def sampled(logits):
+            nonlocal count
+            if count >= row["cap"] + 1:
+                raise ValueError("Native sampler exceeded cap plus lookahead")
+            count += 1
+            result = sampler(logits)
+            observer(logits, result)
+            return result
+        return sampled
     count = 0
     def forced(logits):
         nonlocal count
@@ -229,10 +264,17 @@ def sampler_for(row, eos, safe):
     return forced
 
 
-def run_window(model, tokenizer, fixtures, window, emit, *, window_seconds=180):
+def run_window(model, tokenizer, fixtures, window, emit, *, window_seconds=180, observe_target=False, safe_token=None):
     config, rows = window["config"], window["rows"]
     eos = sorted(tokenizer.eos_token_ids)
-    safe = next(t for t in tokenizer.encode("0", add_special_tokens=False) if t not in eos)
+    safe = next(t for t in tokenizer.encode("0", add_special_tokens=False) if t not in eos) if safe_token is None else safe_token
+    if safe_token is not None and (type(safe) is not int or safe < 0 or safe in eos):
+        raise ValueError("Invalid shared safe token")
+    score_seq = 0
+    def observe(scores, result):
+        nonlocal score_seq
+        score_seq += 1
+        _observe_score(scores, result, window=window["id"], seq=score_seq, emit=emit)
     gen = BatchGenerator(model, completion_batch_size=config["batch_size"], prefill_batch_size=config["prefill_batch_size"],
                          prefill_step_size=config["prefill_step_size"], stop_tokens=[[t] for t in eos])
     results = [dict(tokens=[], text="", finish_reason=None) for _ in rows]
@@ -251,7 +293,8 @@ def run_window(model, tokenizer, fixtures, window, emit, *, window_seconds=180):
                     if index in admitted or row["after_row_index"] is not None and row["after_row_index"] not in finished:
                         continue
                     uid = gen.insert([fixtures[row["fixture_id"]]["prompt_ids"]], max_tokens=[row["cap"]], caches=None,
-                        samplers=[sampler_for(row, eos[0], safe)])[0]
+                        samplers=[sampler_for(row, eos[0], safe, observe) if observe_target and index == 0
+                                  else sampler_for(row, eos[0], safe)])[0]
                     mapping[uid] = index
                     admitted.add(index)
                     emit("admit", window=window["id"], uid=uid, row_index=index, t_seconds=monotonic() - started)
@@ -300,8 +343,6 @@ def qualification_checks(results, rng_ok):
 
 
 def run_job(job, identity, emit):
-    if job.get("schema_version") == 4:
-        raise ValueError("Schema 4 worker deferred to producer batch")
     global mx, BatchGenerator, make_sampler
     path = ROOT / "src/data-pipeline/mlx_worker.py"
     helper = path.read_bytes()
@@ -316,6 +357,7 @@ def run_job(job, identity, emit):
         if M.file_sha256(source) != digest:
             raise M.Control("guard", "Benchmark source changed")
     request, long, wave = job["request"], job["schema_version"] == 2, job["schema_version"] == 3
+    isolation = job["schema_version"] == 4
     guard = M.load_guard(request)
     descriptor = request["precision_profile"]["descriptor"]
     model_files = M.inventory(Path(request["model_path"]), guard, descriptor)
@@ -341,12 +383,16 @@ def run_job(job, identity, emit):
         options = dict(add_generation_prompt=True, enable_thinking=False)
         prompt = tokenizer.apply_chat_template(fixture["messages"], tokenize=False, **options)
         ids = tokenizer.apply_chat_template(fixture["messages"], tokenize=True, **options)
-        if not wave and not 0 < len(ids) <= (4096 if long else 1536):
+        if not wave and not 0 < len(ids) <= (8192 if isolation else 4096 if long else 1536):
             raise RuntimeError("Fixture prompt outside token bound")
         fixtures.append(dict(id=fixture["id"], prompt=prompt, prompt_ids=ids))
     if long and len(fixtures[1]["prompt_ids"]) <= 2826:
         raise RuntimeError("Long fixture does not cover the exposed prompt envelope")
-    if not wave and len(fixtures[0]["prompt_ids"]) == len(fixtures[1 if long else 4]["prompt_ids"]):
+    if isolation:
+        short, original, peer = [f["prompt_ids"] for f in fixtures]
+        if not (0 < len(short) < len(original) == len(peer) and 7168 <= len(original) <= 8192 and original != peer):
+            raise RuntimeError("Isolation fixture prompt relation differs")
+    if not wave and not isolation and len(fixtures[0]["prompt_ids"]) == len(fixtures[1 if long else 4]["prompt_ids"]):
         raise RuntimeError("Qualification requires unequal prompts")
     M.observe(sources, descriptor["expected_runtime"]["sources"])
     emit("ready", fixtures=fixtures, eos_token_ids=sorted(tokenizer.eos_token_ids), hash_seconds=hash_seconds + monotonic() - started,
@@ -360,15 +406,25 @@ def run_job(job, identity, emit):
             json.dump(dict(job_sha256=identity, temperature=.2, top_p=.95, draws=draws, passed=rng_ok), output)
             output.flush()
             os.fsync(output.fileno())
+    if isolation:
+        safe = next(t for t in tokenizer.encode("0", add_special_tokens=False) if type(t) is int and t >= 0 and t not in tokenizer.eos_token_ids)
     results = {}
     with Path("decoded.jsonl").open("x") as decoded:
         for window in job["windows"]:
             results[window["id"]] = run_window(model, tokenizer, {f["id"]: f for f in fixtures}, window, emit,
-                **({"window_seconds": 240} if long or wave else {}))
+                **({"window_seconds": 240} if long or wave or isolation else {}),
+                **(dict(observe_target=window["id"] in TARGET_WINDOWS, safe_token=safe) if isolation else {}))
             decoded.write(json.dumps(dict(job_sha256=identity, window=window["id"], rows=results[window["id"]]), ensure_ascii=False) + "\n")
             decoded.flush()
             os.fsync(decoded.fileno())
-            if not wave and window["id"] == ("qlong" if long else "q4"):
+            if isolation and window["id"] == "qlong":
+                def output(name, index=0):
+                    row = results[name][index]
+                    return row["tokens"], row["finish_reason"]
+                diagnostics = dict(greedy_equal=output("short-A") == output("q0") and output("long-A") == output("q1"),
+                    reinsert_equal=output("q3", 2) == output("q4"))
+                emit("qualification", rng_draws=draws, diagnostics=diagnostics, stress=long_stress(job, fixtures, results["qlong"]))
+            elif not wave and not isolation and window["id"] == ("qlong" if long else "q4"):
                 checks = qualification_checks(results, rng_ok)
                 emit("qualification", checks=checks, **({"stress": long_stress(job, fixtures, results["qlong"])} if long else {}))
                 if not all(checks.values()):
@@ -382,7 +438,9 @@ def main():
         for name in ("profiles", "source", "bits", "configs", "output", "lock"):
             parser.add_argument("--" + name, required=True)
         parser.add_argument("--wall", type=float)
-        parser.add_argument("--long-qualification", action="store_true")
+        qualification = parser.add_mutually_exclusive_group()
+        qualification.add_argument("--long-qualification", action="store_true")
+        qualification.add_argument("--isolation-qualification", action="store_true")
         parser.add_argument("--panel-size", type=int, choices=(8, 32), default=8)
         parser.add_argument("--lease-fd", type=int)
         parser.add_argument("--cache-gib", type=int, choices=(0, 4, 8))
@@ -393,10 +451,11 @@ def main():
         B.G.require(descriptor["source"] == args.source and str(descriptor["bits"]) == args.bits, "Profile label differs")
         if args.lease_fd is not None: B.watch_lease_parent()
         configs, cache = json.loads(args.configs), None if args.cache_gib is None else args.cache_gib * 1024**3
-        if args.long_qualification:
+        if args.long_qualification or args.isolation_qualification:
             B.G.require(type(configs) is list and len(configs) == 1 and args.panel_size == 8
                 and args.wall in (None, 240), "Long CLI bounds differ")
-            job = build_long_job(descriptor, configs[0], cache_limit_bytes=cache)
+            builder = build_isolation_job if args.isolation_qualification else build_long_job
+            job = builder(descriptor, configs[0], cache_limit_bytes=cache)
         else: job = build_job(descriptor, configs, 1170 if args.wall is None else args.wall, panel_size=args.panel_size, cache_limit_bytes=cache)
         output = Path(args.output).resolve()
         output.parent.mkdir(parents=True, exist_ok=True)

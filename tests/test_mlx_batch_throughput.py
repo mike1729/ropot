@@ -8,8 +8,13 @@ from unittest import mock
 from tests import test_precision_controls as controls
 
 
+class Sample(list):
+    def item(self): return self[0]
+
+
 class Generator:
     instances = []
+    lookahead = 0
     def __init__(self, model, **config):
         self.config, self.stream, self.pending, self.insertions = config, object(), {}, []
         self.uid, self.total, self.closed = 0, 0, False; self.instances.append(self)
@@ -20,10 +25,14 @@ class Generator:
     def next(self):
         responses = []
         for uid in list(self.pending)[:self.config["completion_batch_size"]]:
-            state = self.pending[uid]; state[0] += 1; token = state[2](NS(shape=(1, 16)))[0]
+            state = self.pending[uid]; state[0] += 1
+            scores = NS(shape=(1, 16), dtype="mlx.core.float32", tolist=lambda: [[0.] * 16])
+            token = state[2](scores)[0]
             finish = "stop" if token == 9 else "length" if state[0] == state[1] else None
             responses.append(NS(uid=uid, token=token, finish_reason=finish)); self.total += 1
-            if finish: del self.pending[uid]
+            if finish:
+                for _ in range(self.lookahead): state[2](scores)
+                del self.pending[uid]
         return [], responses
     @contextmanager
     def stats(self):
@@ -42,7 +51,7 @@ class MlxBatchThroughputTests(unittest.TestCase):
             get_active_memory=lambda: 1, get_cache_memory=lambda: 2, get_peak_memory=lambda: 3, uint32="uint32",
             full=lambda shape, token, **kw: [token] * shape[0], zeros=lambda shape: NS(shape=shape))
         def seeded(**kw):
-            sample = lambda logits: [3]
+            sample = lambda logits: Sample([3])
             sample.seed = kw["seed"]
             return sample
         self.sampler = mock.Mock(side_effect=seeded)

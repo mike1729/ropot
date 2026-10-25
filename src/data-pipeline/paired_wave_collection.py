@@ -344,6 +344,26 @@ def _execute(campaign, loaded, built, anchor, opportunities):
     return output
 
 
+def tune(campaign, loaded, plan_id, *, through_groups=None):
+    """Execute whole canonical tuning groups and return one scientific milestone."""
+    J.require(through_groups is None or type(through_groups) is int and through_groups > 0, "Invalid tuning group bound")
+    built, anchor = _retained(campaign, loaded, plan_id)
+    tuning = [o for o in built["plan"]["opportunities"] if not o["block"].endswith("fresh")]
+    groups = list(dict.fromkeys(o["group"] for o in tuning))
+    J.require(through_groups is None or through_groups <= len(groups), "Tuning group bound exceeds plan")
+    selected = set(groups if through_groups is None else groups[:through_groups])
+    _execute(campaign, loaded, built, anchor, [o for o in tuning if o["group"] in selected])
+    _live(campaign, anchor, {r["experiment_id"] for r in built["records"]})
+    from . import study_report as S
+    matches = [t for t in S.snapshot(campaign)["report"]["wave_trials"]
+        if t["plan_id"] == plan_id and t["plan_sha256"] == anchor["payload"]["plan_sha256"]]
+    J.require(len(matches) == 1, "Require unique wave trial")
+    trial = matches[0]
+    J.require(trial.get("report_scope") == "resident_wave" and type(trial.get("metrics")) is list
+        and not any(k in trial for k in ("provisional", "structure_only", "validation_scope")), "Require scientific wave trial")
+    return trial
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("campaign", "plan-id", "receipt", "receipt-sha256", "mechanics-audit", "qualifications"):

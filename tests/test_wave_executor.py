@@ -87,6 +87,66 @@ class WaveExecutorTests(unittest.TestCase):
         anchor = next(e for e in self.events if e["kind"] == "wave_setup")
         return self.W._execute(self.c, self.f.loaded, self.built, anchor, self.built["plan"]["opportunities"][:count])
 
+    def test_tune_whole_prefixes_and_post_retention_two_task_metadata(self):
+        saved = copy.deepcopy(self.events)
+        def milestone(campaign):
+            execute.assert_called_once()
+            live.assert_called_once()
+            return dict(report=dict(wave_trials=[dict(trial, plan_id="other"), dict(trial, plan_sha256="0" * 64), trial]))
+        self.mocks["snapshot"].side_effect = milestone
+        for capacity in (None, 2):
+            built, methods = copy.deepcopy(self.built), copy.deepcopy(self.f.methods)
+            # Capacity2 is post-retention selector metadata; no new qualification or dispatch.
+            if capacity:
+                for bound in methods.values():
+                    for method in bound.values(): method["admission"]["config"]["batch_size"] = capacity
+            built["plan"]["opportunities"] = self.W._opportunities(built["activation"], built["plan"]["records"], methods)
+            anchor = copy.deepcopy(next(e for e in self.events if e["kind"] == "wave_setup"))
+            anchor["payload"]["plan_sha256"] = self.W.digest(built["plan"])
+            tuning = [o for o in built["plan"]["opportunities"] if not o["block"].endswith("fresh")]
+            groups = list(dict.fromkeys(o["group"] for o in tuning))
+            self.assertEqual(len(tuning[0]["experiment_ids"]), 2 if capacity else 4)
+            retention = dict(return_value=(built, anchor)) if capacity else dict(wraps=self.W._retained)
+            trial = dict(self.snapshot(self.c)["report"]["wave_trials"][-1], plan_sha256=anchor["payload"]["plan_sha256"], comparison_valid=False)
+            for limit in (1, len(groups), None):
+                expected = [o for o in tuning if limit is None or o["group"] in groups[:limit]]
+                with mock.patch.object(self.W, "_retained", **retention) as retained, mock.patch.object(self.W, "_execute") as execute, \
+                     mock.patch.object(self.W, "_live", wraps=self.W._live) as live:
+                    self.mocks["snapshot"].reset_mock()
+                    self.assertIs(self.W.tune(self.c, self.f.loaded, "trial", through_groups=limit), trial)
+                    retained.assert_called_once_with(self.c, self.f.loaded, "trial")
+                    execute.assert_called_once_with(self.c, self.f.loaded, built, anchor, expected)
+                    live.assert_called_once_with(self.c, anchor, {r["experiment_id"] for r in built["records"]})
+                    self.mocks["snapshot"].assert_called_once_with(self.c)
+        self.assertEqual(self.events, saved)
+        self.mocks["prepare_cell"].assert_not_called()
+
+    def test_tune_bounds_stop_before_selected_effects(self):
+        upper = len({o["group"] for o in self.built["plan"]["opportunities"] if not o["block"].endswith("fresh")})
+        for limit in (True, False, 0, -1, 1.0, "1", upper + 1):
+            with mock.patch.object(self.W, "_retained", wraps=self.W._retained) as retained, \
+                 mock.patch.object(self.W, "_execute") as execute, mock.patch.object(self.W, "_live") as live:
+                with self.subTest(limit=limit), self.assertRaises(ValueError): self.W.tune(self.c, self.f.loaded, "trial", through_groups=limit)
+                self.assertEqual(retained.call_count, 1 if limit == upper + 1 else 0)
+                execute.assert_not_called()
+                live.assert_not_called()
+                self.mocks["snapshot"].assert_not_called()
+        self.assertEqual(self.events, self.baseline)
+
+    def test_tune_requires_unique_scientific_trial_and_list_metrics(self):
+        trial = self.snapshot(self.c)["report"]["wave_trials"][-1]
+        invalid = [[], [trial, trial], [dict(trial, plan_id="other")], [dict(trial, plan_sha256="0" * 64)]]
+        invalid += [[dict(trial, metrics=value)] for value in (None, {}, "[]")]
+        invalid += [[dict(trial, report_scope="structure_only")], [{k: v for k, v in trial.items() if k != "metrics"}]]
+        invalid += [[dict(trial, **{name: False})] for name in ("provisional", "structure_only", "validation_scope")]
+        for trials in invalid:
+            self.mocks["snapshot"].reset_mock()
+            self.mocks["snapshot"].side_effect = None
+            self.mocks["snapshot"].return_value = dict(report=dict(wave_trials=trials))
+            with mock.patch.object(self.W, "_execute"), self.subTest(trials=trials), self.assertRaises(ValueError):
+                self.W.tune(self.c, self.f.loaded, "trial", through_groups=1)
+            self.mocks["snapshot"].assert_called_once_with(self.c)
+
     def test_finite_order_independent_repairs_and_idempotent_steps(self):
         tuning = [o for o in self.built["plan"]["opportunities"] if not o["block"].endswith("fresh")]
         passed = tuning[0]["experiment_ids"][0]

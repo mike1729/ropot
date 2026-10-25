@@ -727,3 +727,7 @@ New completion appends require a fresh validated journal view. Each row's global
 resource and own-profile barriers run before later independent reconciliation.
 Finish or required-refresh errors close the campaign; barrier failures retain
 their existing stop behavior. The next call revalidates all retained evidence.
+
+`paired_wave_collection.tune(..., through_groups=N)` selects whole tuning groups;
+None selects all tuning groups. It returns one honest scientific milestone after
+closure, without fresh work or confirmation. See the [wave protocol](stage-03-wave-protocol.md).

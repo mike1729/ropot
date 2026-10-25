@@ -83,8 +83,9 @@ Token counting, distribution reports and cohort allocation are outside this step
 ## Screening and reference selection
 
 - Verify both raw APPS splits against the downloader's pinned revision, file sizes
-  and SHA-256 checksums. Require 5,000 rows and unique IDs per split. Do not download
-  implicitly. Stream train then test, preserving `(split, id)` identities.
+  and SHA-256 checksums. The pinned bytes fix the 5,000 rows and unique IDs per
+  split; preflight records that known count without parsing the files again.
+  Do not download implicitly. Stream train then test, preserving `(split, id)` identities.
 - Keep introductory/interview stdin/stdout tasks. Decode nested `solutions` and
   `input_output` JSON and reject malformed or empty records, mismatched case counts
   and function-call tasks. Absent/null/blank serialized fields receive

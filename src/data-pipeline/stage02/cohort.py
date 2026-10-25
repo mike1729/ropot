@@ -142,6 +142,8 @@ def interleave(introductory, interview):
 def allocate(tasks):
     """Freeze all ownership and phases, reporting fixed per-stratum shortfalls.
 
+    Requires records validated by load_inputs; identity and difficulty checks
+    belong to that input boundary.
     Groups contain IDs in three independently interleaved blocks. Consumers extend
     active prefixes by concatenating initial + reserve; deferred stays inactive
     until a separately reviewed profile broadening. No active limit is chosen here.
@@ -149,9 +151,6 @@ def allocate(tasks):
     """
     records, sequential = {}, {metric: 0 for metric in PROFILE}
     for task in tasks:
-        if (task["split"] != "test" or type(task["id"]) is not int
-                or task["id"] in records or task["difficulty"] not in DIFFICULTIES):
-            raise ValueError("Invalid or duplicate allocation identity/difficulty")
         failures = profile_failures(task)
         records[task["id"]] = {**task, "defer_reasons": failures}
         records[task["id"]].pop("phase", None)

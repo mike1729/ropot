@@ -61,8 +61,9 @@ class QualificationTests(unittest.TestCase):
             (self.inputs / f"{split}.jsonl").write_bytes(data)
             self.files[split] = (len(data), hashlib.sha256(data).hexdigest())
 
-    def test_pinned_integrity_counts_ids_and_split_scope(self):
-        evidence = q.verify_inputs(self.inputs)
+    def test_pinned_integrity_and_provenance_without_parsing_rows(self):
+        with mock.patch.object(q, "read_rows", side_effect=AssertionError("must not reparse pinned files")):
+            evidence = q.verify_inputs(self.inputs)
         self.assertEqual({entry["file"] for entry in evidence}, {"train.jsonl", "test.jsonl"})
         for entry in evidence:
             split = entry["file"].split(".")[0]
@@ -79,11 +80,6 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(path.stat().st_size, len(data))
         with self.assertRaisesRegex(ValueError, "differs from pinned APPS"):
             q.verify_inputs(self.inputs)
-        for rows in ([task()], [task(), task()], [task(), {**task(), "id": True}]):
-            self.rows["test"] = rows
-            self.write_inputs()
-            with self.subTest(rows=rows), self.assertRaises(ValueError):
-                q.verify_inputs(self.inputs)
 
     def test_preserves_original_lengths_attempt_order_and_stops_after_three(self):
         row = task()

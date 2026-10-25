@@ -23,6 +23,7 @@ def digest(path):
 
 
 def download(split, size, sha256):
+    """Verify pinned bytes, then count difficulties for the download report."""
     path = DESTINATION / f"{split}.jsonl"
     url = f"{BASE}/{path.name}"
     if not path.exists():
@@ -44,24 +45,17 @@ def download(split, size, sha256):
         raise ValueError(f"Existing file differs from pinned APPS: {path}")
 
     difficulties = Counter()
-    identifiers = set()
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             row = json.loads(line)
-            identifier = row["id"]
-            if identifier in identifiers:
-                raise ValueError(f"Duplicate task ID in {split}: {identifier}")
-            identifiers.add(identifier)
             difficulties[row["difficulty"]] += 1
-    if sum(difficulties.values()) != 5000:
-        raise ValueError(f"Expected 5,000 rows in {split}: {difficulties}")
     print(f"Verified {split}: {dict(difficulties)}", flush=True)
     return {
         "file": path.name,
         "url": url,
         "bytes": size,
         "sha256": sha256,
-        "rows": 5000,
+        "rows": sum(difficulties.values()),
         "difficulties": dict(difficulties),
     }
 

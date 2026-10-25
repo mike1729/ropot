@@ -19,8 +19,10 @@ The root package provides the CLI and source provenance hashing. New manifests
 record source hashes by package-relative path (for example, `stage01/qualify.py`).
 
 Uses only Python's standard library. Downloads both original splits (about 1.4 GB)
-to `data/raw/apps/`, verifies upstream SHA-256 checksums and 5,000 rows per split,
-and writes a local provenance manifest. Data files are ignored by Git. An existing
+to `data/raw/apps/`, verifies pinned byte sizes and SHA-256 checksums, and writes
+a local provenance manifest with row counts and a difficulty report. The pinned
+files fix the row identities; these are not revalidated after hashing.
+Data files are ignored by Git. An existing
 download is verified and reused; interrupted downloads restart on the next run.
 
 Raw JSONL uses `id` for task IDs; IDs are scoped to their split. `solutions` and
@@ -36,7 +38,9 @@ reference execution:
 
 Options: `--input-dir` (default `data/raw/apps`), `--output-dir` (default
 `data/01_qualified_pool`) and `--workers` (1–8, default 8). Both pinned splits must
-already be present and pass checksum, row-count and ID checks. An existing output
+already be present and pass size/checksum checks. Preflight records the known
+5,000-row counts without parsing the JSONL; qualification then streams the rows.
+An existing output
 directory is refused. A successful complete run publishes per-task JSON and a
 manifest with source hashes, runtime provenance, counts and exclusions by rename.
 
@@ -96,8 +100,9 @@ Options: `--input-dir` (default `data/01_test_pool`), `--analysis-dir` (default
 `--known-use-records` and `--known-use-coverage`. The standard-library
 [cohort policy](src/data-pipeline/stage02/cohort.py) supplies the allocation:
 `load_inputs(input_dir, analysis_dir)` validates the export/analysis join;
-`allocate(loaded["tasks"])` returns frozen ownership, construction phases, ordered
-group blocks, profile deferrals and quota shortfalls. See the [allocation plan](docs/stage-02-plan.md).
+`allocate(loaded["tasks"])` trusts those validated records and returns frozen
+ownership, construction phases, ordered group blocks, profile deferrals and quota
+shortfalls. See the [allocation plan](docs/stage-02-plan.md).
 The loader verifies `summary.json`'s `tasks_csv_sha256` against the CSV bytes.
 Archive an older analysis before refreshing the canonical `data/01_pool_analysis`;
 the ordinary analysis and cohort defaults then use the canonical paths.

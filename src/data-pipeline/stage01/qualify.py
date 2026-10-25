@@ -63,9 +63,10 @@ def read_rows(input_dir, split):
 def verify_inputs(input_dir):
     """Return provenance for verified train/test files without downloading them.
 
-    Require pinned byte sizes and SHA-256 digests, the expected row count, and
-    integer IDs unique within each split. Run before executing supplied reference
-    code. Invalid data raises ValueError; filesystem/decoding errors propagate.
+    Require pinned byte sizes and SHA-256 digests before executing supplied
+    reference code. Row counts and identities are fixed by those pinned bytes;
+    record the known count without an extra JSONL parse. Hash/size mismatches
+    raise ValueError; filesystem errors propagate.
     Files must remain unchanged during subsequent qualification reads.
     """
     files = []
@@ -73,16 +74,8 @@ def verify_inputs(input_dir):
         path = input_dir / f"{split}.jsonl"
         if path.stat().st_size != size or digest(path) != sha256:
             raise ValueError(f"File differs from pinned APPS: {path}")
-        identifiers = set()
-        for row in read_rows(input_dir, split):
-            identifier = row.get("id")
-            if type(identifier) is not int or identifier in identifiers:
-                raise ValueError(f"Invalid or duplicate task ID in {split}: {identifier!r}")
-            identifiers.add(identifier)
-        if len(identifiers) != EXPECTED_ROWS:
-            raise ValueError(f"Expected {EXPECTED_ROWS} rows in {split}, got {len(identifiers)}")
         files.append({"split": split, "file": path.name, "url": f"{BASE}/{path.name}",
-                      "bytes": size, "sha256": sha256, "rows": len(identifiers)})
+                      "bytes": size, "sha256": sha256, "rows": EXPECTED_ROWS})
     return files
 
 

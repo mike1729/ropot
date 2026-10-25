@@ -147,7 +147,8 @@ not add independent tasks.
    coverage, groups/phases, budgets, accepted targets, counts and shortfalls.
 
 Batch 2 implements `python -m src.data-pipeline cohort` and a standard-library
-publisher composing the existing loader and allocator. Both versioned JSON files
+publisher composing the existing loader and allocator. `load_inputs` validates
+identities and difficulties; `allocate` trusts those records. Both versioned JSON files
 publish together; tasks remain referenced in the test pool. Construction activation
 uses the phase groups, deferred tasks remain inactive, and acquisition retry ceilings
 remain pending. The inherited Linux verification gate still applies before generation.

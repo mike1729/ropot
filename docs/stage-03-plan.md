@@ -681,3 +681,19 @@ session's already bound ready evidence once. The first report consumer checks
 frozen metadata, opportunities, all row requests and their own repair histories.
 Its wave_trials output is explicitly provisional with structure-only validity;
 quality, completion, session cost and confirmation claims belong to the next slice.
+
+Prospective peer-isolation qualification uses schema 4 with two invented
+targets, equal-length but
+different peer contexts, controlled peer decoding, and fresh-cache replays after
+EOS and live insertion. Six target windows retain native sampling-score
+fingerprints, dtype, shape and returned tokens in the existing stdout protocol.
+Observation preserves sampler input/result objects and adds synchronization;
+these qualification timings cannot measure inference speed.
+The parent independently derives isolation, replay, RNG, EOS and stress checks.
+Cross-shape greedy and reinsertion equality remain reported diagnostics for this
+new contract; historical qualification verdicts retain their original meaning.
+The fixed long contexts must render within 7,168–8,192 tokens, with equal peer
+lengths and different token contents. A tokenizer preflight precedes inference;
+the tested minimum remains the actual future context ceiling.
+The first slice defines the fixed job and independent parser using mock evidence;
+the native observer and admission reader require separate reviewed batches.

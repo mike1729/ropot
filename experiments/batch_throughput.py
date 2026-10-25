@@ -19,6 +19,9 @@ G = importlib.import_module("src.data-pipeline.local_generation")
 L = importlib.import_module("src.data-pipeline.local_runner")
 _exited, _kill_group = L._exited, L._kill_group
 CHECKS = {"greedy_equal", "eos_at_cap", "length_cap", "reinsert_equal", "seed_independent"}
+TARGET_WINDOWS = ("short-A", "short-B", "long-A", "long-B", "short-A-replay", "long-A-replay")
+SCORE_FIELDS = "window row_index seq native_dtype shape finite returned_token observed_f32_sha256"
+SCORE_VALUES = "seq native_dtype shape finite returned_token observed_f32_sha256".split()
 STDOUT_LIMIT, STDERR_LIMIT = 64 * 1024**2, 16 * 1024**2
 QUALIFICATION_LIMITS = {"job.json": 4 * 1024**2, "stdout.jsonl": STDOUT_LIMIT, "response.json": STDOUT_LIMIT, "cache-control.json": 4096}
 FIELDS = {"start": "pid", "controls_checked": "request_sha256 proof", "ready": "eos_token_ids fixtures provenance hash_seconds load_seconds",
@@ -78,8 +81,9 @@ def _shape(job, *, historical=False):
     G.require(type(job) is dict and set(job) - {"cache_limit_bytes"} - ({"rows", "admission", "prompt_ceiling_tokens"} if wave else set())
               == {"schema_version", "request", "fixtures", "windows", "worker", "wall_seconds", "source_hashes"}
               and (not wave or {"rows", "admission", "prompt_ceiling_tokens"} <= set(job))
-              and type(job["schema_version"]) is int and job["schema_version"] in (1, 2, 3), "Invalid job fields")
-    long = job["schema_version"] == 2
+              and type(job["schema_version"]) is int and job["schema_version"] in (1, 2, 3, 4), "Invalid job fields")
+    isolation = job["schema_version"] == 4
+    long = job["schema_version"] in (2, 4)
     if "cache_limit_bytes" in job:
         G.require(type(job["cache_limit_bytes"]) is int and job["cache_limit_bytes"] in (0, 4 * 1024**3, 8 * 1024**3), "Invalid allocator cache limit")
     G.require(type(job["worker"]) is str and Path(job["worker"]).is_absolute()
@@ -94,7 +98,7 @@ def _shape(job, *, historical=False):
         paths = {Path(job["worker"]).resolve(), Path(__file__).resolve(), Path(G.__file__), G.WORKER, G.GUARD, Path(L.__file__)}
         G.require(set(sources) == {str(p) for p in paths}, "Invalid source map")
     fixtures, windows = job["fixtures"], job["windows"]
-    G.require(type(fixtures) is list and (len(fixtures) == 2 if long else 1 <= len(fixtures) <= 8 or not wave and len(fixtures) == 32)
+    G.require(type(fixtures) is list and (len(fixtures) == (3 if isolation else 2) if long else 1 <= len(fixtures) <= 8 or not wave and len(fixtures) == 32)
               and type(windows) is list and 1 <= len(windows) <= 56, "Invalid panel bounds")
     expanded = len(fixtures) == 32
     for fixture in fixtures:
@@ -126,6 +130,9 @@ def _shape(job, *, historical=False):
         order.append(("qualification", "warmup", "measure", "generate").index(window["mode"]))
     if wave:
         _wave_shape(job)
+        return
+    if isolation:
+        _isolation_shape(job)
         return
     qualification_count = 8
     if expanded:
@@ -165,6 +172,34 @@ def _long_shape(job):
         rows = [dict(fixture_id=fixtures[i]["id"], seed=fixtures[i]["seed"], cap=cap, sampling=sampling, after_row_index=after)
                 for i, cap, sampling, after in recipe]
         G.require(window["config"] == expected and window["rows"] == rows, "Long qualification recipe differs")
+
+
+def _isolation_shape(job):
+    fixtures, windows = job["fixtures"], job["windows"]
+    G.require([f["id"] for f in fixtures] == ["short", "long", "long-peer"]
+        and [f["seed"] for f in fixtures] == [20261024, 20261025, 20261025]
+        and [w["id"] for w in windows] == ["q0", "q1", *TARGET_WINDOWS[:4], "q3", "q4", *TARGET_WINDOWS[4:], "qlong"]
+        and all(w["mode"] == "qualification" for w in windows), "Isolation layout differs")
+    config = windows[-1]["config"]; batch = config["batch_size"]
+    def row(i, cap=16, sampling="greedy"):
+        return dict(fixture_id=fixtures[i]["id"], seed=fixtures[i]["seed"], cap=cap, sampling=sampling, after_row_index=None)
+    # Reuse the unchanged control recipe checks; v4 replaces only the old q2.
+    q2 = dict(id="q2", mode="qualification", config=config, rows=[row(i % 2) for i in range(batch)])
+    _long_shape(dict(job, fixtures=fixtures[:2], windows=windows[:2] + [q2] + windows[6:8] + windows[-1:]))
+    for name, target, peer in (("short-A", 0, 1), ("short-B", 0, 2), ("long-A", 1, 1), ("long-B", 1, 2),
+                               ("short-A-replay", 0, 1), ("long-A-replay", 1, 1)):
+        window = windows[[w["id"] for w in windows].index(name)]
+        G.require(window["config"] == config and window["rows"] == [row(target)] + [row(peer, sampling="length") for _ in range(batch - 1)], "Isolation recipe differs")
+    note = "Input values are separated by whitespace. Vertex labels start at one. Handle empty intermediate results. Keep all data local to this program.\n"
+    draft = "import sys\n\ndef solve():\n" + ("    # " + note) * 260 + "    values = list(map(int, sys.stdin.buffer.read().split()))\n    print(len(values))\n\nsolve()\n"
+    system = dict(role="system", content="Write a complete Python 3.12 program. Return only code, without explanation.")
+    expected = [system,
+        dict(role="user", content="Read n,m and m undirected edges. Print the number of connected components, including isolated vertices. Use an iterative traversal."),
+        dict(role="assistant", content=draft), dict(role="user", content="The visible check reported an incorrect answer. Correct the draft. Read exactly m edges and count isolated vertices. Return a complete program.")]
+    G.require(fixtures[0]["messages"] == [system, dict(role="user", content="Read n then n integers. Print their sum. Handle an empty array.")]
+        and fixtures[1]["messages"] == expected, "Isolation fixture differs")
+    expected[2] = dict(role="assistant", content=draft.replace("    # Input", "    # Output"))
+    G.require(fixtures[2]["messages"] == expected, "Isolation peer fixture differs")
 
 
 def _wave_shape(job):
@@ -212,6 +247,7 @@ def validate_events(raw, job, pid=None):
     error, proof, eos, ready, qualified, complete, index = None, None, set(), False, False, False, 0
     identity = sha256(_raw(job)).hexdigest()
     long, wave, stress, ready_fixtures, decoded_digest = job["schema_version"] == 2, job["schema_version"] == 3, None, None, None
+    isolation, packets, diagnostics = job["schema_version"] == 4, [], None
     truncated, raw = len(raw) > STDOUT_LIMIT, raw[:STDOUT_LIMIT]
     try:
         for line in raw.splitlines(keepends=True):
@@ -219,7 +255,13 @@ def validate_events(raw, job, pid=None):
             G.require(line.endswith(b"\n"), "Incomplete protocol tail")
             event = G.snapshot(json.loads(line))
             kind = event["event"]
-            fields = set(FIELDS[kind].split()) | ({"stress"} if long and kind == "qualification" else set())
+            if isolation and kind == "score":
+                grammar = SCORE_FIELDS
+            elif isolation and kind == "qualification":
+                grammar = "rng_draws diagnostics stress"
+            else:
+                grammar = FIELDS[kind]
+            fields = set(grammar.split()) | ({"stress"} if long and kind == "qualification" else set())
             if wave and kind == "done": fields.add("decoded_sha256")
             G.require(set(event) == {"event", "job_sha256"} | fields and event["job_sha256"] == identity, "Event binding differs")
             if not events:
@@ -241,9 +283,12 @@ def validate_events(raw, job, pid=None):
                 G.require(type(event["fixtures"]) is list and len(event["fixtures"]) == len(job["fixtures"]), "Ready fixtures differ")
                 for fixture, planned in zip(event["fixtures"], job["fixtures"]):
                     G.require(set(fixture) == {"id", "prompt", "prompt_ids"} and fixture["id"] == planned["id"] and type(fixture["prompt"]) is str
-                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <= (4096 if long or wave else 1536)
+                              and type(fixture["prompt_ids"]) is list and 0 < len(fixture["prompt_ids"]) <= (8192 if isolation else 4096 if long or wave else 1536)
                               and all(type(t) is int and t >= 0 for t in fixture["prompt_ids"]), "Ready fixtures differ")
                 if wave: G.require(all(len(f["prompt_ids"]) <= job["prompt_ceiling_tokens"] for f in event["fixtures"]), "Wave prompt exceeds qualified ceiling")
+                if isolation:
+                    short, original, peer = [f["prompt_ids"] for f in event["fixtures"]]
+                    G.require(0 < len(short) < len(original) == len(peer) and 7168 <= len(original) <= 8192 and original != peer, "Isolation prompt relation differs")
                 eos, ready, ready_fixtures = set(event["eos_token_ids"]), True, event["fixtures"]
             elif kind == "window_start":
                 G.require(ready and current is None and index < len(job["windows"]) and event["id"] == job["windows"][index]["id"]
@@ -251,6 +296,18 @@ def validate_events(raw, job, pid=None):
                 planned = job["windows"][index]
                 G.require(planned["mode"] == "qualification" or qualified or wave, "Qualification required")
                 current = dict(plan=planned, states={}, rows={}, last=0)
+            elif kind == "score":
+                G.require(isolation and current is not None and event["window"] == current["plan"]["id"] in TARGET_WINDOWS
+                    and list(current["rows"]) == list(range(len(current["plan"]["rows"])))
+                    and type(event["row_index"]) is int and event["row_index"] == 0, "Score target or admissions differ")
+                shape = event["shape"]; prior = [p for p in packets if p["window"] == event["window"]]
+                G.require(type(event["seq"]) is int and event["seq"] == len(prior) + 1 <= 17
+                    and event["native_dtype"] in ("mlx.core.bfloat16", "mlx.core.float16", "mlx.core.float32")
+                    and type(shape) is list and len(shape) == 2 and all(type(n) is int for n in shape)
+                    and shape[0] == 1 and 1 <= shape[1] <= 1048576 and event["finite"] is True
+                    and type(event["returned_token"]) is int and 0 <= event["returned_token"] < shape[1]
+                    and G.P._sha(event["observed_f32_sha256"]), "Invalid score packet")
+                packets.append(event)
             elif kind in ("admit", "token"):
                 G.require(current is not None and event["window"] == current["plan"]["id"] and type(event["uid"]) is int and event["uid"] >= 0
                           and _number(event["t_seconds"]) and event["t_seconds"] >= current["last"], "Invalid UID or time")
@@ -258,15 +315,19 @@ def validate_events(raw, job, pid=None):
                 if kind == "admit":
                     row = event["row_index"]
                     G.require(type(row) is int and 0 <= row < len(current["plan"]["rows"]) and row not in current["rows"] and uid not in current["states"], "Duplicate or unknown row")
+                    if isolation and event["window"] in TARGET_WINDOWS:
+                        G.require(row == len(current["rows"]), "Target admissions are not ordered")
                     after = current["plan"]["rows"][row]["after_row_index"]
                     G.require(after is None or after in current["rows"] and current["states"][current["rows"][after]]["finish_reason"] is not None, "Early reinsert")
-                    if long and current["plan"]["id"] == "q3" and after is not None:
+                    if (long or isolation) and current["plan"]["id"] == "q3" and after is not None:
                         G.require(any(s["finish_reason"] is None for s in current["states"].values()), "Reinsert has no live peer")
                     state = dict(window=event["window"], uid=uid, row_index=row, tokens=[], finish_reason=None,
                                  admit_seconds=event["t_seconds"], first_seconds=None, finish_seconds=None)
                     current["states"][uid], current["rows"][row] = state, uid
                     observations.append(state)
                 else:
+                    if isolation and event["window"] in TARGET_WINDOWS:
+                        G.require(len(current["rows"]) == len(current["plan"]["rows"]), "Target decode before all admissions")
                     G.require(uid in current["states"], "Unknown UID")
                     state = current["states"][uid]
                     cap = current["plan"]["rows"][state["row_index"]]["cap"]
@@ -286,9 +347,23 @@ def validate_events(raw, job, pid=None):
                 G.require({"active_bytes", "cache_bytes", "peak_bytes"} <= set(event["memory"]), "Missing memory counters")
                 G.require(type(event["stats"].get("generation_tokens")) is int and event["stats"]["generation_tokens"]
                           == sum(len(s["tokens"]) for s in current["states"].values()), "Native token count differs")
+                if isolation and event["window"] in TARGET_WINDOWS:
+                    target = current["states"][current["rows"][0]]["tokens"]
+                    scores = [p for p in packets if p["window"] == event["window"]]
+                    G.require(1 <= len(target) <= 16 and len(scores) in (len(target), len(target) + 1)
+                        and target == [p["returned_token"] for p in scores[:len(target)]], "Score delivery coverage differs")
                 windows.append(event)
                 current, index = None, index + 1
             elif kind == "qualification":
+                if isolation:
+                    G.require(ready and current is None and not qualified and index == len(job["windows"]), "Isolation qualification order differs")
+                    diagnostics, stress = _isolation_checks(job, ready_fixtures, observations, packets, event["rng_draws"], eos)
+                    G.require(type(event["diagnostics"]) is dict and set(event["diagnostics"]) == set(diagnostics)
+                        and all(type(v) is bool for v in event["diagnostics"].values())
+                        and event["diagnostics"] == diagnostics and G.P.digest(event["stress"]) == G.P.digest(stress), "Isolation report differs")
+                    qualified = True
+                    events.append(event)
+                    continue
                 G.require(not wave and ready and current is None and not qualified and index == sum(w["mode"] == "qualification" for w in job["windows"])
                           and type(event["checks"]) is dict and set(event["checks"]) == CHECKS and all(v is True for v in event["checks"].values()), "Qualification failed")
                 if long:
@@ -317,7 +392,48 @@ def validate_events(raw, job, pid=None):
     if truncated: error = "Output limit; " + (error or "bounded prefix retained")
     return dict(events=events, protocol_error=error, complete=complete and error is None, observations=observations, windows=windows,
                 observed_generation_tokens=sum(len(s["tokens"]) for s in observations), finished_sequences=sum(s["finish_reason"] is not None for s in observations),
-                **({"long_stress": stress} if long else {}), **({"decoded_sha256": decoded_digest} if wave else {}))
+                **({"long_stress": stress} if long else {}), **({"decoded_sha256": decoded_digest} if wave else {}),
+                **(dict(score_packets=packets, diagnostics=diagnostics, long_stress=stress) if isolation else {}))
+
+
+def _isolation_checks(job, ready, observations, packets, draws, eos):
+    rows = {(s["window"], s["row_index"]): s for s in observations}
+    def output(window, index=0):
+        state = rows[window, index]
+        return state["tokens"], state["finish_reason"]
+    def scores(window):
+        return [[p[k] for k in SCORE_VALUES] for p in packets if p["window"] == window]
+    for original, changed in (("short-A", "short-B"), ("long-A", "long-B"),
+                              ("short-A", "short-A-replay"), ("long-A", "long-A-replay")):
+        G.require(output(original) == output(changed) and scores(original) == scores(changed), "Isolation or replay differs")
+    G.require(type(draws) is dict and set(draws) == {"serial", "interleaved", "reversed"}, "RNG orders differ")
+    for streams in draws.values():
+        G.require(type(streams) is dict and set(streams) == {"17", "29"}
+            and all(type(values) is list and len(values) == 8 and all(type(t) is int and 0 <= t < 16 for t in values)
+                    for values in streams.values()), "Invalid RNG draws")
+    serial = draws["serial"]
+    G.require(serial == draws["interleaved"] == draws["reversed"] and serial["17"] != serial["29"]
+        and all(len(set(values)) > 1 for values in serial.values()), "RNG streams differ")
+    forced = set()
+    for window in job["windows"]:
+        for index, planned in enumerate(window["rows"]):
+            if planned["sampling"] not in ("eos", "length"):
+                continue
+            tokens, finish = output(window["id"], index)
+            stop = planned["sampling"] == "eos"
+            G.require(len(tokens) == planned["cap"] and finish == ("stop" if stop else "length")
+                and (not stop or tokens[-1] in eos), "Forced schedule differs")
+            forced.update(tokens[:-1] if stop else tokens)
+    G.require(len(forced) == 1 and not forced & eos and all(next(iter(forced)) < p["shape"][1] for p in packets), "Forced peer token differs")
+    batch = job["windows"][-1]["config"]["batch_size"]
+    G.require(all(len(output("qlong", i)[0]) == 2048 and output("qlong", i)[1] == ("stop" if i % 2 == 0 else "length")
+        for i in range(batch)), "Isolation stress incomplete")
+    length = len(ready[1]["prompt_ids"])
+    stress = dict(batch_size=batch, prompt_tokens_min=length, prompt_tokens_max=length,
+        prompt_token_ceiling=length, max_tokens=2048, raw_generation_tokens=batch * 2048)
+    diagnostics = dict(greedy_equal=output("short-A") == output("q0") and output("long-A") == output("q1"),
+        reinsert_equal=output("q3", 2) == output("q4"))
+    return diagnostics, stress
 
 
 def _sample(pid):
@@ -491,13 +607,13 @@ def run(job, output, lock_path, *, lease_fd=None, qualification_files=None):
         if (output / "stdout.jsonl").stat().st_size > STDOUT_LIMIT or (output / "stderr.txt").stat().st_size > STDERR_LIMIT: status = status or "output_limit"
         with (output / "stdout.jsonl").open("rb") as stream: parsed = validate_events(stream.read(STDOUT_LIMIT + 1), job, process.pid if process else None)
         work_seconds = cleanup_started - started
-        if job["schema_version"] in (2, 3) and work_seconds > job["wall_seconds"]: status = status or "timeout"
+        if job["schema_version"] in (2, 3, 4) and work_seconds > job["wall_seconds"]: status = status or "timeout"
         passed = process is not None and process.returncode == 0 and parsed["complete"] and absent and cleanup_error is None
         response = dict(**parsed, job_sha256=sha256(_raw(job)).hexdigest(), status=status or ("passed" if passed else "worker_error"), pid=process.pid if process else None,
             returncode=process.returncode if process else None, elapsed_seconds=monotonic() - started, cleanup_seconds=monotonic() - cleanup_started,
             group_absent=absent, cleanup_error=cleanup_error, parent_error=repr(interruption) if interruption else None,
             telemetry=samples, telemetry_complete=bool(samples) and all("error" not in s for s in samples),
-            **({"work_seconds": work_seconds} if job["schema_version"] in (2, 3) else {}))
+            **({"work_seconds": work_seconds} if job["schema_version"] in (2, 3, 4) else {}))
         _write(output / "response.json", response)
         _sync(output)
         _sync(output.parent)

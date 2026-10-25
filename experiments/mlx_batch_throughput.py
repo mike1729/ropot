@@ -83,6 +83,29 @@ def build_long_job(descriptor, config, *, cache_limit_bytes=None):
     return B.build_plan(request, fixtures, windows, worker=__file__, wall_seconds=240, cache_limit_bytes=cache_limit_bytes, schema_version=2)
 
 
+def build_isolation_job(descriptor, config, *, cache_limit_bytes=None):
+    B = importlib.import_module("experiments.batch_throughput")
+    base = build_long_job(descriptor, config, cache_limit_bytes=cache_limit_bytes)
+    fixtures = base["fixtures"]
+    note = "Input values are separated by whitespace. Vertex labels start at one. Handle empty intermediate results. Keep all data local to this program.\n"
+    draft = fixtures[1]["messages"][2]["content"].replace(("    # " + note) * 120, ("    # " + note) * 260)
+    fixtures[1]["messages"][2]["content"] = draft
+    peer = B.G.snapshot(fixtures[1]); peer["id"] = "long-peer"
+    peer["messages"][2]["content"] = draft.replace("    # Input", "    # Output")
+    fixtures.append(peer)
+    config = base["windows"][-1]["config"]; batch = config["batch_size"]
+    def target(name, fixture, peer_id):
+        row = dict(fixture_id=fixture, seed=fixtures[0 if fixture == "short" else 1]["seed"], cap=16, sampling="greedy", after_row_index=None)
+        peers = [dict(fixture_id=peer_id, seed=fixtures[1]["seed"], cap=16, sampling="length", after_row_index=None) for _ in range(batch - 1)]
+        return dict(id=name, mode="qualification", config=config, rows=[row, *peers])
+    pairs = [target(f"{name}-{variant}", name, "long" if variant == "A" else "long-peer")
+             for name in ("short", "long") for variant in ("A", "B")]
+    replays = [dict(B.G.snapshot(window), id=window["id"] + "-replay") for window in (pairs[0], pairs[2])]
+    windows = base["windows"][:2] + pairs + base["windows"][3:5] + replays + base["windows"][-1:]
+    return B.build_plan({k: v for k, v in base["request"].items() if k != "environment"}, fixtures, windows, worker=__file__, wall_seconds=240,
+        cache_limit_bytes=cache_limit_bytes, schema_version=4)
+
+
 def long_stress(job, ready_fixtures, completed_rows):
     window = job["windows"][-1]; batch = window["config"]["batch_size"]
     lengths = {f["id"]: len(f["prompt_ids"]) for f in ready_fixtures}
@@ -277,6 +300,8 @@ def qualification_checks(results, rng_ok):
 
 
 def run_job(job, identity, emit):
+    if job.get("schema_version") == 4:
+        raise ValueError("Schema 4 worker deferred to producer batch")
     global mx, BatchGenerator, make_sampler
     path = ROOT / "src/data-pipeline/mlx_worker.py"
     helper = path.read_bytes()

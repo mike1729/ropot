@@ -13,7 +13,9 @@ from .paired_collection import J, L, P, V, study, digest
 PROTOCOL = PC.ROOT / "docs/stage-03-wave-protocol.md"
 BASE_PROTOCOL_SHA256 = "1202470310562c5c3369228c7a065d779a49657ab5432fff2febb3017de15e1f"
 PRODUCERS = PC.PRODUCERS + ("src/data-pipeline/paired_wave_collection.py",
-    "experiments/batch_throughput.py", "experiments/mlx_batch_throughput.py")
+    "experiments/batch_throughput.py", "experiments/mlx_batch_throughput.py",
+    "src/data-pipeline/study_report.py", "src/data-pipeline/paired_wave_report.py",
+    "src/data-pipeline/paired_report.py")
 
 
 def _opportunities(activation, members, methods):
@@ -220,6 +222,133 @@ def _retained(campaign, loaded, plan_id, *, incomplete=False):
             and all(current[s][u] >= expected["limits"][s][u] for s in study.SOURCES for u in J.UNITS), "Wave binding differs")
     J.require(all(plans and e["seq"] > plans[0]["seq"] for e in _member_work(events, built)), "Member work precedes wave plan")
     return built, anchor
+
+
+def _guard(campaign, anchor):
+    _producer_guard(campaign, anchor["payload"])
+    J.require(not any(e["kind"] in ("collection_setup", "wave_setup") and e["seq"] > anchor["seq"]
+        for e in campaign.events), "Collection superseded")
+
+
+def _live(campaign, anchor, names):
+    _guard(campaign, anchor)
+    outcomes = {}
+    for event in campaign.events:
+        if event["kind"] != "generation_reserved": continue
+        outcome = campaign.outcome(event["seq"])
+        J.require(J.generation_resources_cleared(campaign.events, outcome), "Unresolved generation cleanup failure")
+        if event["experiment_id"] in names:
+            J.require_profile_outcome(outcome)
+            outcomes[event["seq"]] = outcome
+    L.native.reconcile_native(campaign)
+    campaign.require_native_clear()
+    return campaign.events, outcomes
+
+
+def _history(built, events, own_outcomes, allowed_ids):
+    from . import paired_wave_report as R
+    _, plans, all_steps, _ = R._bindings(events)
+    plan = plans[built["plan"]["plan_id"]]
+    J.require(plan["payload_sha256"] == digest(built["plan"]), "Wave plan differs")
+    records = {r["experiment_id"]: r for r in built["records"]}
+    rows = [(m, records[m["experiment_id"]], [c for c in L.cell_states(events, records[m["experiment_id"]])
+        if c["id"] == m["task"]["id"] and c["source"] in study.SOURCES]) for m in built["plan"]["records"]]
+    reservations = {e["seq"]: e for e in events if e["kind"] == "generation_reserved"}
+    invalid = []
+    mapping = R._requests(plan, rows, events, reservations, own_outcomes, {}, invalid)
+    selected = [e for e in all_steps if e["payload"]["plan_id"] == built["plan"]["plan_id"]]
+    R._steps(selected, plan, rows, mapping, events, invalid)
+    J.require(not invalid, "Invalid wave execution history")
+    ids = [e["payload"]["opportunity_id"] for e in selected]
+    J.require(ids == list(range(len(ids))) and set(ids) <= allowed_ids
+        and all(op in allowed_ids for op in mapping.values()), "Invalid wave execution prefix")
+    batches = {e["seq"]: e for e in events if e["kind"] == "batch_reserved"}
+    sessions, steps = {op: batches[seq] for seq, op in mapping.items()}, dict(zip(ids, selected))
+    J.require(set(sessions) - set(steps) <= {len(steps)}, "Uncheckpointed earlier opportunity")
+    return plan, rows, sessions, steps
+
+
+def _step(campaign, plan, rows, sessions, steps, opportunity_id, session_seq):
+    from . import paired_wave_report as R
+    payload = dict(plan_id=plan["payload"]["plan_id"], plan_sha256=plan["payload_sha256"],
+        opportunity_id=opportunity_id, session_seq=session_seq)
+    if opportunity_id in steps:
+        J.require(digest(steps[opportunity_id]["payload"]) == digest(payload), "Wave step differs")
+        return steps[opportunity_id]
+    J.require(opportunity_id == len(steps), "Wave checkpoint gap")
+    events = campaign.events
+    proposed = dict(seq=events[-1]["seq"] + 1, kind="wave_step", payload=payload, payload_sha256=digest(payload))
+    invalid = []
+    R._steps([proposed], plan, rows, {s["seq"]: op for op, s in sessions.items()}, events, invalid)
+    J.require(not invalid, "Unsupported wave checkpoint")
+    event = campaign._append("wave_step", payload=payload, payload_sha256=digest(payload))
+    steps[opportunity_id] = event
+    return event
+
+
+def _execute(campaign, loaded, built, anchor, opportunities):
+    from . import paired_wave_report as R
+    ids = [o["id"] for o in opportunities]
+    J.require(bool(ids) and ids == list(range(ids[0], ids[-1] + 1))
+        and digest(opportunities) == digest([o for o in built["plan"]["opportunities"]
+            if o["id"] in set(ids)]), "Invalid wave opportunity slice")
+    records = {r["experiment_id"]: r for r in built["records"]}
+    events, outcomes = _live(campaign, anchor, set(records))
+    plan, rows, sessions, steps = _history(built, events, outcomes, set(range(opportunities[-1]["id"] + 1)))
+    J.require(set(range(opportunities[0]["id"])) <= steps.keys(), "Missing earlier wave checkpoints")
+    output = []
+    for op in opportunities:
+        _live(campaign, anchor, set(records))
+        opid, source = op["id"], op["source"]
+        session, existing = sessions.get(opid), opid in steps
+        if session is None:
+            prepared = []
+            for name in op["experiment_ids"]:
+                record = records[name]; _guard(campaign, anchor)
+                row = L.prepare_cell(campaign, loaded, record, source, record["assigned_task_ids"][0])
+                if row is None:
+                    cell = next(c for c in L.cell_states(campaign.events, record)
+                        if c["id"] == record["assigned_task_ids"][0] and c["source"] == source)
+                    J.require(R._usable(cell, campaign.events), "Cell lacks usable terminal evidence")
+                    continue
+                task = next(m["task"] for m in built["plan"]["records"] if m["experiment_id"] == name)
+                J.require(not existing and set(row) == {"experiment_id", "source", "request", "attempt"}
+                    and row["experiment_id"] == name and row["source"] == source
+                    and digest(row["attempt"]) == digest({**task, "reply_index": op["reply_index"]})
+                    and row["request"]["seed"] == record["recipes"][source]["seeds"][op["reply_index"]], "Prepared wave row differs")
+                prepared.append(row)
+            if prepared:
+                _live(campaign, anchor, set(records))
+                generated = campaign.generate_batch(prepared, records[prepared[0]["experiment_id"]]["generation_method"][source])
+                session = next(e for e in campaign.events if e["kind"] == "batch_reserved" and e["seq"] == generated[0]["session_seq"])
+                sessions[opid] = session
+        if session is not None:
+            reserved = {e["seq"]: e for e in campaign.events if e["kind"] == "generation_reserved"}
+            actual = [reserved[r["reservation_seq"]] for r in session["rows"]]
+            prefix = [e for e in campaign.events if e["seq"] < session["seq"]]
+            for name in set(op["experiment_ids"]) - {r["experiment_id"] for r in actual}:
+                record = records[name]
+                cell = next(c for c in L.cell_states(prefix, record)
+                    if c["id"] == record["assigned_task_ids"][0] and c["source"] == source)
+                J.require(R._usable(cell, prefix), "Omitted wave cell was not terminal")
+                _guard(campaign, anchor)
+                if cell["attempt_seqs"]:
+                    L.settle_cell(campaign, loaded, record, source, cell["id"])
+                else:
+                    binding, task = study.load_task(loaded, record["activation"], cell["id"])
+                    intent, proof = L._proof(campaign, task, binding["sha256"], built["plan"]["contract_sha256"], None, None, False)
+                    J.require(intent is not None and intent["operation_id"] == cell["gate_operation_id"]
+                        and proof is not None and proof["status"] == "failed", "Omitted gate proof differs")
+            for reservation in actual:
+                record = records[reservation["experiment_id"]]; _guard(campaign, anchor)
+                L.settle_cell(campaign, loaded, record, source, reservation["attempt"]["id"])
+            J.require(all(R._result_usable(r["seq"], campaign.events) for r in actual), "Unusable settled wave result")
+        _guard(campaign, anchor)
+        output.append(_step(campaign, plan, rows, sessions, steps, opid, session["seq"] if session else None))
+        if not existing and session is not None:
+            results = {e["reservation_seq"]: e for e in campaign.events if e["kind"] == "attempt_result"}
+            if any(results[r["reservation_seq"]]["status"] in ("generation_timeout", "generation_error", "interrupted") for r in session["rows"]): break
+    return output
 
 
 def main(argv=None):

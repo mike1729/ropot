@@ -22,13 +22,15 @@ class ProgramWaveTests(unittest.TestCase):
         events = copy.deepcopy(self.q.events[:3])
         events[2]["fixtures"] = [dict(id=f["id"], prompt="rendered", prompt_ids=[3] * (30 + i)) for i, f in enumerate(job["fixtures"])]
         events += [dict(event="window_start", id="wave", started_seconds=1)]
-        events += [dict(event="admit", window="wave", uid=uid, row_index=i, t_seconds=i * .001) for i, uid in enumerate((7, 11))]
+        uids = (7, 11)[:len(job["rows"])]
+        events += [dict(event="admit", window="wave", uid=uid, row_index=i, t_seconds=i * .001) for i, uid in enumerate(uids)]
         for uid, seq, token, reason, time in ((7, 1, 3, None, .01), (7, 2, 9, "stop", .02), (11, 1, 9, "stop", .03)):
+            if uid not in uids: continue
             events.append(dict(event="token", window="wave", uid=uid, seq=seq, token=token, finish_reason=reason, t_seconds=time))
-        events += [dict(event="window_done", window="wave", elapsed=.1, stats=dict(generation_tokens=3),
+        events += [dict(event="window_done", window="wave", elapsed=.1, stats=dict(generation_tokens=2 if len(uids) == 1 else 3),
             memory=dict(active_bytes=1, cache_bytes=0, peak_bytes=1)), dict(event="done")]
         decoded = dict(job_sha256=identity, window="wave", rows=[dict(tokens=tokens, text=text, finish_reason="stop")
-            for tokens, text in (([3, 9], "print(1)"), ([9], ""))])
+            for tokens, text in (([3, 9], "print(1)"), ([9], ""))[:len(job["rows"])]])
         raw = self.H._raw(decoded); events[-1]["decoded_sha256"] = self.H.sha256(raw).hexdigest()
         files = self.q.pack(job, events); events = [json.loads(line) for line in files["stdout.jsonl"].splitlines()]
         return job, events, files, raw

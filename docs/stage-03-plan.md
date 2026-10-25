@@ -712,3 +712,11 @@ Program waves accept that authority up to its actual qualified minimum, at most
 8,192 tokens. New collection setup schema 2 binds this contract and requires all
 four admission schema 2 qualifications. Historical setup schema 1 keeps its
 original grammar and four legacy authorities for offline replay.
+
+The private finite wave driver consumes only contiguous canonical opportunities.
+It never redispatches owned sessions and rechecks omitted terminal proofs.
+Every actual row settles before usable evidence permits an immutable checkpoint.
+Unknown owners, control failures and native infrastructure block later work;
+supported repair failures retain their own next slot. A new closed generation
+failure pauses after its durable checkpoint. Scientific report sources join the
+wave producer freeze. Public tuning and fresh admission remain separate work.

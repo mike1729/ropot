@@ -332,18 +332,46 @@ def _cell(campaign, task, binding, source, record, contract_sha256, dispatch, mo
             return
 
 
+def _reconcile_generations(campaign, names):
+    """Reprove retained generations once per scalar/session in this invocation."""
+    events = campaign.events
+    reservations = [e for e in events if e["kind"] == "generation_reserved"]
+    done = {e["reservation_seq"] for e in events if e["kind"] == "generation_done"}
+    complete = {e["session_seq"] for e in events if e["kind"] == "batch_done"}
+    sessions, own = {}, {}
+    for event in reservations:
+        seq, session = event["seq"], event.get("session_seq")
+        try:
+            if session is None:
+                outcome = campaign._finish(seq, events)
+                if seq not in done:
+                    events = campaign.events
+                    done.add(seq)
+            else:
+                if session not in sessions:
+                    campaign._finish_batch(session, events)
+                    if session not in complete:
+                        events = campaign.events
+                        complete.add(session)
+                    sessions[session] = {e["reservation_seq"]: {k: v for k, v in e.items() if k not in ("kind", "seq")}
+                        for e in events if e["kind"] == "generation_done" and e.get("session_seq") == session}
+                outcome = sessions[session][seq]
+        except BaseException:
+            campaign.close()
+            raise
+        require(journal.generation_resources_cleared(events, outcome), "Unresolved generation cleanup failure")
+        if event["experiment_id"] in names:
+            journal.require_profile_outcome(outcome)
+            own[seq] = outcome
+    return events, own
+
+
 def _enter(campaign, loaded, record):
     record = validate_run(loaded, record)
     if "profiles" in record: precision.check_profiles(record["profiles"], record["recipes"], campaign=campaign)
     if "generation_method" in record:
         for method in record["generation_method"].values(): journal._batch_method(method, campaign)
-    events = campaign.events
-    for event in events:
-        if event["kind"] == "generation_reserved":
-            outcome = campaign.outcome(event["seq"])
-            events = campaign.events
-            require(journal.generation_resources_cleared(events, outcome), "Unresolved generation cleanup failure")
-            if event["experiment_id"] == record["experiment_id"]: journal.require_profile_outcome(outcome)
+    events, _ = _reconcile_generations(campaign, {record["experiment_id"]})
     current = verification.runner.contract()
     digest = verification.digest(current)
     contexts = [e for e in events if e["kind"] == "execution_context" and e["experiment_id"] == record["experiment_id"]]

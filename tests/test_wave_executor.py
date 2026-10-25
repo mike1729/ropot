@@ -20,6 +20,8 @@ class WaveExecutorTests(unittest.TestCase):
         stack = self.enterContext(ExitStack())
         patches = ((type(self.c), "events", dict(new_callable=mock.PropertyMock, side_effect=lambda: self.events)),
             (self.c, "_append", dict(side_effect=self.emit)), (self.c, "outcome", dict(side_effect=lambda seq: {k: v for k, v in self.outcomes[seq].items() if k not in ("seq", "kind")})),
+            (self.c, "_finish", dict(side_effect=lambda seq, events: {k: v for k, v in self.outcomes[seq].items() if k not in ("seq", "kind")})),
+            (self.c, "_finish_batch", dict(side_effect=self.finish_batch)),
             (self.c, "require_native_clear", dict(side_effect=self.clear)), (self.L.native, "reconcile_native", dict(return_value=[])),
             (self.L, "prepare_cell", dict(side_effect=self.prepare)), (self.L, "settle_cell", dict(side_effect=self.settle)),
             (self.c, "generate_batch", dict(side_effect=self.generate)), (self.S, "snapshot", dict(side_effect=self.snapshot)))
@@ -39,6 +41,15 @@ class WaveExecutorTests(unittest.TestCase):
     def clear(self):
         self.J.require({e["operation_id"] for e in self.events if e["kind"] == "native_intent"}
             == {e["operation_id"] for e in self.events if e["kind"] == "native_closed"}, "Unclosed native")
+
+    def finish_batch(self, session, events):
+        intent = next(e for e in events if e["kind"] == "batch_reserved" and e["seq"] == session)
+        done = next(e for e in events if e["kind"] == "batch_done" and e["session_seq"] == session)
+        rows = [e for e in events if e["kind"] == "generation_done" and e.get("session_seq") == session]
+        self.J.require(len(rows) == len(intent["rows"])
+            and {r["reservation_seq"] for r in rows} == {r["reservation_seq"] for r in intent["rows"]}
+            and all(r["batch_done_seq"] == done["seq"] and r["job_sha256"] == done["job_sha256"] for r in rows), "Invalid projected atomic completion")
+        return done
 
     def prepare(self, campaign, loaded, record, source, task_id):
         self.assertEqual(task_id, record["assigned_task_ids"][0])
@@ -103,8 +114,8 @@ class WaveExecutorTests(unittest.TestCase):
             with mock.patch.object(self.W, "_live", side_effect=AssertionError("Live")), self.assertRaisesRegex(ValueError, "opportunity slice"):
                 self.W._execute(self.c, self.f.loaded, self.built, None, [ops[0], ops[3]])
 
-    def test_otherwise_valid_session_mutations_and_zero_output_replay(self):
-        for fault in ("mixed", "order", "method", "seed", "duplicate", "fresh", "gap", "zero"):
+    def test_otherwise_valid_session_mutations_and_missing_atomic_rows(self):
+        for fault in ("mixed", "order", "method", "seed", "duplicate", "fresh", "gap", "missing_atomic_rows"):
             self.reset()
             session, rows = self.scientific(0)
             if fault == "mixed": rows[0]["experiment_id"] = "foreign"
@@ -114,7 +125,7 @@ class WaveExecutorTests(unittest.TestCase):
             if fault == "duplicate": self.scientific(0)
             if fault == "fresh": self.scientific(next(o["id"] for o in self.built["plan"]["opportunities"] if o["block"].endswith("fresh")))
             if fault == "gap": self.scientific(3)
-            if fault == "zero": self.events = [e for e in self.events if e["kind"] not in ("generation_done", "attempt_result")]
+            if fault == "missing_atomic_rows": self.events = [e for e in self.events if e["kind"] not in ("generation_done", "attempt_result")]
             with self.subTest(fault=fault), self.assertRaises(ValueError): self.execute()
             self.assertEqual(self.sent, [])
             self.mocks["prepare_cell"].assert_not_called()

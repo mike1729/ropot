@@ -232,14 +232,7 @@ def _guard(campaign, anchor):
 
 def _live(campaign, anchor, names):
     _guard(campaign, anchor)
-    outcomes = {}
-    for event in campaign.events:
-        if event["kind"] != "generation_reserved": continue
-        outcome = campaign.outcome(event["seq"])
-        J.require(J.generation_resources_cleared(campaign.events, outcome), "Unresolved generation cleanup failure")
-        if event["experiment_id"] in names:
-            J.require_profile_outcome(outcome)
-            outcomes[event["seq"]] = outcome
+    _, outcomes = L._reconcile_generations(campaign, names)
     L.native.reconcile_native(campaign)
     campaign.require_native_clear()
     return campaign.events, outcomes

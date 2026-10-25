@@ -720,3 +720,10 @@ Unknown owners, control failures and native infrastructure block later work;
 supported repair failures retain their own next slot. A new closed generation
 failure pauses after its durable checkpoint. Scientific report sources join the
 wave producer freeze. Public tuning and fresh admission remain separate work.
+
+Loop entry and wave live checks share invocation-local generation reconciliation.
+Every scalar replays retained evidence; each batch session replays once per call.
+New completion appends require a fresh validated journal view. Each row's global
+resource and own-profile barriers run before later independent reconciliation.
+Finish or required-refresh errors close the campaign; barrier failures retain
+their existing stop behavior. The next call revalidates all retained evidence.

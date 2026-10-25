@@ -1,166 +1,97 @@
-# Local Q8 benchmark results — 2026-10-25
+# Local Q8 inference findings — 2026-10-25
 
-MLX is the provisional deployment choice for both sources. Continuous batching
-reduced the mixed-fixture worklist time by about 3× versus the same adapter's
-serial path. Larger queues of short witness proposals benefit from a different
-prefill setting. Coalesced verification and generation/verifier overlap also help.
+Use MLX Q8 provisionally for Qwen3.5-9B and Ministral-3-8B on the local Apple
+M5 Pro with 64 GiB RAM. These invented-fixture measurements select starting
+settings; they do not measure source-owned witness/backdoor yield or establish
+cohort acquisition readiness. No study tasks were consumed.
 
-These are fixture systems choices. They do not establish scientific witness or
-backdoor yield, nor acquisition readiness on the cohort.
+## Measured operating points
 
-## Selected settings
+The archived runs used patched `mlx-lm==0.32.2`, `mlx==0.32.4`, request-owned
+seeded samplers, temperature 0.2/top-p 0.95, thinking off, and a 4-GiB free
+allocator-cache limit. Keep response caching and prefix-state reuse off.
+The allocator cache limit does not bound live model/KV allocations.
 
-Keep the pinned patched `mlx-lm==0.32.2`, `mlx==0.32.4`, request-owned seeded
-samplers, temperature 0.2/top-p 0.95, and the 4-GiB free allocator-cache limit.
-Qwen thinking remains disabled. Keep response caching and prefix-state reuse off.
+| Workload | Model | Decode target | Prefill batch | Prefill chunk | Median elapsed |
+| --- | --- | ---: | ---: | ---: | --- |
+| Ten mixed short requests | Qwen | 8 | 4 | 256 | 39.237 s vs 117.393 s serial |
+| Ten mixed short requests | Ministral | 8 | 2 | 2,048 | 27.368 s vs 84.658 s serial |
+| Forty short witness proposals | Qwen | 32 | 16 | 256 | 11.984 s |
+| Forty short witness proposals | Ministral | 32 | 8 | 2,048 | 12.679 s |
+| 33 repair requests, ~2k prompt | Qwen | 32 | 16 | 256 | 93.454 s vs 132.176 s at batch 8 |
+| 33 repair requests, ~2k prompt | Ministral | 32 | 8 | 2,048 | 92.337 s vs 125.975 s at batch 8 |
+| 33 repair requests, ~7k prompt | Qwen | 32 | 16 | 256 | 224.178 s vs 272.483 s at batch 8 |
+| 33 repair requests, ~7k prompt | Ministral | 8 | 2 | 2,048 | 274.686 s, one completed window |
 
-| Worklist | Source | Decode target | Prefill concurrency | Prefill chunk | Median worklist time |
-| --- | --- | ---: | ---: | ---: | ---: |
-| Ten mixed requests | Qwen3.5-9B Q8 MLX | 8 | 4 | 256 | 39.237 s, versus 117.393 s serial |
-| Ten mixed requests | Ministral-3-8B Q8 MLX | 8 | 2 | 2,048 | 27.368 s, versus 84.658 s serial |
-| Forty short witness requests | Qwen3.5-9B Q8 MLX | 32 | 16 | 256 | 11.984 s |
-| Forty short witness requests | Ministral-3-8B Q8 MLX | 32 | 8 | 2,048 | 12.679 s |
+The 2k and Qwen 7k comparisons have three repeats per setting. The short-witness
+settings have five measurements each. Repeated requests are timing replicates,
+not independent scientific yield samples. Natural prompt ranges were 1,872–2,103
+and 6,882–7,196 tokens across models. The longer histories also contain different
+failure inputs, so they do not isolate the causal effect of prompt length.
 
-The selected short-worklist settings have five measurements each. Qwen's range
-was 11.975–12.633 s; Ministral's was 12.624–12.730 s. Ministral prefill 16 was
-slightly faster at 12.087 s, but prefill 8 is within the plan's 10% practical
-threshold and uses the smaller concurrency setting. Short-worklist MLX peaks
-were 14.76 GiB for selected Qwen and 13.90 GiB for selected Ministral.
+Ministral 7k/batch 32 failed with Metal OOM, reaching 53.61 GiB and adding
+13.17 GiB of swap. Remaining capacity experiments stopped; batch 16 is untested
+and batch 8 is provisional. Between-call memory checks failed to prevent the
+allocation spike. OOM/cancelled/partial windows retain their cost and outputs but
+are excluded from completed-worklist medians. All owned workers were cleaned up.
+Decode targets are scheduler controls: some native steps emitted more token
+events than the configured target. They are not proven hard concurrency caps.
 
-These are configured targets, not independently enforced hard batch limits.
-The pinned generator sometimes returns more token events than its decode target
-during prefill handoff: five at target four, and 33 in some target-32 settings.
-The selected short-worklist settings returned at most 32 token events per call.
+## Runtime, scheduling and extraction
 
-The mixed natural prompts measured only 127–1,025 Qwen tokens and 115–957
-Ministral tokens. The separate fixed-length screen covered random-token prompts
-up to 4,096 tokens at actor capacity 4 and synthetic capacity 2, with forced output
-lengths. Capacity 8 on long natural repair histories, and capacity 32 on large
-contexts, are not qualified by these results. Recheck real length bins before
-using the short-worklist setting for those workloads.
+- Warm official Ministral GGUF Q8_0 took 43.969 s at parallelism 8 on the same
+  ten mixed messages, versus MLX's 27.368 s. Prompt IDs matched, but weights and
+  EOS accounting differ: this compares deployment packages. GGUF was not retested
+  at 2k/7k contexts.
+- One Inspect evaluation with four active samples verified eight programs in
+  7.094 s versus 24.546 s with one active sample. Each program keeps a fresh
+  sandbox and serial cases. Overlapping generation with independent verification
+  reduced complete process makespan from 53.757 to 46.085 s (14.3%). Keep one
+  verification evaluation active at a time; independent host calls do not share
+  a global four-sandbox limit. Dual-model generation was not tested.
+- Thin recording was below 0.3% of observed elapsed time in measured non-prefix
+  windows. Retain raw replies before scoring so processing failures can be
+  recovered without another inference request. A deliberate 20-second hard
+  interruption stopped after 20.457 s and retained 1,790 partial output tokens.
+- Secondary extraction of exactly one complete, unambiguous Python block from
+  naturally stopped replies recovered 158 additional verified Ministral draws
+  with no new inference. Seven recovered draws still failed execution. Freeze
+  the extractor before study acquisition; parseable code alone is insufficient.
 
-## Runtime and scheduling evidence
+Prefix-state reuse accelerated short JSON-answer fixtures by roughly 3–7×,
+including prefix construction, cloning and fingerprint checks. All 56 shared
+master-state fingerprint checks stayed unchanged. The correctness gate remains
+unmet: Qwen had 220 wrong integer answers among 1,161 scored replies; Ministral
+fenced all 1,161 JSON replies and had 279 wrong answers after removing that wrapper.
+Some cached outputs differed from uncached outputs. These results neither
+qualify full-program yield nor demonstrate state corruption. Keep prefix reuse off
+until a paired comparison measures actual verified-artifact yield.
 
-The official warm Ministral GGUF Q8_0 took median 91.910 s at parallelism 1,
-55.577 s at 2, and 43.969 s at 8 on the same ten messages. MLX won at each
-matched concurrency. The GGUF template/tokenization guard matched every prompt
-ID, including BOS and other special tokens, to the MLX reference tokenizer.
-Both routes used fresh sampling, natural stopping, the same seed assignments,
-sampler ordering and limits. Quantization artifacts and EOS accounting differ;
-this compares deployment packages, not an isolated runtime implementation.
+## Evidence and archive
 
-Use one Inspect evaluation for a bounded verification worklist, with
-`max_samples=4`, hard `max_sandboxes=4`, serial cases, and one sandbox per program.
-On eight invented programs, median verification execution fell from 24.546 s at
-sample concurrency 1 to 7.094 s at 4. Every expected verdict and explicit
-sample-aware reuse check passed. Reuse took roughly 0.63–0.65 s for eight
-programs and is reported separately from execution.
+The complete code, tests, plans and both detailed reports are preserved on local
+branch `codex/archive-q8-benchmarks-20261025` at
+`eaf995407f2a8f025401a6ae6e336875205ecbe4`. It includes the initial implementation
+(`20130cc`) and reviewed follow-up implementation (`9a82cb5`). For example:
 
-Overlap generation with verification of independent completed work. Across three
-measurements per schedule, median complete process makespan fell from 53.757 s
-serial to 46.085 s overlapped, a 14.3% reduction. Inference itself slowed slightly
-under overlap. These measurements include process startup, load and warmup;
-they are not a forecast for a persistent acquisition pipeline. Keep one model
-generating at a time; simultaneous models and resident alternating-model runs
-were not measured in this increment.
+```sh
+git show codex/archive-q8-benchmarks-20261025:docs/inference-followup-results.md
+git worktree add --detach ../ropot-q8-benchmarks codex/archive-q8-benchmarks-20261025
+```
 
-## Recording, recovery and correctness
+The branch preserves tracked source and reports. Raw evidence is ignored by Git
+and remains unchanged in this checkout:
 
-The thin recorder's fabricated prepare/append/replay/report runs took 1.75 ms
-for eight replies, 6.62 ms for 32 and 25.84 ms for 128, with approximately linear
-growth. The largest observed caller fraction in measured non-prefix natural,
-short and prefill windows was 0.272%. The separate overhead replay's percentage
-uses an explicitly modeled one-second-per-request denominator.
+- [Original run and analysis](../data/03_throughput/q8-benchmark-20261025-v1/)
+- [Initial follow-ups](../data/03_throughput/q8-followups-20261025-v1/)
+- [Continuation, combined analysis and CPU-only recovery](../data/03_throughput/q8-followups-completion-20261025-v1/)
 
-The real 20-second native interruption retained 1,790 timed-window partial output
-tokens and stopped after 20.457 s, with no owned process group remaining. Other
-warmup tokens are also retained. Both models passed uncached marker checks at
-targets 8 and 32: request reorder, changed neighbours, early EOS/caps, soft
-cancellation and fresh recovery. Saved replies were reopened after an injected
-downstream failure with zero new model dispatches.
+Those directories retain exact source/model metadata, requests, tokenized inputs,
+raw replies, native logs, accounting and cleanup evidence. A separate worktree
+needs explicit paths to this evidence and the pinned local model/runtime artifacts;
+checking out the branch does not copy ignored data. Historical log reuse stays
+bound to its original execution/source contract.
 
-All 18 first-repeat benign programs from the MLX and GGUF mixed worklists passed
-20 invented cases in Docker, with an independent union-find oracle and no new
-inference. This is one-task fixture correctness; repeated draws do not provide
-independent task observations. Other generated fixture classes remain unscored.
-
-The full repository test suite passed 171 tests, with seven optional skips.
-The local real-tokenizer template controls and the native runs supplement those
-unit checks. All 32 owned worker process groups were absent at completion; the
-only nonzero exit was the deliberately interrupted worker. All three GGUF ports
-closed, no Inspect tasks remained, and no benchmark containers remained. An
-unrelated container already stopped four weeks earlier was left intact.
-
-## Exact-prefix reuse remains experimental
-
-The short-witness screen measured over 60% prefill time, triggering the optional
-prefill and prefix experiments. Exact-prefix copies used the pinned runtime's
-`deepcopy` ownership primitive, including Qwen's recurrent `ArraysCache` and KV
-state. Construction, cloning, full-state hashing and cleanup count in elapsed
-time. Both master-state fingerprints stayed unchanged.
-
-One Qwen control pair took 14.417 s uncached versus 5.789 s cached; one Ministral
-pair took 15.303 s versus 6.943 s. However, 2/40 Qwen and 6/40 Ministral responses
-differed from their uncached references. Every response stopped normally. The
-frozen fixture gate therefore stopped further cached comparisons and prevented
-promotion. These are single control pairs, not repeated speed or useful-yield
-evidence. Divergence alone does not establish cache corruption; numerical
-prefill shapes can change outputs. Resolving this requires semantic/yield checks,
-not silently relaxing the gate after observing the result.
-
-## Effort, provenance and remaining gates
-
-The run retained 4,295 request records and 242,310 delivered tokens, including
-warmups, synthetic forced-length draws, controls and interrupted output.
-Declared caps total 715,204 tokens; those caps are not spent tokens. Unstarted
-records are distinct from completed draws. GPU-worker elapsed cost was 2,377.1 s
-for actor and 2,682.3 s for synthetic, including their related comparisons and
-follow-ups, both below the one-hour-per-model ceiling.
-
-The run used the Apple M5 Pro with 64 GiB, plugged into AC power. MLX resource
-snapshots showed no swap growth in the completed measured windows. GGUF peak
-GPU memory was not measured; its native server logs and flags are retained.
-The existing model manifests and metadata were recorded; weights were not
-rehash-validated per draw. The installed Ministral tokenizer emitted its existing
-regex warning; its policy was preserved and the actual GGUF prompt-ID guard passed.
-
-The original implementation received the requested independent subagent review
-before the first run. It prompted fixes for chat-turn alternation, GGUF BOS
-handling and a process-cleanup race. The added cache path received review before
-its draws; missing reference controls and source snapshots were fixed first.
-Original and cache-enabled adapter source versions are retained separately.
-
-The evidence is in
-[`data/03_throughput/q8-benchmark-20261025-v1`](../data/03_throughput/q8-benchmark-20261025-v1/):
-[detailed report](../data/03_throughput/q8-benchmark-20261025-v1/report-detailed.md),
-[machine analysis](../data/03_throughput/q8-benchmark-20261025-v1/analysis.json),
-the pre-dispatch plans, exact source snapshots, native logs, request manifests,
-raw replies and all process outcomes. Regeneration commands are in the
-[implementation guide](inference-benchmark-implementation.md).
-
-Stage 04–05 acceptance, oracle and independent audit contracts remain TODO in the
-authoritative overview. Consequently, recipe/scaffold yield comparisons,
-source-owned cohort acquisition, fresh construction confirmation and completion
-forecasts are not executed here. No protected or development/construction IDs
-were consumed. BF16 stays deferred until the complete witness/backdoor pipeline
-works end to end, followed by at least one bounded paired actual-yield check.
-Cloud benchmarking waits for a real local completion forecast that misses the
-desired experiment window.
-
-## Follow-up increment
-
-The follow-up increment ran two bounded local Q8 checks on new invented fixtures:
-
-1. Natural, substantive roughly 2k and 7k repair histories, comparing conservative and wider
-   batching with identical finite worklists, including queue tails, memory and
-   cancellation. Requalify large-context settings before using the short-queue
-   defaults for them.
-2. Prefix-cache semantic controls with independently computed answers and
-   multiple tasks/prefix lengths, plus reorder, changed-neighbour and recovery
-   checks. Keep token equality as a diagnostic; freeze semantic acceptance before
-   new draws. Preserve the previous failed exact-equality gate and its evidence.
-
-These checks consumed no cohort IDs and do not replace the later full-pipeline useful
-yield comparison. BF16 and cloud runs remain deferred.
-The frozen matrix and run commands are in the [follow-up plan](inference-followup-plan.md).
-Findings are retained in the [2k/7k and semantic-cache follow-up results](inference-followup-results.md).
+Main retains the direct generation adapter, coalesced verifier and their tests.
+The one-off benchmark orchestration, cache prototype, fixtures and report builders
+live on the archive branch. Future work is in the [remaining plan](inference-benchmark-plan.md).

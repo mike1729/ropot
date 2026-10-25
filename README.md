@@ -198,17 +198,13 @@ For the fabricated-prompt smoke, run that command using
 `/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python`
 with `ROPOT_MLX_TESTS=1`. It retains evidence under `data/03_generation_checks`.
 
-The separate [Q8 benchmark tools](docs/inference-benchmark-implementation.md)
-measure thin recording overhead, matched MLX batching, warm GGUF comparison and
-generation/verification overlap on invented fixtures. Run them with
-`.venv/bin/python -m experiments.run_inference_benchmarks --output data/03_throughput/q8-benchmark-NEW`.
-They consume no cohort tasks. The verifier now also provides
+The verifier also provides
 `verify_many(candidates, log_dir, max_samples=1|4, concurrent_inference=...)`,
 with one native evaluation and a fresh sandbox per program. Multi-sample
 `reuse` requires the returned `sample_id` and the same concurrency/context.
-Scientific witness/backdoor yield and the later BF16 comparison remain gated
-on their stage contracts in the [benchmark plan](docs/inference-benchmark-plan.md).
-The [local fixture results](docs/inference-benchmark-results.md) record provisional
-MLX batch/prefill settings, verifier overlap gains, and the unqualified prefix-cache path.
-The [2k/7k and semantic-cache follow-ups](docs/inference-followup-results.md)
-compare longer repair histories and distinguish format compliance from executable correctness.
+
+The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
+MLX settings, scheduling and extraction gains, capacity limits, and the archive
+branch containing the one-off benchmark tools and detailed reports. The current
+generation adapter remains serial; adopting batching and measuring actual
+witness/backdoor yield follow the [remaining plan](docs/inference-benchmark-plan.md).

@@ -14,12 +14,12 @@ Start inference benchmarks and pipeline development with Q8. Once the full witne
 and backdoor generation pipeline, including verification and independent audit,
 works end to end, run at least one bounded, paired Q8-versus-BF16 comparison of
 actual verified yield and elapsed cost under matched tasks, prompts and budgets.
-See the [inference benchmark plan](inference-benchmark-plan.md).
-The [local Q8 fixture results](inference-benchmark-results.md) select provisional
-runtime and scheduling settings; scientific witness/backdoor yield remains
-unmeasured until the consuming stage contracts exist.
-The [2k/7k and semantic-cache follow-ups](inference-followup-results.md) refine
-the operating settings and record parser/scaffold findings on invented fixtures.
+The [consolidated Q8 fixture findings](inference-benchmark-results.md) record
+provisional runtime/scheduling settings, context-length limits and extraction
+results, with pointers to the complete benchmark archive. Scientific
+witness/backdoor yield remains unmeasured; the
+[remaining plan](inference-benchmark-plan.md) defers those experiments to their
+consuming stage contracts.
 
 Specification and prompt-preview success do not establish acquisition readiness.
 Panel targets/minima, acquisition ceilings and stratum allocations must be resolved

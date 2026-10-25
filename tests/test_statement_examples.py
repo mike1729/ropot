@@ -6,8 +6,8 @@ import unittest
 from test_screen import task
 
 
-examples = importlib.import_module("src.data-pipeline.statement_examples")
-screen = importlib.import_module("src.data-pipeline.screen")
+examples = importlib.import_module("src.data-pipeline.stage01.statement_examples")
+screen = importlib.import_module("src.data-pipeline.stage01.screen")
 
 
 def candidate(statement=None, inputs=None, outputs=None):

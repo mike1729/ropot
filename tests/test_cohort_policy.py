@@ -4,7 +4,7 @@ import importlib
 import unittest
 
 
-c = importlib.import_module("src.data-pipeline.cohort")
+c = importlib.import_module("src.data-pipeline.stage02.cohort")
 BLOCKS = ("initial", "reserve", "deferred")
 QUOTAS = {"evaluation": (8, 24), "calibration": (4, 12), "correction_replay": (30, 92),
           "development": (12, 38), "construction": (143, 445)}

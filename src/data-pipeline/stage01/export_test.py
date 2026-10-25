@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 import tempfile
 
-from .download import digest
+from .. import source_hashes
+
 from .qualify import OUTPUT as QUALIFIED_POOL, write_json
 from .qualified_tasks import iter_qualified_tasks
 
@@ -48,7 +49,7 @@ def export_test(input_dir=QUALIFIED_POOL, output_dir=OUTPUT):
                            "input_manifest_sha256": hashlib.sha256(original).hexdigest(),
                            "qualification_manifest": "qualification-manifest.json",
                            "task_sha256": dict(sorted(hashes.items())),
-                           "source_sha256": {p.name: digest(p) for p in sorted(Path(__file__).parent.glob("*.py"))}},
+                           "source_sha256": source_hashes()},
         }
         (staging / "qualification-manifest.json").write_bytes(original)
         write_json(staging / "manifest.json", manifest)

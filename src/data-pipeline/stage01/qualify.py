@@ -13,6 +13,8 @@ from pathlib import Path
 import sys
 import tempfile
 
+from .. import source_hashes
+
 from .download import BASE, DESTINATION, FILES, REVISION, digest
 from .local_runner import LocalRunner, MAX_CONCURRENT_CASES
 from .screen import Rejected, screen_task
@@ -167,7 +169,7 @@ def qualify(input_dir=DESTINATION, output_dir=OUTPUT, workers=MAX_CONCURRENT_CAS
     if output_dir.exists() or output_dir.is_symlink():
         raise FileExistsError(output_dir)
     files = verify_inputs(input_dir)
-    pipeline = {path.name: digest(path) for path in sorted(Path(__file__).parent.glob("*.py"))}
+    pipeline = source_hashes()
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     accepted = Counter({split: 0 for split in FILES})
     exclusions, paths, rejection_paths = Counter(), [], []

@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .known_use import COVERAGE, RECORDS, RESTRICTED_USES, load_known_use, row_sha256
-from .qualified_tasks import iter_qualified_tasks
+from ..stage01.qualified_tasks import iter_qualified_tasks
 
 
 SEED = "ropot-cohort-v1"

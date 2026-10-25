@@ -95,7 +95,7 @@ adapters for experimental rules. Avoid building a general scheduler or inference
 
 ### Inspect execution contract
 
-Batch 2's `src/data-pipeline/inspect_runner.py` exposes
+Batch 2's `src/data-pipeline/stage03/inspect_runner.py` exposes
 `run(programs, log_dir, *, concurrent_inference=False)`, returning Inspect logs.
 Each program is `{"program": bytes, "cases": [{"index": int, "input": str}]}`;
 case indices must be distinct integers (excluding booleans) within each program,

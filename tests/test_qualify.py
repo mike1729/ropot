@@ -11,7 +11,7 @@ from unittest import mock
 from test_screen import task
 
 
-q = importlib.import_module("src.data-pipeline.qualify")
+q = importlib.import_module("src.data-pipeline.stage01.qualify")
 
 
 class FakeRunner:
@@ -145,7 +145,7 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(manifest["tasks"], ["tasks/test_7.json", "tasks/train_7.json"])
         self.assertEqual(manifest["pipeline"]["schema_version"], 1)
         source = Path(q.__file__)
-        self.assertEqual(manifest["pipeline"]["source_sha256"][source.name],
+        self.assertEqual(manifest["pipeline"]["source_sha256"]["stage01/" + source.name],
                          hashlib.sha256(source.read_bytes()).hexdigest())
         self.assertEqual(manifest["files"], q.verify_inputs(self.inputs))
         self.assertEqual(json.loads((self.output / "manifest.json").read_text()), manifest)
@@ -235,7 +235,7 @@ class QualificationTests(unittest.TestCase):
         cases += [(["qualify", "--workers", str(n)], 2, "invalid choice") for n in (0, 9)]
         for args, expected_code, expected_text in cases:
             result = subprocess.run([sys.executable, "-m", "src.data-pipeline", *args],
-                                    cwd=Path(q.__file__).resolve().parents[2], capture_output=True,
+                                    cwd=Path(q.__file__).resolve().parents[3], capture_output=True,
                                     text=True, timeout=10)
             self.assertEqual(result.returncode, expected_code, result.stderr)
             self.assertIn(expected_text, result.stdout + result.stderr)

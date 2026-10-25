@@ -7,8 +7,8 @@ import tempfile
 import unittest
 
 
-c = importlib.import_module("src.data-pipeline.cohort")
-known = importlib.import_module("src.data-pipeline.known_use")
+c = importlib.import_module("src.data-pipeline.stage02.cohort")
+known = importlib.import_module("src.data-pipeline.stage02.known_use")
 
 
 class CohortInputTests(unittest.TestCase):

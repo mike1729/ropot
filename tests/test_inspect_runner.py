@@ -14,7 +14,7 @@ try:
     from inspect_ai.util import (ExecResult, OutputLimitExceededError,
                                  SandboxEnvironmentLimits, SandboxUnavailableError,
                                  override_sandbox_output_limit)
-    runner = importlib.import_module("src.data-pipeline.inspect_runner")
+    runner = importlib.import_module("src.data-pipeline.stage03.inspect_runner")
 except ModuleNotFoundError as error:
     if error.name != "inspect_ai":
         raise
@@ -130,7 +130,7 @@ class InspectDockerTests(unittest.TestCase):
         directory = self.log_directory("cancelled-")
         marker = Path(directory) / "ready"
         helper = ("import importlib\nfrom pathlib import Path\n"
-                  "r=importlib.import_module('src.data-pipeline.inspect_runner')\noriginal=r.run_case\n"
+                  "r=importlib.import_module('src.data-pipeline.stage03.inspect_runner')\noriginal=r.run_case\n"
                   "async def ready(*args):\n"
                   f" Path({str(marker)!r}).write_text((await r.sandbox().connection()).container)\n"
                   " return await original(*args)\nr.run_case=ready\n"

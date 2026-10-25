@@ -30,7 +30,7 @@ The full run qualified 1,450 tasks: 2 train and 1,448 test (335 introductory,
 1,113 interview in test). It recorded 23 reference rejections and 128,506 case
 attempts in the audit total, taking 648 seconds. Downstream analysis and allocation
 use only test tasks; retain the train evidence unchanged. The next report is
-`01_pool_analysis`; see the [analysis module](../src/data-pipeline/analyze.py).
+`01_pool_analysis`; see the [analysis module](../src/data-pipeline/stage01/analyze.py).
 
 Analysis and test export were republished from an immutable archive of commit
 `ababa96`, with identical measurements and task bytes. The run record is
@@ -38,7 +38,7 @@ Analysis and test export were republished from an immutable archive of commit
 `data/archive/stage01-before-ababa96-republish/` with their original provenance.
 
 Batch 2 entry point: pass `screen_task(row, split)` to
-`map_statement_examples_to_cases` in `src/data-pipeline/statement_examples.py`.
+`map_statement_examples_to_cases` in `src/data-pipeline/stage01/statement_examples.py`.
 It returns a new candidate with `example_format`,
 ordered `example_mappings` (sample text, exact answer and all matching original
 case indices), per-case `visible` flags and visible/nonvisible case counts.
@@ -56,9 +56,9 @@ rejected as ambiguous. Unsupported labels anywhere in the statement are excluded
 Unknown sample headings, incomplete pairs and mixed formats are excluded. Inputs
 match by whitespace tokens; answers retain exact spelling, including `-0`.
 
-Batch 3 API: `LocalRunner` in `src/data-pipeline/local_runner.py` (see its docstrings).
+Batch 3 API: `LocalRunner` in `src/data-pipeline/stage01/local_runner.py` (see its docstrings).
 
-Batch 4 API: `qualify` in `src/data-pipeline/qualify.py` verifies both pinned files,
+Batch 4 API: `qualify` in `src/data-pipeline/stage01/qualify.py` verifies both pinned files,
 streams rows through bounded task workers and publishes only after every task has
 been processed. `qualify_task` composes screening, example mapping and reference
 execution; only `Rejected` counts as an exclusion. Exported tasks retain the full

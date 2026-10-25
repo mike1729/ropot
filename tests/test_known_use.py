@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 
-k = importlib.import_module("src.data-pipeline.known_use")
+k = importlib.import_module("src.data-pipeline.stage02.known_use")
 
 
 class KnownUseTests(unittest.TestCase):

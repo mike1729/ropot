@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 
-qualified = importlib.import_module("src.data-pipeline.qualified_tasks")
+qualified = importlib.import_module("src.data-pipeline.stage01.qualified_tasks")
 
 
 class QualifiedTasksTests(unittest.TestCase):

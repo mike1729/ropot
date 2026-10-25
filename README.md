@@ -9,6 +9,15 @@ python3 -m src.data-pipeline download
 Run from the repository root. `download` is the first command in the
 `src/data-pipeline` module; use `python3 -m src.data-pipeline --help` to list commands.
 
+The implementation follows the pipeline stages:
+
+- `stage01`: download, screen, qualify, analyze and export the test pool.
+- `stage02`: track known use, allocate cohorts and publish frozen queues.
+- `stage03`: load study tasks and verify programs through Inspect.
+
+The root package provides the CLI and source provenance hashing. New manifests
+record source hashes by package-relative path (for example, `stage01/qualify.py`).
+
 Uses only Python's standard library. Downloads both original splits (about 1.4 GB)
 to `data/raw/apps/`, verifies upstream SHA-256 checksums and 5,000 rows per split,
 and writes a local provenance manifest. Data files are ignored by Git. An existing
@@ -55,7 +64,7 @@ An existing destination is refused. Successful analysis publishes `tasks.csv` an
 `summary.json` with provenance and prints compact tables. It measures Qwen content
 tokens for each statement and three passing references, case characters/bytes,
 reference availability and recorded execution timing; it executes no supplied code.
-See the [analysis module](src/data-pipeline/analyze.py) docstrings for the contract.
+See the [analysis module](src/data-pipeline/stage01/analyze.py) docstrings for the contract.
 The test pool has 1,448 tasks (335 introductory, 1,113 interview); the two qualified
 train tasks remain historical evidence. This report chooses no eligibility cutoff
 or cohorts and does not establish complete-example fit within 2,048 tokens.
@@ -85,7 +94,7 @@ Freeze and publish cohort ownership and ordering (standard library only):
 Options: `--input-dir` (default `data/01_test_pool`), `--analysis-dir` (default
 `data/01_pool_analysis`), `--output-dir` (default `data/02_cohort`),
 `--known-use-records` and `--known-use-coverage`. The standard-library
-[cohort policy](src/data-pipeline/cohort.py) supplies the allocation:
+[cohort policy](src/data-pipeline/stage02/cohort.py) supplies the allocation:
 `load_inputs(input_dir, analysis_dir)` validates the export/analysis join;
 `allocate(loaded["tasks"])` returns frozen ownership, construction phases, ordered
 queue blocks, profile deferrals and quota shortfalls. See the [allocation plan](docs/stage-02-plan.md).
@@ -114,12 +123,12 @@ Generation and retry ceilings remain pending acquisition decisions; publication 
 not clear the Linux verification gate or establish accepted generated data.
 
 Stage 03 experiments read reviewed tasks through the standard-library
-[study task API](src/data-pipeline/study_tasks.py); see the [Stage 03 plan](docs/stage-03-plan.md):
+[study task API](src/data-pipeline/stage03/study_tasks.py); see the [Stage 03 plan](docs/stage-03-plan.md):
 
 ```python
 import importlib
 
-study = importlib.import_module("src.data-pipeline.study_tasks")
+study = importlib.import_module("src.data-pipeline.stage03.study_tasks")
 loaded = study.load_cohort()  # pinned data/02_cohort manifest and its test pool
 activation = study.activate(loaded, ["development_smoke"])
 binding, task = study.load_task(loaded, activation, activation["tasks"][0]["id"])
@@ -141,7 +150,7 @@ Install the optional Inspect execution dependency and run its Docker fixtures:
 ROPOT_INSPECT_TESTS=1 .venv/bin/python -m unittest discover -s tests -p 'test_inspect_runner.py'
 ```
 
-The [Inspect runner](src/data-pipeline/inspect_runner.py) runs fixture programs in
+The [Inspect runner](src/data-pipeline/stage03/inspect_runner.py) runs fixture programs in
 fresh Linux sandboxes and retains native `.eval` logs. See the
 [execution contract](docs/stage-03-plan.md#inspect-execution-contract) for its API,
 limits and differences from local execution. The cohort's Linux reference gate

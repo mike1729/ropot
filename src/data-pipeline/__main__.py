@@ -6,8 +6,8 @@ Run qualification with ``/opt/homebrew/bin/python3.12 -m src.data-pipeline quali
 import argparse
 from pathlib import Path
 
-from .download import main as download_apps
-from .qualify import DESTINATION, MAX_CONCURRENT_CASES, OUTPUT, qualify
+from .stage01.download import main as download_apps
+from .stage01.qualify import DESTINATION, MAX_CONCURRENT_CASES, OUTPUT, qualify
 
 
 def main():
@@ -21,17 +21,17 @@ def main():
     qualification.add_argument("--output-dir", type=Path, default=OUTPUT)
     qualification.add_argument("--workers", type=int, choices=range(1, MAX_CONCURRENT_CASES + 1), default=MAX_CONCURRENT_CASES)
     qualification.set_defaults(run=None)
-    from .analyze import DEFAULT_TOKENIZER, OUTPUT as ANALYSIS_OUTPUT
+    from .stage01.analyze import DEFAULT_TOKENIZER, OUTPUT as ANALYSIS_OUTPUT
     analysis = commands.add_parser("analyze", help="Analyze qualified APPS test tasks without execution")
     analysis.add_argument("--input-dir", type=Path, default=OUTPUT)
     analysis.add_argument("--output-dir", type=Path, default=ANALYSIS_OUTPUT)
     analysis.add_argument("--tokenizer", type=Path, default=DEFAULT_TOKENIZER)
-    from .export_test import OUTPUT as TEST_OUTPUT
+    from .stage01.export_test import OUTPUT as TEST_OUTPUT
     test_export = commands.add_parser("export-test", help="Export qualified test tasks for the next stage")
     test_export.add_argument("--input-dir", type=Path, default=OUTPUT)
     test_export.add_argument("--output-dir", type=Path, default=TEST_OUTPUT)
-    from .known_use import COVERAGE, RECORDS
-    from .publish_cohort import OUTPUT as COHORT_OUTPUT
+    from .stage02.known_use import COVERAGE, RECORDS
+    from .stage02.publish_cohort import OUTPUT as COHORT_OUTPUT
     cohort = commands.add_parser("cohort", help="Freeze and publish cohort allocation without execution")
     cohort.add_argument("--input-dir", type=Path, default=TEST_OUTPUT)
     cohort.add_argument("--analysis-dir", type=Path, default=ANALYSIS_OUTPUT)
@@ -43,15 +43,15 @@ def main():
         manifest = qualify(args.input_dir, args.output_dir, args.workers)
         print(f"Published {len(manifest['tasks'])} tasks to {args.output_dir}")
     elif args.command == "analyze":
-        from .analyze import analyze
+        from .stage01.analyze import analyze
         analyze(args.input_dir, args.output_dir, args.tokenizer)
         print(f"Published analysis to {args.output_dir}")
     elif args.command == "export-test":
-        from .export_test import export_test
+        from .stage01.export_test import export_test
         manifest = export_test(args.input_dir, args.output_dir)
         print(f"Published {len(manifest['tasks'])} test tasks to {args.output_dir}")
     elif args.command == "cohort":
-        from .publish_cohort import publish_cohort
+        from .stage02.publish_cohort import publish_cohort
         manifest = publish_cohort(args.input_dir, args.analysis_dir, args.output_dir,
                                   args.known_use_records, args.known_use_coverage)
         print(f"Published {len(manifest['tasks'])} allocated tasks to {args.output_dir}")

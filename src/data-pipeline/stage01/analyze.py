@@ -21,6 +21,8 @@ import sys
 import tempfile
 from urllib.parse import urlsplit
 
+from .. import source_hashes
+
 from .download import digest
 from .qualify import OUTPUT as QUALIFIED_POOL, write_json
 from .qualified_tasks import iter_qualified_tasks
@@ -140,7 +142,7 @@ def analyze(input_dir=QUALIFIED_POOL, output_dir=OUTPUT, tokenizer=DEFAULT_TOKEN
                        "input_dir": str(input_dir.resolve()), "task_sha256": dict(sorted(task_hashes.items())),
                        "tokenizer": {"path": str(tokenizer.resolve()), "sha256": digest(tokenizer), "version": tokenizer_version},
                        "python": sys.version, "qualification_runtime": manifest["runtime"], "workers": manifest["workers"],
-                       "source_sha256": {p.name: digest(p) for p in sorted(Path(__file__).parent.glob("*.py"))}},
+                       "source_sha256": source_hashes()},
     }
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as directory:

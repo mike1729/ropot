@@ -12,12 +12,13 @@ from collections import Counter
 from pathlib import Path
 import tempfile
 
+from .. import source_hashes
+
 from . import cohort
-from .analyze import OUTPUT as ANALYSIS_OUTPUT
-from .download import digest
-from .export_test import OUTPUT as TEST_OUTPUT
+from ..stage01.analyze import OUTPUT as ANALYSIS_OUTPUT
+from ..stage01.export_test import OUTPUT as TEST_OUTPUT
 from .known_use import COVERAGE, RECORDS, RESTRICTED_USES
-from .qualify import write_json
+from ..stage01.qualify import write_json
 
 
 OUTPUT = TEST_OUTPUT.parent / "02_cohort"
@@ -110,7 +111,7 @@ def publish_cohort(input_dir=TEST_OUTPUT, analysis_dir=ANALYSIS_OUTPUT, output_d
         "known_use_coverage": loaded["known_use_coverage"], "required_next_gate": loaded["required_next_gate"],
         "provenance": {**loaded["provenance"], "input_dir": str(input_dir.resolve()),
                        "analysis_dir": str(analysis_dir.resolve()),
-                       "source_sha256": {path.name: digest(path) for path in sorted(Path(__file__).parent.glob("*.py"))}},
+                       "source_sha256": source_hashes()},
     }
     report = capacity_report(allocation, loaded)
     output_dir.parent.mkdir(parents=True, exist_ok=True)

@@ -5,8 +5,8 @@ import unittest
 from unittest import mock
 
 
-c = importlib.import_module("src.data-pipeline.cohort")
-p = importlib.import_module("src.data-pipeline.publish_cohort")
+c = importlib.import_module("src.data-pipeline.stage02.cohort")
+p = importlib.import_module("src.data-pipeline.stage02.publish_cohort")
 input_tests = importlib.import_module("tests.test_cohort_inputs")
 
 
@@ -58,9 +58,9 @@ class PublishCohortTests(unittest.TestCase):
             self.assertEqual(provenance[key], value)
         self.assertEqual(provenance["input_dir"], str(self.pool.resolve()))
         self.assertEqual(provenance["analysis_dir"], str(self.analysis.resolve()))
-        sources = Path(p.__file__).parent
+        sources = Path(p.__file__).parents[1]
         self.assertEqual(provenance["source_sha256"],
-                         {path.name: c.sha256(path.read_bytes()) for path in sources.glob("*.py")})
+                         {path.relative_to(sources).as_posix(): c.sha256(path.read_bytes()) for path in sources.rglob("*.py")})
         policy = manifest["policy"]
         for key, value in {"seed": c.SEED, "profile": c.PROFILE, "difficulty_order": list(c.DIFFICULTIES),
                            "initial_quota_order": list(c.QUOTAS), "reserve_cycle": list(c.RESERVE_CYCLE),

@@ -35,7 +35,7 @@ This document does not authorize model runs.
   availability and recorded execution cost in `tasks.csv` and `summary.json`.
 - Retain original task identities. Defer eligibility cutoffs, cohort allocation,
   model generation and Linux verification; content counts do not establish full
-  monitor-example fit within 2,048 tokens. See the [analysis module](../src/data-pipeline/analyze.py).
+  monitor-example fit within 2,048 tokens. See the [analysis module](../src/data-pipeline/stage01/analyze.py).
 
 **01_test_pool — materialize the dataset for allocation.**
 

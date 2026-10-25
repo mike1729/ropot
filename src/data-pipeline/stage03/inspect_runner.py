@@ -21,7 +21,7 @@ from inspect_ai.util import subprocess as host_exec
 
 
 INSPECT_VERSION = "0.3.283"
-COMPOSE = Path(__file__).resolve().parents[2] / "configs/sandbox/compose.yaml"
+COMPOSE = Path(__file__).resolve().parents[3] / "configs/sandbox/compose.yaml"
 MAX_SANDBOXES = 4
 TIMEOUT_SECONDS = 5
 CAPTURE_BYTES = 10 * 1024**2

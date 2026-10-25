@@ -8,7 +8,7 @@ import unittest
 from unittest import mock
 
 
-study = importlib.import_module("src.data-pipeline.study_tasks")
+study = importlib.import_module("src.data-pipeline.stage03.study_tasks")
 
 LAYOUT = {  # id: difficulty, owner, block, construction phase
     1: ("introductory", "development", "initial", None),

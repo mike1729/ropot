@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 
 
-export = importlib.import_module("src.data-pipeline.export_test")
+export = importlib.import_module("src.data-pipeline.stage01.export_test")
 
 
 class ExportTestTests(unittest.TestCase):
@@ -55,7 +55,7 @@ class ExportTestTests(unittest.TestCase):
         self.assertEqual(provenance["task_sha256"], {name: hashlib.sha256(before[name]).hexdigest() for name in selected})
         self.assertTrue(provenance["source_sha256"])
         for name, value in provenance["source_sha256"].items():
-            self.assertEqual(value, hashlib.sha256((Path(export.__file__).parent / name).read_bytes()).hexdigest())
+            self.assertEqual(value, hashlib.sha256((Path(export.__file__).parents[1] / name).read_bytes()).hexdigest())
         for name in selected:
             self.assertEqual((output / name).read_bytes(), before[name])
             self.assertFalse((output / name).is_symlink())

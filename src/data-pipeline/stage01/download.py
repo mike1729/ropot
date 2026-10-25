@@ -14,7 +14,7 @@ FILES = {
     "train": (107101272, "45e82ef22ed8e7c0c04d881a21b923e9dd233157896b0b8d5b3493e887499cae"),
     "test": (1292436853, "5b003a65ac40feb47dd5eaec267a767a6fc435bdcfa68ff715fe869f948e760c"),
 }
-DESTINATION = Path(__file__).resolve().parents[2] / "data" / "raw" / "apps"
+DESTINATION = Path(__file__).resolve().parents[3] / "data" / "raw" / "apps"
 
 
 def digest(path):

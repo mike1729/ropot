@@ -12,7 +12,7 @@ import unittest
 from unittest import mock
 
 
-local = importlib.import_module("src.data-pipeline.local_runner")
+local = importlib.import_module("src.data-pipeline.stage01.local_runner")
 
 
 def wait_for(predicate, seconds=3):
@@ -215,7 +215,7 @@ class LocalRunnerTests(unittest.TestCase):
                     body = ("  with ThreadPoolExecutor(max_workers=1) as tasks:\n"
                             f"   tasks.submit(runner.run_case, {source!r}, '', '1').result()\n")
                 helper = ("import importlib\nfrom concurrent.futures import ThreadPoolExecutor\n"
-                          "r=importlib.import_module('src.data-pipeline.local_runner')\n"
+                          "r=importlib.import_module('src.data-pipeline.stage01.local_runner')\n"
                           "try:\n with r.LocalRunner() as runner:\n"
                           f"{body}  print('body continued', flush=True)\n"
                           "except BaseException as error:\n print(type(error).__name__, flush=True)\n")

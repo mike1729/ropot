@@ -9,8 +9,8 @@ import unittest
 from unittest import mock
 
 
-a = importlib.import_module("src.data-pipeline.analyze")
-screen = importlib.import_module("src.data-pipeline.screen")
+a = importlib.import_module("src.data-pipeline.stage01.analyze")
+screen = importlib.import_module("src.data-pipeline.stage01.screen")
 
 
 class CharacterEncoder:

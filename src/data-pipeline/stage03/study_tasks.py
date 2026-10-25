@@ -11,8 +11,8 @@ import json
 from pathlib import Path
 import re
 
-from .cohort import sha256
-from .publish_cohort import OUTPUT
+from ..stage02.cohort import sha256
+from ..stage02.publish_cohort import OUTPUT
 
 
 COHORT_SHA256 = "60708dc74d386a8bb337a194a15a1c355c2a81f79768d8f876fb7a8f13148ff8"

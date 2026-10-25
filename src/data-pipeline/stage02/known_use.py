@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 
 
-_MANIFESTS = Path(__file__).resolve().parents[3] / "honeypot/data/manifests"
+_MANIFESTS = Path(__file__).resolve().parents[4] / "honeypot/data/manifests"
 RECORDS = _MANIFESTS / "exposure-history-additions-v1.json"
 COVERAGE = _MANIFESTS / "exposure-history-sweep-v1.json"
 ROW_HASH_RULE = 'SHA256(UTF8(json.dumps(raw_APPS_row,sort_keys=True,separators=(",",":"),ensure_ascii=False)))'

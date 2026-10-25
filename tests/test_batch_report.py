@@ -67,7 +67,20 @@ class BatchReportTests(unittest.TestCase):
             operation_id=proof["operation_id"], sample_id=proof["results"][0]["sample_id"], reused=False)
 
     def test_cross_id_shared_wall_export_once_and_per_record_unallocated_including_empty(self):
-        c, rows = self.fresh(); result = self.generate(c, rows); self.prove(c, result); snapshot = self.R.snapshot(c)
+        c, rows = self.fresh(); result = self.generate(c, rows); self.prove(c, result)
+        getter = type(c).events.fget; reads = mock.Mock(side_effect=lambda instance: getter(instance))
+        with mock.patch.object(type(c), "events", property(reads)), \
+             mock.patch.object(c, "outcome", side_effect=AssertionError("Public outcome scan")), \
+             mock.patch.object(self.J, "_batch_projection", wraps=self.J._batch_projection) as project, \
+             mock.patch.object(self.N, "_reuse_native", wraps=self.N._reuse_native) as native_proof, \
+             mock.patch.object(self.H, "run", side_effect=AssertionError("Generation replay")), \
+             mock.patch.object(self.N, "run_native", side_effect=AssertionError("Native execution")):
+            snapshot = self.R.snapshot(c)
+        self.assertEqual((reads.call_count, project.call_count), (3, 1))
+        self.assertEqual(native_proof.call_count, 2)
+        prefix = native_proof.call_args.args[-1]
+        self.assertTrue(all(call.args[-1] is prefix for call in native_proof.call_args_list))
+        self.assertEqual(prefix, c.events)
         costs = snapshot["report"]["costs"]; ledger = costs["generation_sessions"]; self.assertEqual(len(ledger), 1)
         session = ledger[0]; self.assertEqual((session["source"], session["bits"], session["experiment_ids"]), ("actor", 8, ["one", "two"]))
         self.assertEqual((session["owned_elapsed_seconds"], session["observed_generation_tokens"]), (239.5, 3))
@@ -93,6 +106,53 @@ class BatchReportTests(unittest.TestCase):
         published = self.R.publish(c, "batch"); self.assertEqual(self.R.publish(c, "batch"), published)
         self.assertEqual(json.loads((Path(published["path"]) / "report.json").read_bytes())["costs"], costs)
 
+    def test_public_native_reuse_always_captures_fresh_authoritative_history(self):
+        c, rows = self.fresh(); self.prove(c, self.generate(c, rows)); events = c.events
+        intent = next(e for e in events if e["kind"] == "native_intent")
+        verdict = next(e for e in events if e["kind"] == "native_verdict" and e["operation_id"] == intent["operation_id"])
+        closed = next(e for e in events if e["kind"] == "native_closed" and e["operation_id"] == intent["operation_id"])
+        programs = self.N.verification.reference_programs(self.task)
+        getter = type(c).events.fget; reads = mock.Mock(side_effect=lambda instance: getter(instance))
+        with mock.patch.object(type(c), "events", property(reads)), \
+             mock.patch.object(self.N, "_reuse_native", wraps=self.N._reuse_native) as proof, \
+             mock.patch.object(self.H, "run", side_effect=AssertionError("Generation")), \
+             mock.patch.object(self.N, "run_native", side_effect=AssertionError("Native dispatch")), \
+             mock.patch.object(self.N, "reconcile_native", side_effect=AssertionError("Recovery")):
+            self.assertEqual(self.N.reuse_native(c, intent, self.task, programs), verdict)
+            marker = c._append("fixture_change")
+            self.assertEqual(self.N.reuse_native(c, intent, self.task, programs), verdict)
+        self.assertEqual((reads.call_count, proof.call_count), (2, 2))
+        self.assertEqual(proof.call_args_list[0].args[-1], events)
+        self.assertEqual(proof.call_args_list[1].args[-1][-1], marker)
+        self.assertIsNot(proof.call_args_list[0].args[-1], proof.call_args_list[1].args[-1])
+        # The fresh authoritative journal getter rejects this duplicate first.
+        c._append("native_closed", **{k: v for k, v in closed.items() if k not in ("kind", "seq")})
+        with self.assertRaisesRegex(ValueError, "Duplicate native closure"):
+            self.N.reuse_native(c, intent, self.task, programs)
+
+    def test_snapshot_rechecks_current_native_bytes_and_final_captured_prefix(self):
+        for fault in ("native_bytes", "journal_append"):
+            c, rows = self.fresh(); self.prove(c, self.generate(c, rows)); self.R.snapshot(c)
+            proof, entered, successful = self.N._reuse_native, [], []
+            def changed(campaign, intent, task, programs, events):
+                if not entered:
+                    if fault == "native_bytes":
+                        verdict = next(e for e in events if e["kind"] == "native_verdict" and e["operation_id"] == intent["operation_id"])
+                        (campaign.root / verdict["log"]).write_bytes(b"changed after artifact capture")
+                    else: campaign._append("fixture_change")
+                entered.append(intent["operation_id"])
+                result = proof(campaign, intent, task, programs, events)
+                successful.append(intent["operation_id"])
+                return result
+            error = "Native log evidence changed" if fault == "native_bytes" else "Snapshot prefix changed"
+            with mock.patch.object(self.N, "_reuse_native", side_effect=changed), \
+                 mock.patch.object(self.H, "run", side_effect=AssertionError("Generation")), \
+                 mock.patch.object(self.N, "run_native", side_effect=AssertionError("Native dispatch")), \
+                 mock.patch.object(self.N, "reconcile_native", side_effect=AssertionError("Recovery")), \
+                 self.subTest(fault=fault), self.assertRaisesRegex(ValueError, error):
+                self.R.snapshot(c)
+            self.assertEqual((len(entered), len(successful)), (1, 0) if fault == "native_bytes" else (2, 2))
+
     def test_two_same_profile_sessions_remain_two_charges_and_independent_wall_entries(self):
         c, rows = self.fresh(); self.generate(c, rows); later = self.register(c, ("three", "four")); self.generate(c, later)
         costs = self.R.snapshot(c)["report"]["costs"]; ledger = costs["generation_sessions"]
@@ -109,8 +169,14 @@ class BatchReportTests(unittest.TestCase):
         _, raw = self.b.f.G.prepare_request(self.b.raw)
         reservation = c._append("generation_reserved", experiment_id="scalar", source="actor", request_text=raw.decode(),
             request_sha256=self.R.sha256(raw).hexdigest(), attempt=rows[0]["attempt"])
-        self.assertEqual(c.outcome(reservation["seq"])["status"], "interrupted")
-        report = self.R.snapshot(c)["report"]; observed = report["costs"]["observed_by_source"]["actor"]
+        getter = type(c).events.fget; reads = mock.Mock(side_effect=lambda instance: getter(instance))
+        with mock.patch.object(type(c), "events", property(reads)), \
+             mock.patch.object(c, "outcome", side_effect=AssertionError("Public outcome scan")):
+            snapshot = self.R.snapshot(c)
+        self.assertEqual(reads.call_count, 4)
+        self.assertEqual(next(e for e in c.events if e["kind"] == "generation_done" and e["reservation_seq"] == reservation["seq"])["status"], "interrupted")
+        before = c.events; self.assertEqual(self.R.snapshot(c), snapshot); self.assertEqual(c.events, before)
+        report = snapshot["report"]; observed = report["costs"]["observed_by_source"]["actor"]
         self.assertEqual((observed["observed_generation_tokens"], observed["known_elapsed_seconds"], observed["unknown_elapsed_sessions"]), (3, 239.5, 0))
         self.assertEqual((observed["unknown_response_requests"], observed["unknown_elapsed_requests"]), (1, 1))
         sources = {r["experiment_id"]: r["sources"][0] for r in report["runs"]}

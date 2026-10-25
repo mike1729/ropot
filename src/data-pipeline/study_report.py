@@ -116,7 +116,7 @@ def _observed(reservations, outcomes, *, batch=False, sessions=None):
 
 def snapshot(campaign, *, selections=None):
     """Derive a fixed prefix while holding Campaign's lease; Docker reads prove logs."""
-    outcomes = {e["seq"]: campaign.outcome(e["seq"]) for e in campaign.events if e["kind"] == "generation_reserved"}
+    outcomes = {e["seq"]: outcome for e, outcome, _ in campaign._generation_outcomes()}
     events = campaign.events
     current_policy = loop.policy_sha256()
     files = {}
@@ -224,7 +224,7 @@ def snapshot(campaign, *, selections=None):
                 require(name.startswith(f"native/{opid}/"), "Log outside native operation")
                 add(name, expected)
         if opid in closed:
-            proofs[opid] = native.reuse_native(campaign, intent, task, programs)
+            proofs[opid] = native._reuse_native(campaign, intent, task, programs, events)
     runs, records, contexts, eligible = [], {}, {}, []
     results = {e["reservation_seq"]: e for e in events if e["kind"] == "attempt_result"}
     require(len(results) == sum(e["kind"] == "attempt_result" for e in events)

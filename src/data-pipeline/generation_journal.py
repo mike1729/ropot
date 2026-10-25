@@ -469,11 +469,40 @@ class Campaign:
         if limits != previous:
             self._append("limits", limits=limits)
 
+    def _generation_outcomes(self, events=None):
+        """Reprove each scalar/session lazily against this invocation's journal view."""
+        events = self.events if events is None else events
+        reservations = [e for e in events if e["kind"] == "generation_reserved"]
+        done = {e["reservation_seq"] for e in events if e["kind"] == "generation_done"}
+        complete = {e["session_seq"] for e in events if e["kind"] == "batch_done"}
+        sessions = {}
+        for event in reservations:
+            seq, session = event["seq"], event.get("session_seq")
+            try:
+                if session is None:
+                    outcome = self._finish(seq, events)
+                    if seq not in done:
+                        events = self.events
+                        done.add(seq)
+                else:
+                    if session not in sessions:
+                        self._finish_batch(session, events)
+                        if session not in complete:
+                            events = self.events
+                            complete.add(session)
+                        sessions[session] = {e["reservation_seq"]: {k: v for k, v in e.items() if k not in ("kind", "seq")}
+                            for e in events if e["kind"] == "generation_done" and e.get("session_seq") == session}
+                    outcome = sessions[session][seq]
+            except BaseException:
+                self.close()
+                raise
+            yield event, outcome, events
+
     def require_native_clear(self):
         events = self.events
         for event in events:
             if event["kind"] == "batch_reserved":
-                require(self._finish_batch(event["seq"])["shared"]["resources_closed"], "Unresolved batch generation resources")
+                require(self._finish_batch(event["seq"], events)["shared"]["resources_closed"], "Unresolved batch generation resources")
         require({e["operation_id"] for e in events if e["kind"] == "native_intent"}
                 == {e["operation_id"] for e in events if e["kind"] == "native_closed"},
                 "Reconcile pending native operations before dispatch")
@@ -490,8 +519,8 @@ class Campaign:
             reserved = [e for e in events if e["kind"] == "generation_reserved"]
             require({e["seq"] for e in reserved} == {e["reservation_seq"] for e in events if e["kind"] == "generation_done"},
                     "Reconcile pending generations before dispatch")
-            require(all(generation_resources_cleared(events, self.outcome(e["seq"])) for e in reserved),
-                    "Unresolved generation cleanup failure")
+            for _, outcome, events in self._generation_outcomes(events):
+                require(generation_resources_cleared(events, outcome), "Unresolved generation cleanup failure")
             session = events[-1]["seq"] + 1
             worker = importlib.import_module("experiments.mlx_batch_throughput")
             host = importlib.import_module("experiments.batch_throughput")

@@ -61,6 +61,116 @@ class EntryReconciliationTests(unittest.TestCase):
         with sqlite3.connect(c.root / "journal.sqlite3") as db:
             return db.execute("SELECT seq,body FROM events ORDER BY seq").fetchall()
 
+    def test_iterator_supplied_prefix_is_lazy_and_close_does_not_close_campaign(self):
+        f, c, _ = self.batch(); f.generate(c, f.register(c, ("three", "four")))
+        events = c.events; before = self.stored(c); reads, observer = self.observe(c)
+        first = next(e for e in events if e["kind"] == "generation_reserved")
+        expected = c.outcome(first["seq"])
+        with observer, mock.patch.object(c, "_finish_batch", wraps=c._finish_batch) as finish:
+            iterator = c._generation_outcomes(events)
+            finish.assert_not_called()
+            reservation, outcome, prefix = next(iterator)
+            self.assertEqual((reservation, outcome, prefix), (first, expected, events))
+            iterator.close()
+        self.assertEqual((len(reads), finish.call_count), (0, 1))
+        self.assertIsNotNone(c.db); self.assertEqual(self.stored(c), before)
+
+    def test_reserve_reuses_prefix_with_independent_native_and_iterator_proofs(self):
+        for size in (1, 2):
+            f, c, _ = self.batch(); scalar = self.foreign_scalar(f, c); c.outcome(scalar["seq"])
+            if size == 2: f.generate(c, f.register(c, ("three", "four")))
+            rows = f.register(c, ("next-one", "next-two")); before = c.events
+            order = [e["seq"] for e in before if e["kind"] == "generation_reserved"]
+            reads, observer = self.observe(c)
+            with observer, mock.patch.object(c, "outcome", side_effect=AssertionError("Public outcome scan")), \
+                 mock.patch.object(self.J, "_batch_projection", wraps=self.J._batch_projection) as project, \
+                 mock.patch.object(c, "_finish", wraps=c._finish) as finish, \
+                 mock.patch.object(self.J, "generation_resources_cleared", wraps=self.J.generation_resources_cleared) as resources, \
+                 mock.patch.object(f.H, "run", side_effect=AssertionError("Dispatch")):
+                intent = c.reserve_batch(rows, f.b.method)
+            self.assertEqual((len(reads), project.call_count, finish.call_count), (2, 2 * size, 1))
+            self.assertEqual([call.args[1]["reservation_seq"] for call in resources.call_args_list], order)
+            after = c.events; self.assertEqual(after[:len(before)], before)
+            admitted = after[len(before) + 1:]
+            self.assertEqual([r["experiment_id"] for r in admitted], [r["experiment_id"] for r in rows])
+            self.assertEqual([r["seq"] for r in admitted], [r["reservation_seq"] for r in intent["rows"]])
+            self.assertTrue(all(r["session_seq"] == intent["seq"] for r in admitted))
+            self.assertEqual(self.J.Campaign.totals(after)[1]["actor"]["replies"], 2 * size + 3)
+
+    def test_reserve_proof_tamper_or_unknown_resources_never_admits_new_rows(self):
+        for fault in ("scalar", "session", "qualification", "unknown"):
+            f, c, _ = self.batch(mode="unknown" if fault == "unknown" else None)
+            if fault == "scalar": scalar = self.foreign_scalar(f, c); c.outcome(scalar["seq"])
+            rows = f.register(c, ("next-one", "next-two")); before = self.stored(c)
+            if fault == "scalar": path = c.root / "requests" / f"{scalar['seq']:06d}" / "response.json"
+            elif fault == "qualification": path = c.root / f.b.method["qualification"]["path"] / "response.json"
+            else: path = c.root / "sessions" / f"{next(e['seq'] for e in c.events if e['kind'] == 'batch_reserved'):06d}" / "stdout.jsonl"
+            if fault != "unknown":
+                # The completed interrupted scalar had no files; adding bytes changes its proven inventory.
+                path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(b"changed")
+            with mock.patch.object(f.f.M, "build_wave", side_effect=AssertionError("New wave")), \
+                 mock.patch.object(c, "_append_group", side_effect=AssertionError("New reservation")), \
+                 self.subTest(fault=fault), self.assertRaises(ValueError):
+                c.reserve_batch(rows, f.b.method)
+            self.assertIsNone(c.db); self.assertEqual(self.stored(c), before)
+
+    def test_reserve_pending_scalar_stops_before_finish_build_or_completion_append(self):
+        f, c, _ = self.batch(); self.foreign_scalar(f, c)
+        rows = f.register(c, ("next-one", "next-two")); before = self.stored(c)
+        with mock.patch.object(c, "_finish", side_effect=AssertionError("Pending scalar finish")), \
+             mock.patch.object(f.f.M, "build_wave", side_effect=AssertionError("New wave")), \
+             mock.patch.object(c, "_append_group", side_effect=AssertionError("Append")), \
+             self.assertRaisesRegex(ValueError, "Reconcile pending generations"):
+            c.reserve_batch(rows, f.b.method)
+        self.assertIsNone(c.db); self.assertEqual(self.stored(c), before)
+
+    def test_native_clear_supplies_one_prefix_and_only_completes_last_pending_batch(self):
+        for pending in (False, True):
+            f, c, _ = self.batch()
+            rows = f.register(c, ("three", "four"))
+            if pending: self.materialize(f, c, rows)
+            else: f.generate(c, rows)
+            before = c.events; reads, observer = self.observe(c)
+            with observer, mock.patch.object(c, "_finish_batch", wraps=c._finish_batch) as finish:
+                c.require_native_clear()
+            self.assertEqual((len(reads), finish.call_count), (1, 2))
+            self.assertTrue(all(call.args[1] is finish.call_args_list[0].args[1] for call in finish.call_args_list))
+            after = c.events; self.assertEqual(after[:len(before)], before)
+            self.assertEqual([e["kind"] for e in after[len(before):]], ["batch_done", "generation_done", "generation_done"] if pending else [])
+            self.assertIsNotNone(c.db)
+        f, c, _ = self.batch(); before = c.events
+        def interrupt(*args, **kwargs):
+            f.execute(*args, **kwargs)
+            raise KeyboardInterrupt()
+        with mock.patch.object(f.N.verification, "reference_gate", side_effect=interrupt), self.assertRaises(KeyboardInterrupt):
+            f.N.run_native(c, f.task, f.s.records[1]["sha256"])
+        with self.assertRaisesRegex(ValueError, "Reconcile pending native"): c.require_native_clear()
+        self.assertEqual(sum(e["kind"] == "native_intent" for e in c.events[len(before):]), 1)
+        self.assertFalse(any(e["kind"] == "native_closed" for e in c.events[len(before):]))
+
+    def test_snapshot_completes_pending_batch_once_but_reports_unknown_and_control(self):
+        for mode in ("pending", "unknown", "control"):
+            f, c, _ = self.batch(pending=mode == "pending", mode=None if mode == "pending" else mode)
+            reads, observer = self.observe(c)
+            with observer, mock.patch.object(c, "outcome", side_effect=AssertionError("Public outcome scan")), \
+                 mock.patch.object(f.H, "run", side_effect=AssertionError("Replay")), \
+                 mock.patch.object(f.N, "run_native", side_effect=AssertionError("Native")), \
+                 mock.patch.object(f.N, "reconcile_native", side_effect=AssertionError("Recovery")):
+                snapshot = f.R.snapshot(c)
+            self.assertEqual(len(reads), 4 if mode == "pending" else 3)
+            costs = snapshot["report"]["costs"]
+            self.assertEqual(costs["reserved"]["actor"]["replies"], 2)
+            self.assertEqual(len(costs["generation_sessions"]), 1)
+            self.assertEqual(costs["observed_by_source"]["actor"]["unknown_elapsed_sessions"], int(mode == "unknown"))
+            done = [e for e in c.events if e["kind"] == "generation_done"]
+            self.assertEqual(len(done), 2)
+            if mode == "control": self.assertTrue(all(self.J.profile_control_reason(e) is not None for e in done))
+            before = self.stored(c); reads, observer = self.observe(c)
+            with observer, mock.patch.object(self.J, "_batch_projection", wraps=self.J._batch_projection) as project:
+                self.assertEqual(f.R.snapshot(c), snapshot)
+            self.assertEqual((len(reads), project.call_count), (3, 1))
+            self.assertEqual(self.stored(c), before); self.assertIsNotNone(c.db)
+
     def test_complete_scalar_reproves_every_row_with_one_history_read(self):
         f, c, _ = self.scalar()
         for size in (1, 3):

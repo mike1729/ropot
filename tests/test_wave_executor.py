@@ -15,6 +15,10 @@ class WaveExecutorTests(unittest.TestCase):
 
     def setUp(self):
         report.PairedWaveReportTests.setUp(self)
+        # Each case owns its lease; preceding failure tests may close theirs.
+        self.c.close()
+        self.c = self.J.Campaign(self.c.root)
+        self.addCleanup(self.c.close)
         self.W = self.f.C
         self.reset()
         stack = self.enterContext(ExitStack())

@@ -737,3 +737,11 @@ decision only after usable tuning160; its exact rationale and event are immutabl
 `paired_wave_collection.fresh(...)` requires that decision's valid prefix and a
 currently valid comparison before executing the canonical fresh suffix.
 Neither entry chooses a recipe or supplies an operator rationale.
+
+Journal admission and snapshots reuse captured journal views for evidence proofs.
+Batch admission still rejects pending scalar reservations before traversal;
+native-clear separately rechecks sessions using its captured validated prefix.
+Snapshots reprove native files and retain reportable failures plus the final prefix check.
+Changing these producer bytes requires a new plan/member family and prospective
+funding in the same campaign. Old sessions and costs remain historical; their
+outcomes never become the new family's own evidence.

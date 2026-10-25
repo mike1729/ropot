@@ -754,7 +754,21 @@ class PairedWaveReportTests(unittest.TestCase):
             outcomes = loop_wave.LoopWaveTests.generate(proxy, c, prepared, texts=("print(1)", "print(1)"))
             states = [self.L.settle_cell(c, w.loaded, record, "actor", record["assigned_task_ids"][0]) for record in records]
             self.assertEqual([s["status"] for s in states], ["verified", "verified"])
-            snapshot = self.S.snapshot(c); trials = snapshot["report"]["wave_trials"]; self.assertEqual(len(trials), 1); trial = trials[0]
+            closed = sum(e["kind"] == "native_closed" for e in c.events)
+            getter = type(c).events.fget; reads = mock.Mock(side_effect=lambda instance: getter(instance))
+            with mock.patch.object(type(c), "events", property(reads)), \
+                 mock.patch.object(c, "outcome", side_effect=AssertionError("Public outcome scan")), \
+                 mock.patch.object(self.J, "_batch_projection", wraps=self.J._batch_projection) as project, \
+                 mock.patch.object(b.N, "_reuse_native", wraps=b.N._reuse_native) as native_proof, \
+                 mock.patch.object(w.H, "run", side_effect=AssertionError("Generation replay")), \
+                 mock.patch.object(b.N, "run_native", side_effect=AssertionError("Native execution")):
+                snapshot = self.S.snapshot(c)
+            self.assertEqual((reads.call_count, project.call_count), (3, 1))
+            self.assertEqual(native_proof.call_count, closed)
+            prefix = native_proof.call_args.args[-1]
+            self.assertTrue(all(call.args[-1] is prefix for call in native_proof.call_args_list))
+            self.assertEqual(prefix, c.events)
+            trials = snapshot["report"]["wave_trials"]; self.assertEqual(len(trials), 1); trial = trials[0]
             self.assertEqual((trial["comparison_valid"], trial["complete"], trial["confirmation_seq"], trial["progress"]["terminal_cells"]), (True, False, None, 2))
             self.assertEqual(trial["metrics"][0]["arms"][0], dict(bits=8, first_verified=dict(actor=2, synthetic=0, joint=0), final_verified=dict(actor=2, synthetic=0, joint=0)))
             cost = trial["costs"][0]["sources"][0]

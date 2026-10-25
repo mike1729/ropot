@@ -202,7 +202,7 @@ class PrecisionAdoptionTests(unittest.TestCase):
         events = campaign.events; reserved = next(e for e in events if e["kind"] == "generation_reserved" and e["experiment_id"] == "bad")
         request = json.loads(reserved["request_text"]); descriptor = good["profiles"]["actor"]["descriptor"]
         request["precision_profile"]["descriptor"] = descriptor; request.update({k: descriptor[k] for k in ("model_path", "enable_thinking", "fix_mistral_regex")}); reserved["request_text"] = self.J.encoded(request) + "\n"
-        with mock.patch.object(type(campaign), "events", new_callable=mock.PropertyMock, return_value=events), mock.patch.object(campaign, "outcome", side_effect=outcomes.__getitem__), self.assertRaisesRegex(ValueError, "Request profile binding differs"):
+        with mock.patch.object(type(campaign), "events", new_callable=mock.PropertyMock, return_value=events), mock.patch.object(campaign, "_finish", side_effect=lambda seq, events: outcomes[seq]), self.assertRaisesRegex(ValueError, "Request profile binding differs"):
             self.R.snapshot(campaign)
         path = campaign.root / prefix / "runtime.json"; path.write_bytes(path.read_bytes() + b" ")
         with self.assertRaisesRegex(self.P.ProfileError, "Runtime record binding differs"): self.R.snapshot(campaign)

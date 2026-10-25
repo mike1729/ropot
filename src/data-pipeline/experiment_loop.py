@@ -335,34 +335,12 @@ def _cell(campaign, task, binding, source, record, contract_sha256, dispatch, mo
 def _reconcile_generations(campaign, names):
     """Reprove retained generations once per scalar/session in this invocation."""
     events = campaign.events
-    reservations = [e for e in events if e["kind"] == "generation_reserved"]
-    done = {e["reservation_seq"] for e in events if e["kind"] == "generation_done"}
-    complete = {e["session_seq"] for e in events if e["kind"] == "batch_done"}
-    sessions, own = {}, {}
-    for event in reservations:
-        seq, session = event["seq"], event.get("session_seq")
-        try:
-            if session is None:
-                outcome = campaign._finish(seq, events)
-                if seq not in done:
-                    events = campaign.events
-                    done.add(seq)
-            else:
-                if session not in sessions:
-                    campaign._finish_batch(session, events)
-                    if session not in complete:
-                        events = campaign.events
-                        complete.add(session)
-                    sessions[session] = {e["reservation_seq"]: {k: v for k, v in e.items() if k not in ("kind", "seq")}
-                        for e in events if e["kind"] == "generation_done" and e.get("session_seq") == session}
-                outcome = sessions[session][seq]
-        except BaseException:
-            campaign.close()
-            raise
+    own = {}
+    for event, outcome, events in campaign._generation_outcomes(events):
         require(journal.generation_resources_cleared(events, outcome), "Unresolved generation cleanup failure")
         if event["experiment_id"] in names:
             journal.require_profile_outcome(outcome)
-            own[seq] = outcome
+            own[event["seq"]] = outcome
     return events, own
 
 

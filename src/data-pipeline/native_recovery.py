@@ -185,7 +185,12 @@ def reconcile_native(campaign):
 
 def reuse_native(campaign, intent, task, programs):
     """Re-derive closed retained evidence without dispatch, recovery or journal writes."""
-    opid, events = intent["operation_id"], campaign.events
+    return _reuse_native(campaign, intent, task, programs, campaign.events)
+
+
+def _reuse_native(campaign, intent, task, programs, events):
+    """Reprove native files against an internal caller's validated journal prefix."""
+    opid = intent["operation_id"]
     require(type(opid) is str and re.fullmatch(r"[0-9a-f]{12}", opid) is not None, "Invalid native operation")
     directory = campaign.root / "native" / opid
     require(directory.resolve() == directory, "Invalid operation directory")

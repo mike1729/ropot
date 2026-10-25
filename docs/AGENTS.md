@@ -39,12 +39,17 @@ preference to future implementation work unless the user explicitly changes it.
 
 - Work in coherent stages targeting 300–500 changed lines, with a maximum of 500
   per review batch. Smaller stages are welcome; never add filler to reach 300.
+- An agent may ask the user for permission to exceed the 500-line limit when the
+  excess would be small or completing the task in one go would be better than
+  splitting it. Explain the expected diff size and why the exception is useful;
+  obtain permission before implementing beyond the limit.
 - Count additions **plus deletions**, including tests, hand-written configuration,
   documentation and new files. This is not a net-line or production-code-only cap.
 - Report generated lockfiles/manifests and binary artifacts separately, with their
   sizes, purpose and provenance. They still require review; do not use generated
   output to conceal implementation changes.
-- Split an oversized stage before implementing it. Avoid unrelated refactors and
+- Unless the user approves an exception, split an oversized stage before
+  implementing it. Avoid unrelated refactors and
   formatting churn. Do not implement the whole feature and only then divide it
   into small commits.
 - After each stage, report what changed, why, the main entry points and data flow,

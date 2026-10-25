@@ -40,14 +40,14 @@ class PublishCohortTests(unittest.TestCase):
         manifest = self.publish()
         self.assertEqual(sorted(path.name for path in self.output.iterdir()), ["manifest.json", "report.json"])
         self.assertEqual(json.loads((self.output / "manifest.json").read_text()), manifest)
-        self.assertEqual(manifest["schema_version"], 1)
+        self.assertEqual(manifest["schema_version"], 2)
         task_fields = {"split", "id", "difficulty", "path", "sha256", "owner", "block", "defer_reasons", "known_uses"}
         optional_fields = {"phase", "redirected_from"}
         for published, allocated in zip(manifest["tasks"], expected["tasks"], strict=True):
             fields = task_fields | (optional_fields & allocated.keys())
             self.assertEqual(set(published), fields)
             self.assertEqual(published, {key: allocated[key] for key in fields})
-        for key in ("queues", "construction_phases"):
+        for key in ("groups", "construction_phases"):
             self.assertEqual(manifest[key], expected[key])
         for key in ("shortfalls", "sequential_remaining"):
             self.assertNotIn(key, manifest)
@@ -70,7 +70,7 @@ class PublishCohortTests(unittest.TestCase):
         self.assertEqual(policy["initial_quotas"],
                          {owner: dict(zip(c.DIFFICULTIES, quotas)) for owner, quotas in c.QUOTAS.items()})
         self.assertEqual(policy["construction_phase_start_by_difficulty"], dict(zip(c.DIFFICULTIES, c.PHASES)))
-        self.assertEqual(policy["construction_activation_queue"], "construction_phases")
+        self.assertEqual(policy["construction_groups"], "construction_phases")
         self.assertEqual(manifest["targets"], {
             "status": "planned", "finalization": "after_32_candidates_per_phase_feasibility_probe",
             "constraint": "final_targets_must_not_exceed_owned_capacity",
@@ -123,6 +123,25 @@ class PublishCohortTests(unittest.TestCase):
         self.publish(second)
         for name in ("manifest.json", "report.json"):
             self.assertEqual((self.output / name).read_bytes(), (second / name).read_bytes())
+
+    def test_saved_groups_partition_tasks_and_stage03_consumes_them_directly(self):
+        manifest = self.publish()
+        identifiers = [identifier for blocks in manifest["groups"].values()
+                       for ids in blocks.values() for identifier in ids]
+        self.assertEqual(sorted(identifiers), sorted(task["id"] for task in manifest["tasks"]))
+        self.assertEqual(len(identifiers), len(set(identifiers)))
+        self.assertEqual(set(manifest["groups"]), set(c.QUOTAS))
+        for block in c.BLOCKS:
+            phase_ids = [identifier for blocks in manifest["construction_phases"].values()
+                         for identifier in blocks[block]]
+            self.assertEqual(sorted(phase_ids), sorted(manifest["groups"]["construction"][block]))
+        study = importlib.import_module("src.data-pipeline.stage03.study_tasks")
+        digest = c.sha256((self.output / "manifest.json").read_bytes())
+        with mock.patch.object(study, "COHORT_SHA256", digest), \
+                mock.patch.object(c, "allocate", side_effect=AssertionError("must not repartition")):
+            loaded = study.load_cohort(self.output)
+            self.assertEqual(study.load_task(loaded, 7)[1], self.tasks[0])
+        self.assertEqual(set(loaded["groups"]), {"construction", "development"})
 
     def test_existing_dangling_symlink_and_nested_destinations_are_refused(self):
         self.output.mkdir()

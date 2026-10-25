@@ -10,9 +10,14 @@ strategies and budgets can evolve throughout the stage.
 
 ## Starting point
 
-Stage 02's canonical cohort is already published from commit `e42628b`. Consume
-`data/02_cohort/manifest.json`.
-Preserve its task ownership, construction phases, queue order and profile status.
+Consume Stage 02's canonical `data/02_cohort/manifest.json`. Its schema-2 group
+metadata was regenerated from the working tree without changing the assignment
+published from `e42628b`; the previous publication is retained under `data/archive`.
+Preserve its task ownership, construction phases, group order and profile status.
+Stage 02 generates and saves every group once in `groups` and `construction_phases`.
+Stage 03 loads only saved construction/development IDs from initial/reserve blocks;
+protected and deferred tasks are unavailable. Experiments record a worklist of those
+IDs without redefining groups or running allocation. Task reads retain digest checks.
 The [cohort plan](stage-02-plan.md) governs activation; the [pilot](pilot.md)
 defines the later monitor experiment.
 
@@ -30,7 +35,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 
 | Batch | Outcome |
 | --- | --- |
-| 1 | Load the published cohort, pin its reviewed manifest hash in code, and define a minimal experiment record, task activation and candidate identity. Preserve ownership and provenance. |
+| 1 | Load the saved construction/development groups, pin the reviewed manifest hash, and define a minimal experiment worklist record and candidate identity. Preserve ownership and provenance; group assignment belongs to Stage 02. |
 | 2 | Establish Inspect Docker execution with one fresh sample/sandbox per program and fresh case processes/directories. Check sample failure isolation, output completeness and limits; use native teardown and document shared writable state/background processes within a program. |
 | 3 | Add the three-reference gate and deterministic candidate verification. Run visible cases before hidden ones, retain all stored cases and test the public-feedback boundary. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |

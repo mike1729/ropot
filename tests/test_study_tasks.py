@@ -21,6 +21,9 @@ LAYOUT = {  # id: difficulty, owner, block, construction phase
     20: ("interview", "construction", "initial", "twin_continuation"),
     21: ("introductory", "construction", "initial", "twin_continuation"),
     30: ("interview", "evaluation", "initial", None),
+    31: ("interview", "calibration", "initial", None),
+    32: ("interview", "correction_replay", "initial", None),
+    33: ("interview", "construction", "deferred", "twin_continuation"),
 }
 BLOCKS = ("initial", "reserve", "deferred")
 PHASES = ("shared_honest_pretraining", "twin_continuation")
@@ -36,16 +39,15 @@ class StudyTaskTests(unittest.TestCase):
         self.cohort_dir.mkdir()
         records = [{"split": "test", "id": identifier, "difficulty": difficulty, "path": f"tasks/test_{identifier}.json",
                     "owner": owner, "block": block, **({"phase": phase} if phase else {}),
-                    "defer_reasons": [], "known_uses": ["unresolved"] if identifier == 20 else []}
+                    "defer_reasons": ["statement_tokens"] if block == "deferred" else [], "known_uses": ["unresolved"] if identifier == 20 else []}
                    for identifier, (difficulty, owner, block, phase) in LAYOUT.items()]
         self.records = {record["id"]: record for record in records}
         self.cohort = {
             "tasks": records,
-            "queues": {owner: {block: [i for i, (_, o, b, _) in LAYOUT.items() if (o, b) == (owner, block)]
-                               for block in BLOCKS} for owner in ("development", "construction", "evaluation")},
+            "groups": {owner: {block: [i for i, (_, o, b, _) in LAYOUT.items() if (o, b) == (owner, block)]
+                               for block in BLOCKS} for owner in ("development", "construction", "evaluation", "calibration", "correction_replay")},
             "construction_phases": {phase: {block: [i for i, (_, _, b, p) in LAYOUT.items() if (p, b) == (phase, block)]
                                             for block in BLOCKS} for phase in PHASES},
-            "candidate_budgets": {"development": {"smoke": {"total": 2}}, "construction": {"probe_per_phase": 2}},
             "required_next_gate": "Re-verify references in Inspect Linux before generation",
             "provenance": {"input_dir": str(self.pool)}}
         self.pool_manifest = {"provenance": {"task_sha256": {}}}
@@ -77,80 +79,84 @@ class StudyTaskTests(unittest.TestCase):
         return study.load_cohort(self.cohort_dir)
 
     def test_pinned_manifests_load_unchanged_and_allow_task_relocation(self):
-        self.assertEqual((self.loaded["cohort"], self.loaded["test_pool"]), (self.cohort, self.pool_manifest))
+        self.assertEqual(set(self.loaded["tasks_by_id"]), {1, 2, 3, 10, 11, 12, 13, 20, 21})
+        self.assertEqual(self.loaded["test_pool_manifest_sha256"],
+                         self.cohort["provenance"]["input_manifest_sha256"])
         moved = self.root / "moved"
         self.pool.rename(moved)
         with self.assertRaises(FileNotFoundError):
             study.load_cohort(self.cohort_dir)
         loaded = study.load_cohort(self.cohort_dir, moved)
-        activation = study.activate(loaded, ["development_smoke"])
-        self.assertEqual(study.load_task(loaded, activation, 1)[1]["question"], "é")
+        self.assertEqual(study.load_task(loaded, 1)[1]["question"], "é")
         for path, message in ((moved / "manifest.json", "Test-pool manifest"),
                               (self.cohort_dir / "manifest.json", "reviewed publication")):
             path.write_bytes(path.read_bytes() + b" ")
             with self.subTest(path=path.name), self.assertRaisesRegex(ValueError, message):
                 study.load_cohort(self.cohort_dir, moved)
 
-    def test_activation_takes_budgeted_prefixes_in_group_and_cohort_order(self):
-        activation = study.activate(self.loaded, ["continuation_probe", "development_smoke"])
-        self.assertEqual(activation["cohort_sha256"], self.loaded["sha256"])
-        self.assertEqual(activation["groups"], ["development_smoke", "continuation_probe"])
-        expected = ((1, "development_smoke"), (2, "development_smoke"),
-                    (20, "continuation_probe"), (21, "continuation_probe"))
-        self.assertEqual(activation["tasks"], [{**self.records[i], "group": group} for i, group in expected])
-        shared = study.activate(self.loaded, ["shared_pretraining_probe"])
-        self.assertEqual([task["id"] for task in shared["tasks"]], [10, 11])
+    def test_load_consumes_saved_groups_and_phase_order_without_reallocation(self):
+        allocator = importlib.import_module("src.data-pipeline.stage02.cohort")
+        self.cohort["groups"]["development"]["initial"] = [3, 1, 2]
+        with mock.patch.object(allocator, "allocate", side_effect=AssertionError("must not repartition")):
+            loaded = self.rewrite()
+        self.assertEqual(loaded["groups"], {owner: {block: self.cohort["groups"][owner][block]
+                                                   for block in ("initial", "reserve")}
+                                             for owner in ("construction", "development")})
+        self.assertEqual(loaded["construction_phases"],
+                         {phase: {block: self.cohort["construction_phases"][phase][block]
+                                  for block in ("initial", "reserve")} for phase in PHASES})
+        self.assertEqual(study.load_task(loaded, 3)[0], self.records[3])
+        self.assertEqual(study.load_task(loaded, 13)[0], self.records[13])
 
-    def test_activation_rejects_invalid_groups_and_prefixes(self):
-        for groups in ([], ["development_smoke"] * 2, ["evaluation"], "development_smoke"):
-            with self.subTest(groups=groups), self.assertRaisesRegex(ValueError, "distinct groups"):
-                study.activate(self.loaded, groups)
-
-        def record(cohort, identifier):
-            return next(task for task in cohort["tasks"] if task["id"] == identifier)
+    def test_cohort_load_rejects_invalid_saved_membership(self):
         changes = {
-            "insufficient": lambda c: c["candidate_budgets"]["construction"].update(probe_per_phase=3),
-            "reserve block": lambda c: c["construction_phases"]["shared_honest_pretraining"]["initial"].insert(0, 13),
-            "deferred": lambda c: record(c, 2)["defer_reasons"].append("statement_tokens"),
-            "protected owner": lambda c: c["queues"]["development"]["initial"].insert(0, 30),
+            "protected owner": lambda c: c["groups"]["development"]["initial"].append(30),
+            "deferred": lambda c: c["groups"]["construction"]["initial"].append(33),
+            "duplicate": lambda c: c["groups"]["development"]["initial"].append(1),
         }
         for name, change in changes.items():
             with self.subTest(name):
                 cohort = copy.deepcopy(self.cohort)
                 change(cohort)
-                with self.assertRaisesRegex(ValueError, "Insufficient|Ineligible"):
-                    study.activate(self.rewrite(cohort), list(study.GROUPS))
+                with self.assertRaisesRegex(ValueError, "Ineligible saved"):
+                    self.rewrite(cohort)
+
+    def test_cohort_load_rejects_duplicate_and_noninteger_ids(self):
+        for identifier in (2, True, "1"):
+            with self.subTest(identifier=identifier):
+                cohort = copy.deepcopy(self.cohort)
+                cohort["tasks"][0]["id"] = identifier
+                with self.assertRaisesRegex(ValueError, "distinct integers"):
+                    self.rewrite(cohort)
+
+    def test_cohort_load_requires_agreeing_task_bindings(self):
+        self.pool_manifest["provenance"]["task_sha256"]["tasks/test_1.json"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "bindings disagree"):
+            self.rewrite()
 
     def test_load_task_reads_only_the_requested_verified_artifact(self):
-        activation = study.activate(self.loaded, list(study.GROUPS))
         (self.pool / "tasks/test_2.json").unlink()
         (self.pool / "tasks/test_10.json").write_bytes(b"corrupt")
         with mock.patch.object(Path, "read_bytes", autospec=True, side_effect=Path.read_bytes) as read:
-            binding, task = study.load_task(self.loaded, activation, 1)
+            binding, task = study.load_task(self.loaded, 1)
         self.assertEqual([call.args[0].name for call in read.call_args_list], ["test_1.json"])
-        self.assertEqual(binding, activation["tasks"][0])
+        self.assertEqual(binding, self.records[1])
         self.assertEqual(task, json.loads((self.pool / "tasks/test_1.json").read_bytes()))
         binding["known_uses"].append("changed")
-        self.assertEqual(activation["tasks"][0]["known_uses"], [])
+        self.assertEqual(self.loaded["tasks_by_id"][1]["known_uses"], [])
 
-    def test_load_task_rejects_inactive_forged_and_corrupt_tasks(self):
-        activation = study.activate(self.loaded, ["development_smoke"])
-        for identifier in (3, 30, True, "1"):
-            with self.subTest(identifier=identifier), self.assertRaisesRegex(ValueError, "not activated"):
-                study.load_task(self.loaded, activation, identifier)
-        forged = copy.deepcopy(activation)
-        forged["tasks"].append({**self.records[30], "group": "development_smoke"})
-        with self.assertRaisesRegex(ValueError, "differs from the pinned cohort"):
-            study.load_task(self.loaded, forged, 30)
+    def test_load_task_rejects_protected_deferred_unknown_and_corrupt_tasks(self):
+        with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("must not read denied tasks")):
+            for identifier in (30, 31, 32, 33, 9999, True, "1"):
+                with self.subTest(identifier=identifier), self.assertRaisesRegex(ValueError, "not in the saved"):
+                    study.load_task(self.loaded, identifier)
         (self.pool / "tasks/test_1.json").write_bytes(b"{}")
         with self.assertRaisesRegex(ValueError, "Task bytes differ"):
-            study.load_task(self.loaded, activation, 1)
+            study.load_task(self.loaded, 1)
 
-    def test_load_task_requires_agreeing_bindings_contained_paths_and_identity(self):
+    def test_load_task_requires_contained_paths_and_identity(self):
         task = json.loads((self.pool / "tasks/test_1.json").read_bytes())
         cases = {
-            "binding": (lambda: self.pool_manifest["provenance"]["task_sha256"].update(
-                {"tasks/test_1.json": "0" * 64}), "bindings disagree"),
             "outside": (lambda: self.write_task(1, task, "../outside/test_1.json"), "leaves the test pool"),
             "id": (lambda: self.write_task(1, {**task, "id": 2}), "identity differs"),
             "boolean id": (lambda: self.write_task(1, {**task, "id": True}), "identity differs"),
@@ -161,49 +167,53 @@ class StudyTaskTests(unittest.TestCase):
                 change()
                 loaded = self.rewrite()
                 with self.assertRaisesRegex(ValueError, message):
-                    study.load_task(loaded, study.activate(loaded, ["development_smoke"]), 1)
+                    study.load_task(loaded, 1)
                 self.write_task(1, task, "tasks/test_1.json")
 
+    def test_load_task_rechecks_paths_after_loading_the_cohort(self):
+        path = self.pool / "tasks/test_1.json"
+        outside = self.root / "outside.json"
+        path.rename(outside)
+        path.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "leaves the test pool"):
+            study.load_task(self.loaded, 1)
+
     def test_experiment_records_hold_one_or_both_independent_recipes(self):
-        activation = study.activate(self.loaded, ["development_smoke"])
-        record = study.experiment_record(self.loaded, "smoke-1", activation, {"synthetic": {"temperature": 0.1}})
+        record = study.experiment_record(self.loaded, "smoke-1", [1, 2], {"synthetic": {"temperature": 0.1}})
         self.assertEqual(record, {
-            "schema_version": 1, "experiment_id": "smoke-1",
+            "schema_version": 2, "experiment_id": "smoke-1",
             "cohort": {"manifest_sha256": self.loaded["sha256"],
                        "test_pool_manifest_sha256": self.cohort["provenance"]["input_manifest_sha256"]},
-            "activation": activation,
+            "task_ids": [1, 2],
             "reference_gate": {"status": "pending", "requirement": self.cohort["required_next_gate"]},
             "recipes": {"synthetic": {"temperature": 0.1}}})
-        paired = study.experiment_record(self.loaded, "smoke-2", activation,
+        paired = study.experiment_record(self.loaded, "smoke-2", [1, 2],
                                          {"synthetic": {"prompt": "b"}, "actor": {"prompt": "a"}})
         self.assertEqual(paired["recipes"], {"actor": {"prompt": "a"}, "synthetic": {"prompt": "b"}})
         self.assertEqual(list(paired["recipes"]), ["actor", "synthetic"])
 
     def test_experiment_records_reject_invalid_inputs(self):
-        activation = study.activate(self.loaded, ["development_smoke"])
         for experiment_id in ("", "  ", 7):
             with self.subTest(experiment_id=experiment_id), self.assertRaisesRegex(ValueError, "Experiment ID"):
-                study.experiment_record(self.loaded, experiment_id, activation, {"actor": {}})
+                study.experiment_record(self.loaded, experiment_id, [1, 2], {"actor": {}})
         for recipes in ({}, {"monitor": {}}, {"actor": []}, [("actor", {})], {"actor": {"stop": ("x",)}},
                         {"actor": {"temperature": math.nan}}, {"actor": {1: "x"}}, {"actor": {"seeds": {1}}}):
             with self.subTest(recipes=recipes), self.assertRaises(ValueError):
-                study.experiment_record(self.loaded, "smoke", activation, recipes)
-        forged = copy.deepcopy(activation)
-        forged["tasks"].pop()
-        with self.assertRaisesRegex(ValueError, "differs from the pinned cohort"):
-            study.experiment_record(self.loaded, "smoke", forged, {"actor": {}})
+                study.experiment_record(self.loaded, "smoke", [1, 2], recipes)
+        for task_ids in ([], [1, 1], [True], ["1"], [30], [31], [32], [33], [9999]):
+            with self.subTest(task_ids=task_ids), self.assertRaisesRegex(ValueError, "Experiment tasks"):
+                study.experiment_record(self.loaded, "smoke", task_ids, {"actor": {}})
 
     def test_records_are_isolated_snapshots(self):
-        activation = study.activate(self.loaded, ["development_smoke"])
+        task_ids = [1, 2]
         recipe = {"prompt": {"lines": ["a"]}}
-        record = study.experiment_record(self.loaded, "smoke", activation, {"actor": recipe})
+        record = study.experiment_record(self.loaded, "smoke", task_ids, {"actor": recipe})
         recipe["prompt"]["lines"].append("b")
-        activation["tasks"][0]["known_uses"].append("changed")
+        task_ids.append(30)
         self.assertEqual(record["recipes"]["actor"], {"prompt": {"lines": ["a"]}})
-        self.assertEqual(record["activation"]["tasks"][0]["known_uses"], [])
-        record["activation"]["tasks"].clear()
-        fresh = study.activate(self.loaded, ["development_smoke"])
-        self.assertEqual((len(fresh["tasks"]), fresh["tasks"][0]["known_uses"]), (2, []))
+        self.assertEqual(record["task_ids"], [1, 2])
+        record["task_ids"].clear()
+        self.assertEqual(self.loaded["groups"]["development"]["initial"], [1, 2, 3])
 
     def test_candidate_identity_hashes_exact_bytes_per_source(self):
         digest = "a" * 64

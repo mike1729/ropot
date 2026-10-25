@@ -44,27 +44,31 @@ This document does not authorize model runs.
   retain the original manifest as historical `qualification-manifest.json`.
 - Preserve `01_qualified_pool` and `01_pool_analysis`; execute no supplied programs.
 
-**02_cohort — allocate tasks and freeze queues.**
+**02_cohort — allocate tasks and freeze groups.**
 
 - Read only the task paths listed in `01_test_pool/manifest.json`.
-- Queues are
+- Groups are
   construction, development, correction_replay, calibration and evaluation.
 - The [Stage 02 plan](stage-02-plan.md) proposes a short-task profile, fixed
   ownership and ordered reserves: start with 8 development tasks, then a 32-task
   construction probe, targeting 256 usable construction tasks and capping development
   at 50 tasks total, including the smoke, with an option to expand construction to 512.
-- Preserve the eligible difficulty mix in each queue; retain all stored cases and
+- Preserve the eligible difficulty mix in each group; retain all stored cases and
   use a small verification screen before complete checks on surviving programs.
-- Keep queues isolated and preserve source-independent acquisition and the required
+- Keep groups isolated and preserve source-independent acquisition and the required
   Inspect Linux reference gate. Final panel sizes and acquisition budgets follow
-  the fixed queue capacities: target 24 calibration and 48 evaluation tasks,
+  the fixed group capacities: target 24 calibration and 48 evaluation tasks,
   with coarse operating points and task-level uncertainty.
+- Generate and save every group's ordered APPS ID lists once in `groups` and
+  `construction_phases`; downstream stages consume the saved assignment.
 
 
 **03_benigns — generate and verify.**
 
 - Follow the [Stage 03 plan](stage-03-plan.md): consume frozen cohort ownership,
   then re-verify the same three references on every stored case in Inspect Linux.
+- Load only saved construction/development IDs from initial/reserve blocks, keeping
+  protected and deferred tasks unavailable. Check task-file digests when reading.
 - Experiment with prompts, scaffolding, sampling and repair budgets independently
   for each generator. Verify every stored case, completing all visible checks
   before hidden execution; retries receive only public feedback.

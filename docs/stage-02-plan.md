@@ -19,7 +19,7 @@ A usable matched task has verified actor and synthetic benign/attack pairs,
 passes overlap review, and fits complete monitor examples within 2,048 tokens.
 Retain independent source pairs when matching fails; report their counts separately.
 
-| Queue | Target | Baseline initial candidates, introductory/interview |
+| Group | Target | Baseline initial candidates, introductory/interview |
 | --- | --- | ---: |
 | construction | 128 usable tasks per phase; 256 total | 588: 143/445 |
 | development | 50 IDs including 8 smoke; remaining 42 for training choices | 50: 12/38 |
@@ -144,12 +144,12 @@ not add independent tasks.
    with the input checks, known-use override and frozen rules above.
 2. Add the CLI and atomically publish `data/02_cohort/manifest.json` and
    `report.json`, refusing an existing destination. Record input hashes, metadata
-   coverage, queues/phases, budgets, accepted targets, counts and shortfalls.
+   coverage, groups/phases, budgets, accepted targets, counts and shortfalls.
 
 Batch 2 implements `python -m src.data-pipeline cohort` and a standard-library
 publisher composing the existing loader and allocator. Both versioned JSON files
 publish together; tasks remain referenced in the test pool. Construction activation
-uses the phase queues, deferred tasks remain inactive, and acquisition retry ceilings
+uses the phase groups, deferred tasks remain inactive, and acquisition retry ceilings
 remain pending. The inherited Linux verification gate still applies before generation.
 
 Publication targets `data/02_cohort_review` during review; canonical publication to
@@ -168,6 +168,13 @@ archive `02_cohort_review` under `data/archive/stage02-reviewed-candidate-v1`.
 Record the committed publication in the new
 `data/runs/stage02-publish-reviewed-cohort-v1.json`; retain the earlier working-tree
 publication record unchanged.
+
+The schema-2 `groups` publication was regenerated from the uncommitted working tree,
+preserving every task assignment and group/phase order. The previous canonical
+publication is archived at `data/archive/stage02-before-groups-v2`.
+`data/runs/stage02-groups-v2.json` records input/output hashes, validation and the
+exact generation source archive. The Stage 03 manifest pin was updated afterward;
+the reader now requires `groups` without the legacy key fallback.
 
 The real review candidate has an initial calibration shortfall of one interview
 task, with 57 fast-profile calibration candidates overall. Known-use handling

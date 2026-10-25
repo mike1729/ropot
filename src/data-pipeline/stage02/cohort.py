@@ -142,10 +142,10 @@ def interleave(introductory, interview):
 def allocate(tasks):
     """Freeze all ownership and phases, reporting fixed per-stratum shortfalls.
 
-    Queues contain IDs in three independently interleaved blocks. Consumers extend
+    Groups contain IDs in three independently interleaved blocks. Consumers extend
     active prefixes by concatenating initial + reserve; deferred stays inactive
     until a separately reviewed profile broadening. No active limit is chosen here.
-    Construction activation uses construction_phases; owner queues show membership.
+    Construction activation uses construction_phases; owner groups show membership.
     """
     records, sequential = {}, {metric: 0 for metric in PROFILE}
     for task in tasks:
@@ -204,6 +204,6 @@ def allocate(tasks):
                          for di, difficulty in enumerate(DIFFICULTIES)} for owner, quota in QUOTAS.items()}
     flatten = lambda groups: {name: {block: interleave(*lists) for block, lists in blocks.items()}
                               for name, blocks in groups.items()}
-    return {"tasks": sorted(records.values(), key=lambda t: t["id"]), "queues": flatten(buckets),
+    return {"tasks": sorted(records.values(), key=lambda t: t["id"]), "groups": flatten(buckets),
             "construction_phases": flatten(phases), "shortfalls": shortfalls,
             "sequential_remaining": sequential}

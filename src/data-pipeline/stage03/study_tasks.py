@@ -2,9 +2,10 @@
 
 See docs/stage-03-plan.md. The reviewed cohort manifest is pinned by SHA-256; the
 test-pool manifest and every loaded task must match the digests it records.
-Activation exposes only fixed initial prefixes, and the Linux reference gate stays
-pending. Records and identities are fresh JSON values; budgets, persistence, model
-calls and program execution belong to later batches.
+Stage 02 saves every group once; this module can read only construction and
+development tasks. The Docker reference gate stays pending. Records and identities
+are fresh JSON values; budgets, persistence, model calls and program execution
+belong to later batches.
 """
 
 import json
@@ -13,12 +14,10 @@ import re
 
 from ..stage02.cohort import sha256
 from ..stage02.publish_cohort import OUTPUT
+from ..stage02.published_cohort import load_cohort as load_published_cohort
 
 
-COHORT_SHA256 = "60708dc74d386a8bb337a194a15a1c355c2a81f79768d8f876fb7a8f13148ff8"
-GROUPS = {"development_smoke": ("development", None),
-          "shared_pretraining_probe": ("construction", "shared_honest_pretraining"),
-          "continuation_probe": ("construction", "twin_continuation")}
+COHORT_SHA256 = "0c1ab106c67cabdbffd2b9c2dc58b0481a793b1b3cf074f9078ae6c398a2aad8"
 SOURCES = ("actor", "synthetic")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 
@@ -35,77 +34,26 @@ def snapshot(value):
 
 
 def load_cohort(cohort_dir=OUTPUT, test_pool_dir=None):
-    """Return the pinned cohort, its test-pool manifest and the task directory.
+    """Load only Stage 02's saved construction/development groups and task index.
 
-    Cohort bytes must match COHORT_SHA256 before decoding, and the test-pool
-    manifest must match the cohort's recorded input digest. ``test_pool_dir``
-    replaces the recorded input directory after relocation; both checks still apply.
-    Allocation and provenance are returned as published, without recomputation.
+    Initial and reserve blocks are available in their saved order. Deferred tasks
+    remain unavailable. Treat the returned metadata and index as read-only.
     """
-    raw = (Path(cohort_dir) / "manifest.json").read_bytes()
-    digest = sha256(raw)
-    if digest != COHORT_SHA256:
-        raise ValueError("Cohort manifest differs from the reviewed publication")
-    cohort = json.loads(raw)
-    test_pool_dir = Path(cohort["provenance"]["input_dir"] if test_pool_dir is None else test_pool_dir)
-    pool_raw = (test_pool_dir / "manifest.json").read_bytes()
-    if sha256(pool_raw) != cohort["provenance"]["input_manifest_sha256"]:
-        raise ValueError("Test-pool manifest differs from the cohort's input")
-    return {"sha256": digest, "cohort": cohort, "test_pool": json.loads(pool_raw), "test_pool_dir": test_pool_dir}
+    return load_published_cohort(cohort_dir, test_pool_dir, expected_sha256=COHORT_SHA256,
+                                 owners=("construction", "development"))
 
 
-def activate(loaded, groups):
-    """Return task bindings for a nonempty subset of GROUPS, in GROUPS then cohort order.
+def load_task(loaded, task_id):
+    """Return (binding, decoded task) for one permitted task, reading only its file.
 
-    Development smoke takes the first ``candidate_budgets`` smoke tasks; each probe
-    takes the first ``probe_per_phase`` tasks of its phase's initial block. Every
-    selected task must be an undeferred test task with the group's owner and phase.
-    Bindings copy the cohort records unchanged, adding only their group name.
+    Manifest bindings were checked at load time. The resolved path must stay
+    inside the test pool and file bytes must match before decoding. Split, integer
+    ID and difficulty must equal the indexed cohort record. Return a fresh binding
+    separately from the decoded task payload.
     """
-    requested = list(groups)
-    if not requested or len(set(requested)) != len(requested) or not set(requested) <= GROUPS.keys():
-        raise ValueError(f"Activate distinct groups from {list(GROUPS)}")
-    cohort, tasks = loaded["cohort"], []
-    records = {record["id"]: record for record in cohort["tasks"]}
-    budgets = cohort["candidate_budgets"]
-    for name, (owner, phase) in GROUPS.items():
-        if name not in requested:
-            continue
-        queue, size = ((cohort["queues"][owner]["initial"], budgets[owner]["smoke"]["total"]) if phase is None
-                       else (cohort["construction_phases"][phase]["initial"], budgets[owner]["probe_per_phase"]))
-        if type(size) is not int or not 0 < size <= len(queue):
-            raise ValueError(f"Insufficient {name} prefix")
-        for identifier in queue[:size]:
-            record = records[identifier]
-            if (record["split"], record["owner"], record.get("phase"), record["block"],
-                    record["defer_reasons"]) != ("test", owner, phase, "initial", []):
-                raise ValueError(f"Ineligible {name} task: {identifier}")
-            tasks.append({**record, "group": name})
-    return snapshot({"cohort_sha256": loaded["sha256"],
-                     "groups": [name for name in GROUPS if name in requested], "tasks": tasks})
-
-
-def _require_activation(loaded, activation):
-    """Accept only an activation equal to the one the pinned cohort produces."""
-    if activation != activate(loaded, activation["groups"]):
-        raise ValueError("Activation differs from the pinned cohort prefixes")
-
-
-def load_task(loaded, activation, task_id):
-    """Return (binding, decoded task) for one activated task, reading only its file.
-
-    Both pinned manifests must bind the task path to the same digest, the resolved
-    path must stay inside the test pool and the bytes must match before decoding.
-    Split, integer ID and difficulty must equal the cohort record. The binding is
-    a fresh copy of the activation record; the task payload is returned separately.
-    """
-    _require_activation(loaded, activation)
-    record = next((task for task in activation["tasks"]
-                   if type(task_id) is int and task["id"] == task_id), None)
-    if record is None:
-        raise ValueError(f"Task is not activated: {task_id!r}")
-    if loaded["test_pool"]["provenance"]["task_sha256"].get(record["path"]) != record["sha256"]:
-        raise ValueError(f"Cohort and test-pool bindings disagree: {record['path']}")
+    if type(task_id) is not int or task_id not in loaded["tasks_by_id"]:
+        raise ValueError(f"Task is not in the saved construction/development groups: {task_id!r}")
+    record = loaded["tasks_by_id"][task_id]
     root = Path(loaded["test_pool_dir"]).resolve()
     path = (root / record["path"]).resolve()
     if not path.is_relative_to(root):
@@ -120,26 +68,29 @@ def load_task(loaded, activation, task_id):
     return snapshot(record), task
 
 
-def experiment_record(loaded, experiment_id, activation, recipes):
+def experiment_record(loaded, experiment_id, task_ids, recipes):
     """Return a fresh, versioned record of one experiment's tasks and source recipes.
 
+    Task IDs are an experiment worklist within the saved groups, not a new split.
     Recipes are opaque JSON objects for a nonempty subset of SOURCES, kept separate
     per source. Reply, token and wall-time limits, their enforcement and persistence
-    belong to batch 6; the Linux reference gate remains pending.
+    belong to batch 6; the Docker reference gate remains pending.
     """
-    _require_activation(loaded, activation)
+    task_ids = list(task_ids)
+    if (not task_ids or any(type(identifier) is not int or identifier not in loaded["tasks_by_id"]
+                            for identifier in task_ids) or len(set(task_ids)) != len(task_ids)):
+        raise ValueError("Experiment tasks must be distinct IDs from the saved construction/development groups")
     if type(experiment_id) is not str or not experiment_id.strip():
         raise ValueError("Experiment ID must be a nonempty string")
     if (not isinstance(recipes, dict) or not recipes or not set(recipes) <= set(SOURCES)
             or not all(isinstance(recipe, dict) for recipe in recipes.values())):
         raise ValueError(f"Recipes must map a nonempty subset of {SOURCES} to JSON objects")
-    cohort = loaded["cohort"]
     return snapshot({
-        "schema_version": 1, "experiment_id": experiment_id,
+        "schema_version": 2, "experiment_id": experiment_id,
         "cohort": {"manifest_sha256": loaded["sha256"],
-                   "test_pool_manifest_sha256": cohort["provenance"]["input_manifest_sha256"]},
-        "activation": activation,
-        "reference_gate": {"status": "pending", "requirement": cohort["required_next_gate"]},
+                   "test_pool_manifest_sha256": loaded["test_pool_manifest_sha256"]},
+        "task_ids": task_ids,
+        "reference_gate": {"status": "pending", "requirement": loaded["required_next_gate"]},
         "recipes": {source: recipes[source] for source in SOURCES if source in recipes},
     })
 
@@ -147,7 +98,7 @@ def experiment_record(loaded, experiment_id, activation, recipes):
 def candidate_identity(split, task_id, task_sha256, source, program):
     """Return a candidate's stable identity from its task, source and exact bytes.
 
-    No cohort lookup, activation, normalization or correctness check applies, so
+    No cohort lookup, normalization or correctness check applies, so
     fixture and train-row candidates share this form. Experiment, cohort and request
     links stay outside it; repeated identical bytes remain separate attempts.
     """

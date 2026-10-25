@@ -61,7 +61,7 @@ class CohortPolicyTests(unittest.TestCase):
             eligible = [t["id"] for t in order if t["id"] < 1169]
             cursor = 0
             for owner, quota in QUOTAS.items():
-                actual = [i for i in result["queues"][owner]["initial"] if records[i]["difficulty"] == difficulty]
+                actual = [i for i in result["groups"][owner]["initial"] if records[i]["difficulty"] == difficulty]
                 self.assertEqual(actual, eligible[cursor:cursor + quota[di]])
                 cursor += quota[di]
             reserves = eligible[cursor:]
@@ -69,20 +69,20 @@ class CohortPolicyTests(unittest.TestCase):
             for block, ids, offset in (("reserve", reserves, 0), ("deferred", deferred, len(reserves))):
                 for owner in QUOTAS:
                     expected = [i for index, i in enumerate(ids, offset) if cycle[index % len(cycle)] == owner]
-                    self.assertEqual([i for i in result["queues"][owner][block]
+                    self.assertEqual([i for i in result["groups"][owner][block]
                                       if records[i]["difficulty"] == difficulty], expected)
-            construction = [i for block in BLOCKS for i in result["queues"]["construction"][block]
+            construction = [i for block in BLOCKS for i in result["groups"]["construction"][block]
                             if records[i]["difficulty"] == difficulty]
             for index, identifier in enumerate(construction):
                 self.assertEqual(records[identifier]["phase"], PHASES[(index + di) % 2])
         seen = []
-        for owner, blocks in result["queues"].items():
+        for owner, blocks in result["groups"].items():
             for block, identifiers in blocks.items():
                 seen.extend(identifiers)
                 self.assertTrue(all(records[i]["owner"] == owner and records[i]["block"] == block for i in identifiers))
         self.assertEqual(sorted(seen), list(range(1448)))
-        self.assertEqual([len(result["queues"]["construction"][b]) for b in BLOCKS], [588, 162, 124])
-        self.assertEqual([len(result["queues"]["development"][b]) for b in BLOCKS], [50, 0, 0])
+        self.assertEqual([len(result["groups"]["construction"][b]) for b in BLOCKS], [588, 162, 124])
+        self.assertEqual([len(result["groups"]["development"][b]) for b in BLOCKS], [50, 0, 0])
         for phase in PHASES:
             blocks = result["construction_phases"][phase]
             self.assertEqual(len(blocks["initial"]), 294)
@@ -90,8 +90,8 @@ class CohortPolicyTests(unittest.TestCase):
             self.assertTrue(all(records[i]["phase"] == phase for ids in blocks.values() for i in ids))
             self.assertEqual(sum(records[i]["difficulty"] == "introductory" for i in blocks["initial"][:16]), 4)
         self.assertEqual(sum(records[i]["difficulty"] == "introductory"
-                             for i in result["queues"]["development"]["initial"][:8]), 2)
-        for grouping in (result["queues"], result["construction_phases"]):
+                             for i in result["groups"]["development"]["initial"][:8]), 2)
+        for grouping in (result["groups"], result["construction_phases"]):
             for blocks in grouping.values():
                 for ids in blocks.values():
                     count = sum(records[i]["difficulty"] == "introductory" for i in ids)
@@ -99,7 +99,7 @@ class CohortPolicyTests(unittest.TestCase):
                         self.assertEqual(sum(records[i]["difficulty"] == "introductory" for i in ids[:p]),
                                          (2 * p * count + len(ids)) // (2 * len(ids)))
         eligible_only = c.allocate(tasks[:1169])
-        for key in ("queues", "construction_phases"):
+        for key in ("groups", "construction_phases"):
             for owner in result[key]:
                 for block in ("initial", "reserve"):
                     self.assertEqual(result[key][owner][block], eligible_only[key][owner][block])
@@ -109,7 +109,7 @@ class CohortPolicyTests(unittest.TestCase):
         baseline = c.allocate(tasks)
         original = {t["id"]: t for t in baseline["tasks"]}
         protected = ("evaluation", "calibration", "correction_replay")
-        redirected = {next(i for i in baseline["queues"][owner][block]
+        redirected = {next(i for i in baseline["groups"][owner][block]
                            if original[i]["difficulty"] == difficulty)
                       for owner in protected for block in BLOCKS for difficulty in c.DIFFICULTIES}
         for candidate in tasks:
@@ -135,12 +135,12 @@ class CohortPolicyTests(unittest.TestCase):
                 self.assertNotIn("phase", record)
         for owner in protected:
             for block in BLOCKS:
-                self.assertEqual(set(result["queues"][owner][block]),
-                                 set(baseline["queues"][owner][block]) - redirected)
+                self.assertEqual(set(result["groups"][owner][block]),
+                                 set(baseline["groups"][owner][block]) - redirected)
         for owner, quotas in QUOTAS.items():
             for di, difficulty in enumerate(c.DIFFICULTIES):
                 initial_count = sum(records[i]["difficulty"] == difficulty
-                                    for i in result["queues"][owner]["initial"])
+                                    for i in result["groups"][owner]["initial"])
                 self.assertEqual(result["shortfalls"][owner][difficulty], max(0, quotas[di] - initial_count))
         for di, difficulty in enumerate(c.DIFFICULTIES):
             cursor = di
@@ -148,7 +148,7 @@ class CohortPolicyTests(unittest.TestCase):
                 expected = sorted((i for i, t in records.items() if t["owner"] == "construction"
                                    and t["block"] == block and t["difficulty"] == difficulty), key=lambda i:
                                   (hashlib.sha256(f"ropot-cohort-v1|test|{i}".encode()).digest(), i))
-                actual = [i for i in result["queues"]["construction"][block]
+                actual = [i for i in result["groups"]["construction"][block]
                           if records[i]["difficulty"] == difficulty]
                 self.assertEqual(actual, expected)
                 for offset, identifier in enumerate(expected, cursor):
@@ -158,9 +158,9 @@ class CohortPolicyTests(unittest.TestCase):
                                       if records[i]["difficulty"] == difficulty],
                                      [i for i in expected if records[i]["phase"] == phase])
                 cursor += len(expected)
-        seen = [i for blocks in result["queues"].values() for ids in blocks.values() for i in ids]
+        seen = [i for blocks in result["groups"].values() for ids in blocks.values() for i in ids]
         self.assertEqual(sorted(seen), list(range(1448)))
-        for grouping in (result["queues"], result["construction_phases"]):
+        for grouping in (result["groups"], result["construction_phases"]):
             for blocks in grouping.values():
                 for ids in blocks.values():
                     introductory = sum(records[i]["difficulty"] == "introductory" for i in ids)
@@ -168,17 +168,17 @@ class CohortPolicyTests(unittest.TestCase):
                         self.assertEqual(sum(records[i]["difficulty"] == "introductory" for i in ids[:prefix]),
                                          (2 * prefix * introductory + len(ids)) // (2 * len(ids)))
         eligible_only = c.allocate(tasks[:1169])
-        for key in ("queues", "construction_phases"):
+        for key in ("groups", "construction_phases"):
             for owner in result[key]:
                 for block in ("initial", "reserve"):
                     self.assertEqual(result[key][owner][block], eligible_only[key][owner][block])
 
     def test_shortfalls_preserve_quota_priority_and_do_not_borrow(self):
         result = c.allocate([task(i, "introductory" if i < 3 else "interview") for i in range(8)])
-        self.assertEqual(len(result["queues"]["evaluation"]["initial"]), 8)
+        self.assertEqual(len(result["groups"]["evaluation"]["initial"]), 8)
         for owner, quota in QUOTAS.items():
             expected = (5, 19) if owner == "evaluation" else quota
             self.assertEqual(result["shortfalls"][owner], dict(zip(("introductory", "interview"), expected)))
-            self.assertEqual(result["queues"][owner]["reserve"], [])
+            self.assertEqual(result["groups"][owner]["reserve"], [])
             if owner != "evaluation":
-                self.assertEqual(result["queues"][owner]["initial"], [])
+                self.assertEqual(result["groups"][owner]["initial"], [])

@@ -12,7 +12,7 @@ Run from the repository root. `download` is the first command in the
 The implementation follows the pipeline stages:
 
 - `stage01`: download, screen, qualify, analyze and export the test pool.
-- `stage02`: track known use, allocate cohorts and publish frozen queues.
+- `stage02`: track known use, allocate cohorts and publish frozen groups.
 - `stage03`: load study tasks and verify programs through Inspect.
 
 The root package provides the CLI and source provenance hashing. New manifests
@@ -97,7 +97,7 @@ Options: `--input-dir` (default `data/01_test_pool`), `--analysis-dir` (default
 [cohort policy](src/data-pipeline/stage02/cohort.py) supplies the allocation:
 `load_inputs(input_dir, analysis_dir)` validates the export/analysis join;
 `allocate(loaded["tasks"])` returns frozen ownership, construction phases, ordered
-queue blocks, profile deferrals and quota shortfalls. See the [allocation plan](docs/stage-02-plan.md).
+group blocks, profile deferrals and quota shortfalls. See the [allocation plan](docs/stage-02-plan.md).
 The loader verifies `summary.json`'s `tasks_csv_sha256` against the CSV bytes.
 Archive an older analysis before refreshing the canonical `data/01_pool_analysis`;
 the ordinary analysis and cohort defaults then use the canonical paths.
@@ -105,7 +105,7 @@ the ordinary analysis and cohort defaults then use the canonical paths.
 Known-use records and coverage load from the sibling `honeypot/data/manifests/`
 directory by default (override with the corresponding CLI flags or loader arguments).
 The loader checks original-row bindings and retains coverage limitations. Restricted
-uses move from protected queues into construction before its order and phases freeze.
+uses move from protected groups into construction before its order and phases freeze.
 
 Publication writes versioned `manifest.json` and `report.json` together by directory
 rename, retaining input/source fingerprints, known-use coverage, targets, budgets
@@ -130,16 +130,21 @@ import importlib
 
 study = importlib.import_module("src.data-pipeline.stage03.study_tasks")
 loaded = study.load_cohort()  # pinned data/02_cohort manifest and its test pool
-activation = study.activate(loaded, ["development_smoke"])
-binding, task = study.load_task(loaded, activation, activation["tasks"][0]["id"])
-record = study.experiment_record(loaded, "smoke-1", activation, {"actor": {"prompt": "draft"}})
+task_ids = loaded["groups"]["development"]["initial"][:8]  # this experiment's worklist
+binding, task = study.load_task(loaded, task_ids[0])
+record = study.experiment_record(loaded, "smoke-1", task_ids, {"actor": {"prompt": "draft"}})
 identity = study.candidate_identity("test", task["id"], binding["sha256"], "actor", b"print(0)\n")
 ```
 
-`load_cohort` checks the code-pinned cohort digest and the test-pool manifest digest;
-`test_pool_dir` relocates task files without relaxing either check. Activation offers
-only `development_smoke`, `shared_pretraining_probe` and `continuation_probe`, sized
-by the cohort's `candidate_budgets`. `load_task` reads and verifies one activated task.
+Stage 02 generates and saves all five groups once in the cohort manifest's `groups`,
+with construction phase lists in `construction_phases` (manifest schema version 2).
+Stage 03 uses the [publication loader](src/data-pipeline/stage02/published_cohort.py) to check the pinned
+manifest digests and index only saved construction/development IDs from initial and
+reserve blocks. Protected and deferred tasks cannot be loaded. Treat the returned
+metadata and index as read-only; `test_pool_dir` supports relocation without relaxing
+digest checks. `load_task` checks the current resolved path, file digest and decoded
+identity. Schema version 2 experiment records store their worklist as `task_ids`;
+there is no activation object or allocation in Stage 03.
 Records and identities are fresh JSON values; generation limits, persistence and
 model calls belong to later batches, and the Linux reference gate stays pending.
 

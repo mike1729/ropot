@@ -1,4 +1,4 @@
-"""Publish frozen Stage 02 ownership and a capacity report, without activation.
+"""Generate and save every Stage 02 group once, alongside a capacity report.
 
 Task paths are relative to provenance.input_dir; their bytes stay in that dataset.
 Construction consumers use construction_phases, appending initial then reserve.
@@ -36,9 +36,9 @@ def capacity_report(allocation, loaded):
             difficulty: sum(task["difficulty"] == difficulty for task in tasks)
             for difficulty in cohort.DIFFICULTIES}}
 
-    def groups(queues):
+    def group_counts(groups):
         result = {}
-        for name, blocks in queues.items():
+        for name, blocks in groups.items():
             fast = blocks["initial"] + blocks["reserve"]
             result[name] = {block: count(blocks[block]) for block in cohort.BLOCKS}
             result[name].update(fast_profile=count(fast), total=count(fast + blocks["deferred"]))
@@ -49,8 +49,8 @@ def capacity_report(allocation, loaded):
     return {
         "schema_version": 1,
         "counts": {**count(records), "fast_profile": len(records) - deferred, "deferred": deferred},
-        "by_owner": groups(allocation["queues"]),
-        "by_construction_phase": groups(allocation["construction_phases"]),
+        "by_owner": group_counts(allocation["groups"]),
+        "by_construction_phase": group_counts(allocation["construction_phases"]),
         "profile_deferrals": {metric: sum(metric in task["defer_reasons"] for task in records.values())
                               for metric in cohort.PROFILE},
         "sequential_remaining": allocation["sequential_remaining"],
@@ -61,7 +61,7 @@ def capacity_report(allocation, loaded):
         "required_next_gate": loaded["required_next_gate"],
         "limitations": ["Known-use metadata has incomplete coverage; absence does not establish an unseen task.",
                         "Capacities count candidates, not accepted usable tasks or observed acquisition yields.",
-                        "Generation/retry ceilings must be frozen before acquisition; no queues are activated here.",
+                        "Generation/retry ceilings must be frozen before acquisition; no groups are activated here.",
                         "Content token limits do not establish complete monitor-example fit within 2,048 tokens."],
     }
 
@@ -71,7 +71,9 @@ def publish_cohort(input_dir=TEST_OUTPUT, analysis_dir=ANALYSIS_OUTPUT, output_d
     """Validate inputs and atomically publish manifest.json and report.json.
 
     Refuse existing destinations and outputs within either dataset input. Preserve
-    the loader's evidence and allocator's queues unchanged; copy no task artifacts.
+    the loader's evidence and allocator's groups unchanged; copy no task artifacts.
+    ``groups`` saves all five owners' ID lists, and ``construction_phases`` saves
+    the phase lists. Later stages consume these lists without allocating again.
     Return the manifest. Errors propagate without publishing a partial allocation.
     """
     input_dir, analysis_dir, output_dir = Path(input_dir), Path(analysis_dir), Path(output_dir)
@@ -82,9 +84,9 @@ def publish_cohort(input_dir=TEST_OUTPUT, analysis_dir=ANALYSIS_OUTPUT, output_d
     loaded = cohort.load_inputs(input_dir, analysis_dir, known_use_records, known_use_coverage)
     allocation = cohort.allocate(loaded["tasks"])
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "tasks": [{key: task[key] for key in TASK_FIELDS if key in task} for task in allocation["tasks"]],
-        "queues": allocation["queues"], "construction_phases": allocation["construction_phases"],
+        "groups": allocation["groups"], "construction_phases": allocation["construction_phases"],
         "policy": {"seed": cohort.SEED, "profile": cohort.PROFILE,
                    "difficulty_order": list(cohort.DIFFICULTIES), "initial_quota_order": list(cohort.QUOTAS),
                    "initial_quotas": {owner: dict(zip(cohort.DIFFICULTIES, quotas))
@@ -95,7 +97,7 @@ def publish_cohort(input_dir=TEST_OUTPUT, analysis_dir=ANALYSIS_OUTPUT, output_d
                    "restricted_uses": sorted(RESTRICTED_USES),
                    "task_order": "SHA256(seed|test|id), then ID, within difficulty; construction rebuilt after redirects",
                    "interleaving": "proportional within each block; introductory prefix counts round half up",
-                   "construction_activation_queue": "construction_phases"},
+                   "construction_groups": "construction_phases"},
         "candidate_budgets": {"development": {"task_id_cap": 50,
                                               "smoke": {"total": 8, "introductory": 2, "interview": 6},
                                               "training_choices": 42},

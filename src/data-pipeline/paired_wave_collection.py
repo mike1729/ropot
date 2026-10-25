@@ -344,6 +344,17 @@ def _execute(campaign, loaded, built, anchor, opportunities):
     return output
 
 
+def _wave_trial(campaign, built, anchor):
+    from . import study_report as S
+    matches = [t for t in S.snapshot(campaign)["report"]["wave_trials"]
+        if t["plan_id"] == built["plan"]["plan_id"] and t["plan_sha256"] == anchor["payload"]["plan_sha256"]]
+    J.require(len(matches) == 1, "Require unique wave trial")
+    trial = matches[0]
+    J.require(trial.get("report_scope") == "resident_wave" and type(trial.get("metrics")) is list
+        and not any(k in trial for k in ("provisional", "structure_only", "validation_scope")), "Require scientific wave trial")
+    return trial
+
+
 def tune(campaign, loaded, plan_id, *, through_groups=None):
     """Execute whole canonical tuning groups and return one scientific milestone."""
     J.require(through_groups is None or type(through_groups) is int and through_groups > 0, "Invalid tuning group bound")
@@ -354,14 +365,54 @@ def tune(campaign, loaded, plan_id, *, through_groups=None):
     selected = set(groups if through_groups is None else groups[:through_groups])
     _execute(campaign, loaded, built, anchor, [o for o in tuning if o["group"] in selected])
     _live(campaign, anchor, {r["experiment_id"] for r in built["records"]})
-    from . import study_report as S
-    matches = [t for t in S.snapshot(campaign)["report"]["wave_trials"]
-        if t["plan_id"] == plan_id and t["plan_sha256"] == anchor["payload"]["plan_sha256"]]
-    J.require(len(matches) == 1, "Require unique wave trial")
-    trial = matches[0]
-    J.require(trial.get("report_scope") == "resident_wave" and type(trial.get("metrics")) is list
-        and not any(k in trial for k in ("provisional", "structure_only", "validation_scope")), "Require scientific wave trial")
-    return trial
+    return _wave_trial(campaign, built, anchor)
+
+
+def _continuation_entry(campaign, loaded, plan_id):
+    built, anchor = _retained(campaign, loaded, plan_id)
+    _live(campaign, anchor, {r["experiment_id"] for r in built["records"]})
+    trial = _wave_trial(campaign, built, anchor)
+    J.require(trial.get("comparison_valid") is True and trial.get("prior_exposed_tasks") == [], "Invalid or exposed wave trial")
+    tuning = [m for m in trial["metrics"] if type(m) is dict and m.get("name") == "tuning40"]
+    J.require(len(tuning) == 1 and type(tuning[0].get("denominator")) is int and tuning[0]["denominator"] == 40
+        and type(tuning[0].get("terminal_cells")) is int and tuning[0]["terminal_cells"] == 160
+        and tuning[0].get("complete") is True, "Require complete usable tuning evidence")
+    decisions = [e for e in campaign.events if e["kind"] == "wave_confirmation" and e["payload"]["plan_id"] == plan_id]
+    J.require(len(decisions) <= 1, "Duplicate wave confirmation")
+    decision = PC._one(campaign.events, "wave_confirmation", plan_id) if decisions else None
+    if decision is None:
+        J.require("confirmation_seq" in trial and trial["confirmation_seq"] is None, "Wave confirmation differs")
+    else:
+        payload = decision["payload"]
+        J.require(set(payload) == {"plan_id", "plan_sha256", "decision", "rationale"}
+            and payload["plan_id"] == plan_id and payload["plan_sha256"] == anchor["payload"]["plan_sha256"]
+            and payload["decision"] == "unchanged" and type(payload["rationale"]) is str
+            and bool(payload["rationale"].strip()), "Wave confirmation differs")
+        J.require(type(trial.get("confirmation_seq")) is int and trial["confirmation_seq"] == decision["seq"]
+            and trial.get("fresh_confirmation_valid") is True, "Invalid historical wave confirmation")
+    return built, anchor, trial, decision
+
+
+def confirm(campaign, loaded, plan_id, *, rationale):
+    """Record the caller's explicit unchanged decision; never choose a recipe."""
+    J.require(type(rationale) is str and bool(rationale.strip()), "Require explicit unchanged rationale")
+    _, anchor, _, decision = _continuation_entry(campaign, loaded, plan_id)
+    payload = dict(plan_id=plan_id, plan_sha256=anchor["payload"]["plan_sha256"], decision="unchanged", rationale=rationale)
+    if decision is not None:
+        J.require(digest(decision["payload"]) == digest(payload), "Wave confirmation differs")
+        return decision
+    _guard(campaign, anchor)
+    return PC._event(campaign, "wave_confirmation", payload)
+
+
+def fresh(campaign, loaded, plan_id):
+    """Continue only the canonical fresh suffix after its proven explicit decision."""
+    built, anchor, _, decision = _continuation_entry(campaign, loaded, plan_id)
+    J.require(decision is not None, "Require explicit unchanged wave confirmation")
+    opportunities = [o for o in built["plan"]["opportunities"] if o["block"].endswith("fresh")]
+    _execute(campaign, loaded, built, anchor, opportunities)
+    _live(campaign, anchor, {r["experiment_id"] for r in built["records"]})
+    return _wave_trial(campaign, built, anchor)
 
 
 def main(argv=None):

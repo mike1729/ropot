@@ -1,6 +1,7 @@
 import copy
 import importlib
 import json
+from contextlib import ExitStack
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -245,6 +246,187 @@ class PairedWaveReportTests(unittest.TestCase):
         limits, reserved = self.J.Campaign.totals(self.events); funding = payload["funding"]
         funding.update(reserved_before=reserved, limits={s: {u: max(limits[s][u], reserved[s][u] + funding["bound"][s][u]) for u in self.J.UNITS} for s in limits})
         return self.anchor(kind, payload)
+
+    def wrapper_fixture(self):
+        from tests.test_wave_executor import WaveExecutorTests
+        self.W, scientific = self.f.C, self.scientific
+        self.real_driver = self.W._execute
+        stack = self.enterContext(ExitStack())
+        def stamped(*args, **kwargs):
+            batch, rows = scientific(*args, **kwargs)
+            for row in rows: self.outcomes[row["seq"]]["job_sha256"] = batch["job_sha256"]
+            return batch, rows
+        def finish(seq, events):
+            return {**{k: v for k, v in self.outcomes[seq].items() if k not in ("kind", "seq")}, "response": None}
+        patches = ((self, "scientific", dict(side_effect=stamped)),
+            (type(self.c), "events", dict(new_callable=mock.PropertyMock, side_effect=lambda: self.events)),
+            (self.c, "_append", dict(side_effect=self.emit)), (self.c, "_finish", dict(side_effect=finish)),
+            (self.c, "_finish_batch", dict(side_effect=lambda session, events=None: WaveExecutorTests.finish_batch(self, session, self.events if events is None else events))),
+            (self.L.native, "reconcile_native", dict(return_value=[])),
+            (self.S, "snapshot", dict(side_effect=lambda campaign: dict(report=dict(wave_trials=[self.trial()])))),
+            (self.W, "_retained", dict(wraps=self.W._retained)), (self.W, "_execute", dict(return_value=[])))
+        self.wrappers = {name: stack.enter_context(mock.patch.object(target, name, **kw)) for target, name, kw in patches}
+        rows = self.tuning_complete()
+        self.assertEqual(next(m for m in self.trial()["metrics"] if m["name"] == "tuning40")["terminal_cells"], 160)
+        return rows
+
+    def test_wrapper_exact_confirmation_retry_and_caller_rationale(self):
+        self.wrapper_fixture()
+        rationale = " External common limitation review "
+        event = self.W.confirm(self.c, self.f.loaded, "trial", rationale=rationale)
+        self.assertEqual(event["payload"], dict(plan_id="trial", plan_sha256=self.trial()["plan_sha256"], decision="unchanged", rationale=rationale))
+        self.assertEqual(event["payload_sha256"], self.S.digest(event["payload"]))
+        self.wrappers["_retained"].assert_called_once()
+        self.wrappers["snapshot"].assert_called_once()
+        self.assertTrue(self.trial()["fresh_confirmation_valid"])
+        saved = copy.deepcopy(self.events)
+        self.assertEqual(self.W.confirm(self.c, self.f.loaded, "trial", rationale=rationale), event)
+        self.assertEqual(self.events, saved)
+        for bad in (None, 1, "", "  ", rationale.strip()):
+            with self.subTest(rationale=bad), self.assertRaises(ValueError): self.W.confirm(self.c, self.f.loaded, "trial", rationale=bad)
+        self.assertEqual(self.events, saved)
+        self.assertEqual((self.wrappers["_retained"].call_count, self.wrappers["snapshot"].call_count), (3, 3))
+        self.wrappers["_execute"].assert_not_called()
+
+    def test_wrapper_fresh_needs_an_explicit_decision(self):
+        self.wrapper_fixture()
+        with self.assertRaisesRegex(ValueError, "explicit unchanged wave confirmation"): self.W.fresh(self.c, self.f.loaded, "trial")
+        self.wrappers["_execute"].assert_not_called()
+
+    def test_wrapper_retained_decision_schema_and_reported_seq_are_exact(self):
+        self.wrapper_fixture()
+        self.confirm()
+        trial, saved = self.trial(), copy.deepcopy((self.events, self.ready))
+        for fault in ("duplicate", "plan_sha256", "decision", "rationale", "seq"):
+            self.restore_science(saved)
+            decision = next(e for e in self.events if e["kind"] == "wave_confirmation")
+            if fault == "duplicate": self.confirm()
+            elif fault != "seq":
+                decision["payload"][fault] = "0" * 64 if fault == "plan_sha256" else ""
+                decision["payload_sha256"] = self.S.digest(decision["payload"])
+            reported = dict(trial, confirmation_seq=trial["confirmation_seq"] + 1) if fault == "seq" else trial
+            with mock.patch.object(self.S, "snapshot", return_value=dict(report=dict(wave_trials=[reported]))), self.subTest(fault=fault), self.assertRaises(ValueError):
+                self.W.confirm(self.c, self.f.loaded, "trial", rationale="Fixture pooled review")
+            self.assertEqual(sum(e["kind"] == "wave_confirmation" for e in self.events), 2 if fault == "duplicate" else 1)
+
+    def test_wrapper_report_grammar_and_exact_decision_binding(self):
+        self.wrapper_fixture()
+        trial = self.trial()
+        metric = next(m for m in trial["metrics"] if m["name"] == "tuning40")
+        for fault in ("missing", "duplicate", "hash", "provisional", "metric_missing", "metric_duplicate", "denominator", "complete", "seq"):
+            changed = copy.deepcopy(trial)
+            if fault.startswith("metric_"): changed["metrics"] = [m for m in changed["metrics"] if m["name"] != "tuning40"] + ([metric, metric] if fault == "metric_duplicate" else [])
+            elif fault in ("denominator", "complete"): next(m for m in changed["metrics"] if m["name"] == "tuning40")[fault] = 39 if fault == "denominator" else False
+            elif fault == "hash": changed["plan_sha256"] = "0" * 64
+            elif fault == "provisional": changed["provisional"] = False
+            elif fault == "seq": changed["confirmation_seq"] = 999
+            reports = [] if fault == "missing" else [changed] * (2 if fault == "duplicate" else 1)
+            with mock.patch.object(self.S, "snapshot", return_value=dict(report=dict(wave_trials=reports))), self.subTest(fault=fault), self.assertRaises(ValueError):
+                self.W.confirm(self.c, self.f.loaded, "trial", rationale="External review")
+        self.assertFalse(any(e["kind"] == "wave_confirmation" for e in self.events))
+
+    def test_wrapper_defensive_159_milestone_keeps_live_atomic_view_intact(self):
+        rows = self.wrapper_fixture()
+        saved = copy.deepcopy((self.events, self.ready))
+        target = rows[-1]
+        opid = next(o["id"] for o in self.built["plan"]["opportunities"] if target["experiment_id"] in o["experiment_ids"] and o["source"] == target["source"] and o["reply_index"] == 0)
+        self.events = [e for e in self.events if not (e["kind"] == "generation_done" and e["reservation_seq"] == target["seq"])
+            and not (e["kind"] == "wave_step" and e["payload"]["opportunity_id"] >= opid)]
+        partial = self.trial()  # Defensive S-consumer view; this is not an admissible atomic J history.
+        self.assertEqual(next(m for m in partial["metrics"] if m["name"] == "tuning40")["terminal_cells"], 159)
+        self.restore_science(saved)
+        with mock.patch.object(self.S, "snapshot", return_value=dict(report=dict(wave_trials=[partial]))), self.assertRaisesRegex(ValueError, "complete usable tuning"):
+            self.W.confirm(self.c, self.f.loaded, "trial", rationale="External review")
+        self.assertFalse(any(e["kind"] == "wave_confirmation" for e in self.events))
+
+    def test_wrapper_later_support_never_heals_its_confirmation_prefix(self):
+        rows = self.wrapper_fixture()
+        self.confirm()
+        saved = copy.deepcopy((self.events, self.ready))
+        target = rows[-1]
+        opid = next(o["id"] for o in self.built["plan"]["opportunities"] if target["experiment_id"] in o["experiment_ids"] and o["source"] == target["source"] and o["reply_index"] == 0)
+        for kind in ("generation_done", "batch_done", "attempt_result", "native_verdict", "native_closed"):
+            self.restore_science(saved)
+            result = next(e for e in self.events if e["kind"] == "attempt_result" and e["reservation_seq"] == target["seq"])
+            event = next(e for e in self.events if e["kind"] == kind and (e.get("reservation_seq") == target["seq"] or e.get("session_seq") == target["session_seq"] or e.get("operation_id") == result["operation_id"]))
+            suffix = [e for e in self.events if e["kind"] == "wave_step" and e["payload"]["opportunity_id"] >= opid]
+            self.late(event)  # Atomic-group interleavings are defensive post-S projections.
+            for step in suffix: self.late(step)
+            self.assertEqual(self.facts()["invalid_reasons"], [])
+            trial = self.trial()
+            self.assertEqual(next(m for m in trial["metrics"] if m["name"] == "tuning40")["terminal_cells"], 160)
+            self.assertFalse(trial["fresh_confirmation_valid"])
+            for entry in (lambda: self.W.confirm(self.c, self.f.loaded, "trial", rationale="Fixture pooled review"), lambda: self.W.fresh(self.c, self.f.loaded, "trial")):
+                with self.subTest(kind=kind), self.assertRaises(ValueError): entry()
+        self.wrappers["_execute"].assert_not_called()
+
+    def test_wrapper_current_invalidity_is_independent_of_historical_decision(self):
+        self.wrapper_fixture()
+        self.confirm()
+        step = next(e for e in self.events if e["kind"] == "wave_step")
+        self.anchor("wave_step", step["payload"])
+        trial = self.trial()
+        self.assertTrue(trial["fresh_confirmation_valid"])
+        self.assertFalse(trial["comparison_valid"])
+        for entry in (lambda: self.W.confirm(self.c, self.f.loaded, "trial", rationale="Fixture pooled review"), lambda: self.W.fresh(self.c, self.f.loaded, "trial")):
+            with self.assertRaises(ValueError): entry()
+        self.wrappers["_execute"].assert_not_called()
+
+    def test_wrapper_global_no_uid_exposure_and_own_postdecision_resume(self):
+        self.wrapper_fixture()
+        saved = copy.deepcopy((self.events, self.ready))
+        task = self.R.PR._layout()[4][0]
+        for owner in ("legacy-no-uid", "old-family"):
+            self.restore_science(saved)
+            row = self.emit("generation_reserved", experiment_id=owner, source="actor", request_text=self.J.encoded(dict(max_tokens=1, wall_time_seconds=1)), attempt=dict(split=task["split"], id=task["id"], task_sha256=task["sha256"], reply_index=0))
+            self.outcomes[row["seq"]] = self.emit("generation_done", reservation_seq=row["seq"], status="interrupted", observed_generation_tokens=0, elapsed_seconds=None, evidence={})
+            self.assertEqual(len(self.trial()["prior_exposed_tasks"]), 1)
+            self.assertTrue(self.trial()["comparison_valid"])
+            with self.assertRaises(ValueError): self.W.confirm(self.c, self.f.loaded, "trial", rationale="External review")
+            self.confirm()
+            with self.assertRaises(ValueError): self.W.fresh(self.c, self.f.loaded, "trial")
+        self.restore_science(saved)
+        self.confirm()
+        fresh = [o for o in self.built["plan"]["opportunities"] if o["block"].endswith("fresh")]
+        self.scientific(fresh[0]["id"])
+        self.assertEqual(self.trial()["prior_exposed_tasks"], [])
+        self.wrappers["snapshot"].reset_mock()
+        self.wrappers["_retained"].reset_mock()
+        def driver(*args): self.assertEqual(self.wrappers["snapshot"].call_count, 1)
+        self.wrappers["_execute"].side_effect = driver
+        before = copy.deepcopy(self.events)
+        self.assertEqual(self.W.fresh(self.c, self.f.loaded, "trial"), self.trial())
+        self.wrappers["_execute"].assert_called_once_with(self.c, self.f.loaded, self.built, next(e for e in self.events if e["kind"] == "wave_setup"), fresh)
+        self.assertEqual(self.wrappers["snapshot"].call_count, 2)
+        self.wrappers["_retained"].assert_called_once()
+        self.assertEqual(self.events, before)
+
+    def test_wrapper_real_driver_requires_last_tuning_step_before_fresh_effects(self):
+        self.wrapper_fixture()
+        self.events.remove([e for e in self.events if e["kind"] == "wave_step"][-1])
+        self.confirm()
+        self.assertTrue(self.trial()["fresh_confirmation_valid"])
+        with mock.patch.object(self.W, "_execute", wraps=self.real_driver), self.assertRaisesRegex(ValueError, "Missing earlier wave checkpoints"):
+            self.W.fresh(self.c, self.f.loaded, "trial")
+
+    def test_wrapper_current_producer_supersession_resource_and_control_barriers(self):
+        rows = self.wrapper_fixture()
+        self.confirm()
+        saved = copy.deepcopy((self.events, self.ready))
+        for fault in ("producer", "collection_setup", "wave_setup", "resources", "native", "control"):
+            self.restore_science(saved)
+            fingerprint = self.W.fingerprint()
+            if fault == "producer": fingerprint[next(iter(fingerprint))] = "0" * 64
+            elif fault in ("collection_setup", "wave_setup"): self.supersede(fault)
+            elif fault == "resources": next(e for e in self.events if e["kind"] == "batch_done")["shared"]["resources_closed"] = False
+            elif fault == "native": self.events.remove(next(e for e in self.events if e["kind"] == "native_closed"))
+            else: self.outcomes[rows[-1]["seq"]]["profile_guarded"] = False
+            self.wrappers["snapshot"].reset_mock()
+            with mock.patch.object(self.W, "fingerprint", return_value=fingerprint):
+                for entry in (lambda: self.W.confirm(self.c, self.f.loaded, "trial", rationale="Fixture pooled review"), lambda: self.W.fresh(self.c, self.f.loaded, "trial")):
+                    with self.subTest(fault=fault), self.assertRaises((ValueError, self.J.ProfileControlError)): entry()
+            self.wrappers["snapshot"].assert_not_called()
+        self.wrappers["_execute"].assert_not_called()
 
     def test_scientific_result_candidates_and_shared_authority(self):
         name = self.built["plan"]["opportunities"][0]["experiment_ids"][:1]
@@ -593,6 +775,20 @@ class PairedWaveReportTests(unittest.TestCase):
                 with mock.patch.object(self.R.Path, "read_bytes", offline): self.assertEqual(self.S.snapshot(c), snapshot)
                 # Publication additionally fingerprints current Python sources.
                 self.assertEqual(self.S.publish(c, "wave"), published)
+            saved = c.events
+            with mock.patch.object(w.C, "_retained", wraps=w.C._retained) as retained, \
+                 mock.patch.object(self.S, "snapshot", wraps=self.S.snapshot) as current, \
+                 mock.patch.object(w.C, "_execute", side_effect=AssertionError("Fresh driver")), mock.patch.object(self.L.study, "load_task", side_effect=AssertionError("Selected payload")), \
+                 mock.patch.object(self.L, "prepare_cell", side_effect=AssertionError("Prepare")), mock.patch.object(self.J.Campaign, "generate_batch", side_effect=AssertionError("Generation")), \
+                 mock.patch.object(b.N, "run_native", side_effect=AssertionError("New native dispatch")):
+                for entry in (lambda: w.C.confirm(c, w.loaded, "trial", rationale="Pending consumer guard"), lambda: w.C.fresh(c, w.loaded, "trial")):
+                    retained.reset_mock()
+                    current.reset_mock()
+                    with self.assertRaisesRegex(ValueError, "complete usable tuning"):
+                        entry()
+                    retained.assert_called_once_with(c, w.loaded, "trial")
+                    current.assert_called_once_with(c)
+                    self.assertEqual(c.events, saved)
             (c.root / "requests" / f"{outcomes[0]['reservation_seq']:06d}" / "candidate.py").write_bytes(b"print(999)")
             with self.assertRaisesRegex(ValueError, "Artifact changed"): self.S.snapshot(c)
             with self.assertRaisesRegex(ValueError, "Artifact changed"): self.S.publish(c, "tampered")

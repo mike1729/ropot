@@ -719,7 +719,7 @@ Every actual row settles before usable evidence permits an immutable checkpoint.
 Unknown owners, control failures and native infrastructure block later work;
 supported repair failures retain their own next slot. A new closed generation
 failure pauses after its durable checkpoint. Scientific report sources join the
-wave producer freeze. Public tuning and fresh admission remain separate work.
+wave producer freeze; fresh admission also requires the scientific prefix gate.
 
 Loop entry and wave live checks share invocation-local generation reconciliation.
 Every scalar replays retained evidence; each batch session replays once per call.
@@ -731,3 +731,9 @@ their existing stop behavior. The next call revalidates all retained evidence.
 `paired_wave_collection.tune(..., through_groups=N)` selects whole tuning groups;
 None selects all tuning groups. It returns one honest scientific milestone after
 closure, without fresh work or confirmation. See the [wave protocol](stage-03-wave-protocol.md).
+
+`paired_wave_collection.confirm(..., rationale=...)` records an explicit unchanged
+decision only after usable tuning160; its exact rationale and event are immutable.
+`paired_wave_collection.fresh(...)` requires that decision's valid prefix and a
+currently valid comparison before executing the canonical fresh suffix.
+Neither entry chooses a recipe or supplies an operator rationale.

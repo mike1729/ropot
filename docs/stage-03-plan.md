@@ -745,3 +745,11 @@ Snapshots reprove native files and retain reportable failures plus the final pre
 Changing these producer bytes requires a new plan/member family and prospective
 funding in the same campaign. Old sessions and costs remain historical; their
 outcomes never become the new family's own evidence.
+
+Pure protocol and qualification validation may reuse bounded immutable results.
+Keys bind all input bytes and controls; caller inputs and returned objects stay separate.
+Only complete successful computations are retained in process; no cache persists.
+Scalar results retain at most 256 MiB and admissions at most 4 MiB, plus small keys.
+Physical evidence reads, hashes, cleanup, row bindings and source checks run afresh.
+Changing these qualified producers requires four new qualifications before acquisition
+and a new plan/member family; historical admissions never authorize changed sources.

@@ -7,6 +7,7 @@ import math
 import re
 from pathlib import Path
 import subprocess
+from threading import Lock
 from time import monotonic, sleep
 
 from .local_runner import _exited, _kill_group
@@ -20,6 +21,8 @@ FIELDS = {"model_path", "messages", "seed", "temperature", "top_p", "max_tokens"
           "wall_time_seconds", "enable_thinking", "fix_mistral_regex"}
 ENVIRONMENT = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin", "HF_HUB_OFFLINE": "1",
                "TRANSFORMERS_OFFLINE": "1", "TOKENIZERS_PARALLELISM": "false"}
+_PROTOCOL_MEMO, _PROTOCOL_LOCK = {}, Lock()
+_PROTOCOL_RESULT_LIMIT = 1024**2
 
 
 def require(condition, message):
@@ -170,7 +173,44 @@ def protocol(raw, request, identity):
             **({"profile_guarded": guarded, "profile_failure": failed if error is None else None} if controlled else {})}
 
 
+def _protocol_json(value):
+    if type(value) is dict:
+        return all(type(k) is str and _protocol_json(v) for k, v in value.items())
+    if type(value) is list:
+        return all(_protocol_json(v) for v in value)
+    return value is None or type(value) in (str, bool, int, float)
+
+
 def checked_protocol(raw, request, identity, pid, returncode=None):
+    key = None
+    try:
+        eligible = type(raw) is bytes and type(request) is dict and type(identity) is str
+        eligible = eligible and all(v is None or type(v) in (str, bool, int, float) for v in (pid, returncode))
+        if eligible and _protocol_json(request):
+            canonical = json.dumps(request, sort_keys=True, ensure_ascii=False, allow_nan=False)
+            detached = json.loads(canonical)
+            key = sha256(json.dumps([sha256(raw).hexdigest(), canonical, identity,
+                [type(pid).__name__, pid], [type(returncode).__name__, returncode]], ensure_ascii=False, allow_nan=False).encode()).digest()
+    except Exception:  # Key eligibility must not replace the parser's own behavior.
+        pass
+    if key is None:
+        return _checked_protocol(raw, request, identity, pid, returncode)
+    with _PROTOCOL_LOCK:
+        saved = _PROTOCOL_MEMO.get(key)
+    if saved is not None:
+        return json.loads(saved)
+    result = _checked_protocol(raw, detached, identity, pid, returncode)
+    if result["complete"] is True and result["protocol_error"] is None and result.get("profile_failure") is None:
+        saved = json.dumps(result, allow_nan=False).encode()
+        if len(saved) <= _PROTOCOL_RESULT_LIMIT:
+            with _PROTOCOL_LOCK:
+                if key not in _PROTOCOL_MEMO and len(_PROTOCOL_MEMO) >= 256:
+                    del _PROTOCOL_MEMO[next(iter(_PROTOCOL_MEMO))]
+                _PROTOCOL_MEMO[key] = saved
+    return result
+
+
+def _checked_protocol(raw, request, identity, pid, returncode=None):
     result = protocol(raw, request, identity)
     if result["events"] and pid is not None and result["events"][0]["pid"] != pid:
         result.update(complete=False, protocol_error="Worker PID differs")

@@ -1,13 +1,15 @@
 import copy
+from concurrent.futures import ThreadPoolExecutor
 import importlib
 import json
 from pathlib import Path
 import shutil
 import sys
+from threading import Barrier
 from types import SimpleNamespace as NS
 import unittest
 from unittest import mock
-from tests import test_precision_profiles as profiles, test_local_generation as local
+from tests import test_precision_profiles as profiles, test_local_generation as local, test_generation_journal as journal
 
 
 class PrecisionControlTests(unittest.TestCase):
@@ -15,6 +17,8 @@ class PrecisionControlTests(unittest.TestCase):
 
     def setUp(self):
         profiles.PrecisionProfileTests.setUp(self); self.G = importlib.import_module("src.data-pipeline.local_generation")
+        self.G._PROTOCOL_MEMO.clear()
+        self.addCleanup(self.G._PROTOCOL_MEMO.clear)
         self.W = importlib.import_module("src.data-pipeline.mlx_worker")
         suffixes = {suffix for source in ("actor", "synthetic") for post in (False, True)
                     for suffix in self.P.role_suffixes(source, post).values() if suffix} | {"/transformers/fixture.py"}
@@ -48,6 +52,148 @@ class PrecisionControlTests(unittest.TestCase):
     def parse(self, rows, tail=b"", pid=7, rc=0):
         raw = b"".join((json.dumps(row) + "\n").encode() for row in rows) + tail
         return self.G.checked_protocol(raw, self.request, self.identity, pid, rc)
+
+    def test_protocol_memo_returns_independent_complete_results(self):
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in self.rows())
+        args = raw, self.request, self.identity, 7, 0
+        expected = self.G._checked_protocol(*args)
+        with mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+            first = self.G.checked_protocol(*args); self.assertEqual(first, expected)
+            first["tokens"].append(3); first["events"][1]["proof"]["gpu"]["info"]["name"] = "changed"
+            second = self.G.checked_protocol(*args); self.assertEqual(second, expected)
+            second["events"].clear()
+            self.assertEqual(self.G.checked_protocol(*args), expected)
+        self.assertEqual(body.call_count, 1)
+        self.assertIsNot(first["tokens"], second["tokens"])
+
+    def test_protocol_memo_does_not_alias_unicode_scalar_and_surrogate_pair(self):
+        scalar, pair, real = "\U0001f600", "\ud83d\ude00", self.G._checked_protocol
+        rows = self.rows()
+        for row in rows:
+            if "request_sha256" in row: row["request_sha256"] = scalar
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in rows)
+        with mock.patch.object(self.G, "_checked_protocol", wraps=real) as body:
+            self.assertTrue(self.G.checked_protocol(raw, self.request, scalar, 7, 0)["complete"])
+            for _ in range(2):
+                result = self.G.checked_protocol(raw, self.request, pair, 7, 0)
+                self.assertEqual((result["complete"], result["protocol_error"]), (False, "Invalid start"))
+        self.assertEqual(body.call_count, 3)
+        with mock.patch.object(self.G, "_checked_protocol", wraps=real) as body:
+            for content in (scalar, pair, pair):
+                request = {**self.request, "messages": [{"role": "user", "content": content}]}
+                expected = real(raw, request, scalar, 7, 0)
+                self.assertTrue(expected["complete"])
+                self.assertEqual(self.G.checked_protocol(raw, request, scalar, 7, 0), expected)
+        self.assertEqual(body.call_count, 3)
+
+    def test_protocol_memo_keys_all_inputs_and_scalar_types(self):
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in self.rows())
+        base = raw, self.request, self.identity, 7, 0
+        self.G.checked_protocol(*base)
+        variants = [(raw + b"x", self.request, self.identity, 7, 0), (raw.replace(b'"token": 9', b'"token": 8'), *base[1:])]
+        for name, value in (("max_tokens", 2), ("seed", 19), ("messages", [{"role": "user", "content": "different"}])):
+            variants.append((raw, {**self.request, name: value}, self.identity, 7, 0))
+        for field in ("environment", "precision_profile"):
+            changed = copy.deepcopy(self.request)
+            if field == "environment": changed[field]["PATH"] = "different"
+            else: changed[field]["descriptor"]["bits"] = True
+            variants.append((raw, changed, self.identity, 7, 0))
+        variants += [(raw, self.request, "b" * 64, 7, 0)]
+        variants += [(raw, self.request, self.identity, pid, rc) for pid, rc in
+            ((8, 0), (7.0, 0), (True, 0), (None, 0), (7, False), (7, 0.0), (7, None), (7, 3), (7, "0"))]
+        one = raw.replace(b'"pid": 7', b'"pid": 1')
+        variants += [(one, self.request, self.identity, pid, 0) for pid in (1, True, 1.0)]
+        for args in variants:
+            expected = self.G._checked_protocol(*args)
+            with self.subTest(args=args[2:]), mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+                self.assertEqual(self.G.checked_protocol(*args), expected)
+            self.assertEqual(body.call_count, 1)
+
+    def test_protocol_memo_recomputes_negative_and_unsupported_inputs(self):
+        rows = self.rows(); error = dict(event="profile_error", request_sha256=self.identity, code="guard", detail="fixture")
+        damaged = self.rows(); damaged[1]["proof"]["gpu"]["available"] = 1
+        cases = [(rows[:2], b"", 7, 0), (rows[:2], b'{"event":', 7, 3), (damaged, b"", 7, 0),
+            ([rows[0], error], b"", 7, 3), ([rows[0], error], b"", 7, 0), (rows, b"", 8, 0),
+            ([*rows[:2], dict(error, code="import_path")], b"", 7, 3)]
+        for events, tail, pid, rc in cases:
+            raw = b"".join((json.dumps(row) + "\n").encode() for row in events) + tail
+            args = raw, self.request, self.identity, pid, rc
+            expected = self.G._checked_protocol(*args); self.assertFalse(expected["complete"])
+            with mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+                self.assertEqual(self.G.checked_protocol(*args), expected); self.assertEqual(self.G.checked_protocol(*args), expected)
+            self.assertEqual(body.call_count, 2)
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in rows)
+        self.G.checked_protocol(raw, self.request, self.identity, 7, 0)
+        class Mapping(dict): pass
+        unsupported = [{**self.request, "messages": tuple(self.request["messages"])},
+            {**self.request, "precision_profile": Mapping(self.request["precision_profile"])},
+            {**self.request, "unused": object()}, {**self.request, "unused": float("nan")}]
+        for request in unsupported:
+            args = raw, request, self.identity, 7, 0; expected = self.G._checked_protocol(*args)
+            with mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+                self.assertEqual(self.G.checked_protocol(*args), expected); self.assertEqual(self.G.checked_protocol(*args), expected)
+            self.assertEqual(body.call_count, 2)
+        with mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+            for _ in range(2):
+                with self.assertRaisesRegex(AttributeError, "splitlines"): self.G.checked_protocol(None, self.request, self.identity, 7)
+        self.assertEqual(body.call_count, 2)
+
+    def test_protocol_memo_uses_detached_request_for_key_and_computation(self):
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in self.rows())
+        request = copy.deepcopy(self.request); real = self.G._checked_protocol
+        expected = real(raw, request, self.identity, 7, 0)
+        def changed(raw, detached, *args):
+            self.assertIsNot(detached, request); self.assertIsNot(detached["precision_profile"], request["precision_profile"])
+            request["max_tokens"] = 0; request["precision_profile"]["guard_sha256"] = "0" * 64
+            return real(raw, detached, *args)
+        with mock.patch.object(self.G, "_checked_protocol", side_effect=changed) as body:
+            self.assertEqual(self.G.checked_protocol(raw, request, self.identity, 7, 0), expected)
+            self.assertEqual(self.G.checked_protocol(raw, self.request, self.identity, 7, 0), expected)
+        self.assertEqual(body.call_count, 1)
+
+    def test_protocol_memo_bounds_eviction_and_oversize_bypass(self):
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in self.rows())
+        with mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+            for seed in range(257): self.assertTrue(self.G.checked_protocol(raw, {**self.request, "seed": seed}, self.identity, 7, 0)["complete"])
+            self.assertEqual(len(self.G._PROTOCOL_MEMO), 256)
+            self.G.checked_protocol(raw, {**self.request, "seed": 0}, self.identity, 7, 0)
+        self.assertEqual(body.call_count, 258)
+        self.assertTrue(all(type(k) is bytes and len(k) == 32 and type(v) is bytes and len(v) <= 1024**2 for k, v in self.G._PROTOCOL_MEMO.items()))
+        self.G._PROTOCOL_MEMO.clear(); rows = self.rows(); rows[3]["text"] = "x" * (1024**2)
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in rows)
+        expected = self.G._checked_protocol(raw, self.request, self.identity, 7, 0)
+        self.assertTrue(expected["complete"]); self.assertGreater(len(json.dumps(expected).encode()), self.G._PROTOCOL_RESULT_LIMIT)
+        with mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+            for _ in range(2): self.assertEqual(self.G.checked_protocol(raw, self.request, self.identity, 7, 0), expected)
+        self.assertEqual((body.call_count, len(self.G._PROTOCOL_MEMO)), (2, 0))
+
+    def test_protocol_memo_concurrent_misses_preserve_atomic_bound(self):
+        raw = b"".join((json.dumps(row) + "\n").encode() for row in self.rows())
+        for seed in range(255): self.G.checked_protocol(raw, {**self.request, "seed": seed}, self.identity, 7, 0)
+        case, real, barrier = self, self.G._checked_protocol, Barrier(8)
+        class Bounded(dict):
+            def __setitem__(self, key, value):
+                if key not in self: case.assertLess(len(self), 256)
+                super().__setitem__(key, value)
+        def concurrent(*args): barrier.wait(timeout=10); return real(*args)
+        with mock.patch.object(self.G, "_PROTOCOL_MEMO", Bounded(self.G._PROTOCOL_MEMO)), \
+             mock.patch.object(self.G, "_checked_protocol", side_effect=concurrent), ThreadPoolExecutor(max_workers=8) as pool:
+            for seeds in ([1000] * 8, list(range(1001, 1009))):
+                results = list(pool.map(lambda seed: self.G.checked_protocol(raw, {**self.request, "seed": seed}, self.identity, 7, 0), seeds))
+                self.assertTrue(all(result == results[0] and result["complete"] for result in results)); self.assertEqual(len(self.G._PROTOCOL_MEMO), 256)
+
+    def test_warm_protocol_memo_does_not_hide_changed_retained_stdout(self):
+        fixture = journal.GenerationJournalTests(methodName="runTest"); fixture.setUp(); self.addCleanup(fixture.doCleanups)
+        campaign, _ = fixture.create(); self.addCleanup(campaign.close)
+        outcome = campaign.generate("one", "actor", fixture.request())
+        with mock.patch.object(self.G, "_checked_protocol", wraps=self.G._checked_protocol) as body:
+            self.assertEqual(campaign.outcome(outcome["reservation_seq"]), outcome)
+        body.assert_not_called()  # The real legacy worker parse is already warm.
+        path = campaign.root / "requests" / f"{outcome['reservation_seq']:06d}" / "stdout.jsonl"
+        path.write_bytes(path.read_bytes() + b"bad JSON\n")
+        with mock.patch.object(self.G, "generate", side_effect=AssertionError("Replay")), self.assertRaisesRegex(ValueError, "Outcome differs from protocol"):
+            campaign.outcome(outcome["reservation_seq"])
+        self.assertIsNone(campaign.db)
 
     def test_legacy_bytes_and_v2_schema_before_dispatch(self):
         legacy = local.LocalGenerationTests.request(self)

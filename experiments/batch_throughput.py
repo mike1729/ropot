@@ -24,6 +24,8 @@ SCORE_FIELDS = "window row_index seq native_dtype shape finite returned_token ob
 SCORE_VALUES = "seq native_dtype shape finite returned_token observed_f32_sha256".split()
 STDOUT_LIMIT, STDERR_LIMIT = 64 * 1024**2, 16 * 1024**2
 QUALIFICATION_LIMITS = {"job.json": 4 * 1024**2, "stdout.jsonl": STDOUT_LIMIT, "response.json": STDOUT_LIMIT, "cache-control.json": 4096}
+_qualification_memo, _qualification_memo_lock = {}, threading.Lock()
+_QUALIFICATION_MEMO_BYTES = 1024**2
 FIELDS = {"start": "pid", "controls_checked": "request_sha256 proof", "ready": "eos_token_ids fixtures provenance hash_seconds load_seconds",
     "window_start": "id started_seconds", "admit": "window uid row_index t_seconds", "token": "window uid seq token finish_reason t_seconds",
     "window_done": "window elapsed stats memory", "qualification": "checks", "done": ""}
@@ -464,8 +466,15 @@ def _qualification_file(directory, name, limit):
 
 
 def qualification_checked(files):
-    G.require(type(files) is dict and {"job.json", "stdout.jsonl", "response.json"} <= set(files) <= set(QUALIFICATION_LIMITS)
+    G.require(type(files) is dict, "Invalid qualification files")
+    files = files.copy()
+    G.require({"job.json", "stdout.jsonl", "response.json"} <= set(files) <= set(QUALIFICATION_LIMITS)
         and all(type(raw) is bytes and len(raw) <= QUALIFICATION_LIMITS[name] for name, raw in files.items()), "Invalid qualification files")
+    key = tuple((name, len(files[name]), sha256(files[name]).hexdigest()) for name in sorted(QUALIFICATION_LIMITS) if name in files)
+    with _qualification_memo_lock:
+        cached = _qualification_memo.get(key)
+    if cached is not None:
+        return json.loads(cached)
     try:
         job, response = (G.snapshot(json.loads(files[name])) for name in ("job.json", "response.json"))
         _shape(job, historical=True)
@@ -501,7 +510,15 @@ def qualification_checked(files):
             inputs={name: dict(sha256=sha256(raw).hexdigest(), bytes=len(raw)) for name, raw in files.items()})
         if job["schema_version"] == 4: admission["contract"] = "peer-isolation-v2"
         if "cache_limit_bytes" in job: admission["cache_limit_bytes"] = job["cache_limit_bytes"]
-        return G.snapshot(admission)
+        admission = G.snapshot(admission)
+        raw = _raw(admission)
+        if len(raw) <= _QUALIFICATION_MEMO_BYTES:
+            with _qualification_memo_lock:
+                if key not in _qualification_memo:
+                    if len(_qualification_memo) >= 4:
+                        _qualification_memo.pop(next(iter(_qualification_memo)))
+                    _qualification_memo[key] = raw
+        return admission
     except (KeyError, TypeError) as error:
         raise ValueError("Invalid qualification metadata") from error
 

@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from unittest import mock
 from tests import test_isolation_qualification as isolation, test_qualification_admission as legacy, test_program_wave as wave_fixture
 
 
@@ -17,6 +18,7 @@ class IsolationAdmissionTests(unittest.TestCase):
     def setUp(self):
         self.a = isolation.IsolationQualificationTests(methodName="runTest"); self.a.setUp(); self.addCleanup(self.a.doCleanups)
         self.H, self.M, self.root = self.a.H, self.a.M, self.a.f.f.root
+        self.H._qualification_memo.clear(); self.addCleanup(self.H._qualification_memo.clear)
         self.job, self.events, self.files = pack_isolation(self.a)
         self.pin = self.H.sha256(self.files["response.json"]).hexdigest()
 
@@ -27,6 +29,18 @@ class IsolationAdmissionTests(unittest.TestCase):
         if version == 2: result["contract"] = "peer-isolation-v2"
         if "cache_limit_bytes" in job: result["cache_limit_bytes"] = job["cache_limit_bytes"]
         return result
+
+    def test_v2_memo_reuses_only_complete_named_qualification_computation(self):
+        for cache in (None, 0):
+            job, _, files = pack_isolation(self.a, cache_limit_bytes=cache)
+            with mock.patch.object(self.H, "validate_events", wraps=self.H.validate_events) as validate:
+                expected = self.expected(job, files, version=2, ceiling=7168)
+                self.assertEqual(self.H.qualification_checked(files), expected)
+                self.assertEqual(self.H.qualification_checked(dict(reversed(list(files.items())))), expected)
+            self.assertEqual(validate.call_count, 1)
+            for name in files:
+                changed = dict(files); changed[name] = files[name][:-2] + b"!\n"
+                with self.subTest(cache=cache, name=name), self.assertRaises(ValueError): self.H.qualification_checked(changed)
 
     def test_complete_authority_and_exact_legacy_projection(self):
         admission = self.H.qualification_checked(self.files)

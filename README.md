@@ -169,3 +169,32 @@ cohort acquisition jobs. Batch 3 adds the [candidate verifier](src/data-pipeline
 `verify(task, binding["sha256"], program_bytes, log_dir)` and explicit
 `reuse(log_path, task, binding["sha256"], program_bytes)`. Only the returned `feedback`
 may enter repair prompts; native logs and the rest of the result are private evidence.
+
+Batch 4 adds [warm serial actor generation](src/data-pipeline/stage03/local_generation.py).
+Call it directly from the existing MLX Python with Metal access. The 8-bit model
+loads once per finite run; requests carry no previous state:
+
+```python
+generation = importlib.import_module("src.data-pipeline.stage03.local_generation")
+result = generation.generate(
+    "/Users/michal/Workspace/models/mlx-community/Qwen3.5-9B-8bit",
+    [{"messages": [{"role": "user", "content": "Reply with exactly OK."}],
+      "seed": 17, "temperature": 0.7, "top_p": 0.9,
+      "max_tokens": 32, "wall_time_seconds": 30}],
+    "data/03_generation_checks/my-run",
+    model_manifest="/Users/michal/Workspace/models/metadata/Qwen3.5-9B-8bit-16daa4818c54ce5f5436f929d52542eb65bbed9d.json",
+)
+```
+
+The manifest must describe the unchanged model files supplied by the caller;
+artifact hashes are recorded without revalidating weights. Existing destinations
+are refused. Inputs, runtime identity, streamed reply text and outcomes remain in
+the run directory. Request deadlines are soft checks between chunks; loading and
+stalled native calls cannot be forcibly interrupted. Failure stops the run without
+retry. No generated code runs.
+The [batch plan](docs/stage-03-batch-04-plan.md) covers scope and limitations.
+Run focused tests with `python3 -m unittest discover -s tests -p 'test_local_generation.py'`.
+For the fabricated-prompt smoke, run that command using
+`/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python`
+with `ROPOT_MLX_TESTS=1`. It retains evidence under `data/03_generation_checks`;
+benchmarks and batching are deferred.

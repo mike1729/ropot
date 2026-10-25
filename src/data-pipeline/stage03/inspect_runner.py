@@ -1,4 +1,4 @@
-"""Minimal Inspect Linux execution; see docs/stage-03-plan.md for its limitations.
+"""Minimal Inspect Docker execution; see docs/stage-03-plan.md for its limitations.
 
 ``run`` gives each program a fresh sandbox and preserves caller case order, stopping
 at the first execution failure. It checks no answers and clears no reference gate.
@@ -144,7 +144,7 @@ def run(programs, log_dir, *, concurrent_inference=False):
     samples = [Sample(id=index, input="Execute supplied program; no model calls.", metadata={
         "program_base64": base64.b64encode(item["program"]).decode("ascii"), "cases": item["cases"]})
         for index, item in enumerate(programs)]
-    task = Task(name="linux_execution", dataset=samples, solver=execute_programs(),
+    task = Task(name="docker_execution", dataset=samples, solver=execute_programs(),
                 sandbox=("docker", str(COMPOSE)), metadata=metadata)
     return inspect_eval(task, model="mockllm/model", log_dir=str(log_dir), log_format="eval",
         max_sandboxes=MAX_SANDBOXES, max_samples=MAX_SANDBOXES, retry_on_error=0,

@@ -1,7 +1,5 @@
-import copy
 import importlib
 import json
-import math
 from pathlib import Path
 import tempfile
 import unittest
@@ -78,21 +76,27 @@ class StudyTaskTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         return study.load_cohort(self.cohort_dir)
 
-    def test_pinned_manifests_load_unchanged_and_allow_task_relocation(self):
+    def test_pinned_cohort_loads_and_allows_task_relocation(self):
         self.assertEqual(set(self.loaded["tasks_by_id"]), {1, 2, 3, 10, 11, 12, 13, 20, 21})
         self.assertEqual(self.loaded["test_pool_manifest_sha256"],
                          self.cohort["provenance"]["input_manifest_sha256"])
         moved = self.root / "moved"
         self.pool.rename(moved)
         with self.assertRaises(FileNotFoundError):
-            study.load_cohort(self.cohort_dir)
+            study.load_task(study.load_cohort(self.cohort_dir), 1)
         loaded = study.load_cohort(self.cohort_dir, moved)
         self.assertEqual(study.load_task(loaded, 1)[1]["question"], "é")
-        for path, message in ((moved / "manifest.json", "Test-pool manifest"),
-                              (self.cohort_dir / "manifest.json", "reviewed publication")):
-            path.write_bytes(path.read_bytes() + b" ")
-            with self.subTest(path=path.name), self.assertRaisesRegex(ValueError, message):
-                study.load_cohort(self.cohort_dir, moved)
+        path = self.cohort_dir / "manifest.json"
+        path.write_bytes(path.read_bytes() + b" ")
+        with self.assertRaisesRegex(ValueError, "reviewed publication"):
+            study.load_cohort(self.cohort_dir, moved)
+
+    def test_load_reads_only_the_pinned_cohort_manifest(self):
+        (self.pool / "manifest.json").unlink()
+        with mock.patch.object(Path, "read_bytes", autospec=True, side_effect=Path.read_bytes) as read:
+            loaded = study.load_cohort(self.cohort_dir)
+        self.assertEqual([call.args[0] for call in read.call_args_list], [self.cohort_dir / "manifest.json"])
+        self.assertEqual(study.load_task(loaded, 1)[1]["question"], "é")
 
     def test_load_consumes_saved_groups_and_phase_order_without_reallocation(self):
         allocator = importlib.import_module("src.data-pipeline.stage02.cohort")
@@ -108,32 +112,6 @@ class StudyTaskTests(unittest.TestCase):
         self.assertEqual(study.load_task(loaded, 3)[0], self.records[3])
         self.assertEqual(study.load_task(loaded, 13)[0], self.records[13])
 
-    def test_cohort_load_rejects_invalid_saved_membership(self):
-        changes = {
-            "protected owner": lambda c: c["groups"]["development"]["initial"].append(30),
-            "deferred": lambda c: c["groups"]["construction"]["initial"].append(33),
-            "duplicate": lambda c: c["groups"]["development"]["initial"].append(1),
-        }
-        for name, change in changes.items():
-            with self.subTest(name):
-                cohort = copy.deepcopy(self.cohort)
-                change(cohort)
-                with self.assertRaisesRegex(ValueError, "Ineligible saved"):
-                    self.rewrite(cohort)
-
-    def test_cohort_load_rejects_duplicate_and_noninteger_ids(self):
-        for identifier in (2, True, "1"):
-            with self.subTest(identifier=identifier):
-                cohort = copy.deepcopy(self.cohort)
-                cohort["tasks"][0]["id"] = identifier
-                with self.assertRaisesRegex(ValueError, "distinct integers"):
-                    self.rewrite(cohort)
-
-    def test_cohort_load_requires_agreeing_task_bindings(self):
-        self.pool_manifest["provenance"]["task_sha256"]["tasks/test_1.json"] = "0" * 64
-        with self.assertRaisesRegex(ValueError, "bindings disagree"):
-            self.rewrite()
-
     def test_load_task_reads_only_the_requested_verified_artifact(self):
         (self.pool / "tasks/test_2.json").unlink()
         (self.pool / "tasks/test_10.json").write_bytes(b"corrupt")
@@ -142,8 +120,6 @@ class StudyTaskTests(unittest.TestCase):
         self.assertEqual([call.args[0].name for call in read.call_args_list], ["test_1.json"])
         self.assertEqual(binding, self.records[1])
         self.assertEqual(task, json.loads((self.pool / "tasks/test_1.json").read_bytes()))
-        binding["known_uses"].append("changed")
-        self.assertEqual(self.loaded["tasks_by_id"][1]["known_uses"], [])
 
     def test_load_task_rejects_protected_deferred_unknown_and_corrupt_tasks(self):
         with mock.patch.object(Path, "read_bytes", side_effect=AssertionError("must not read denied tasks")):
@@ -154,21 +130,14 @@ class StudyTaskTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Task bytes differ"):
             study.load_task(self.loaded, 1)
 
-    def test_load_task_requires_contained_paths_and_identity(self):
+    def test_load_task_rejects_paths_outside_the_pool(self):
         task = json.loads((self.pool / "tasks/test_1.json").read_bytes())
-        cases = {
-            "outside": (lambda: self.write_task(1, task, "../outside/test_1.json"), "leaves the test pool"),
-            "id": (lambda: self.write_task(1, {**task, "id": 2}), "identity differs"),
-            "boolean id": (lambda: self.write_task(1, {**task, "id": True}), "identity differs"),
-            "difficulty": (lambda: self.write_task(1, {**task, "difficulty": "interview"}), "identity differs"),
-        }
-        for name, (change, message) in cases.items():
-            with self.subTest(name):
-                change()
+        for path in ("../outside/test_1.json", str(self.root / "outside.json")):
+            with self.subTest(path=path):
+                self.write_task(1, task, path)
                 loaded = self.rewrite()
-                with self.assertRaisesRegex(ValueError, message):
+                with self.assertRaisesRegex(ValueError, "leaves the test pool"):
                     study.load_task(loaded, 1)
-                self.write_task(1, task, "tasks/test_1.json")
 
     def test_load_task_rechecks_paths_after_loading_the_cohort(self):
         path = self.pool / "tasks/test_1.json"
@@ -177,43 +146,6 @@ class StudyTaskTests(unittest.TestCase):
         path.symlink_to(outside)
         with self.assertRaisesRegex(ValueError, "leaves the test pool"):
             study.load_task(self.loaded, 1)
-
-    def test_experiment_records_hold_one_or_both_independent_recipes(self):
-        record = study.experiment_record(self.loaded, "smoke-1", [1, 2], {"synthetic": {"temperature": 0.1}})
-        self.assertEqual(record, {
-            "schema_version": 2, "experiment_id": "smoke-1",
-            "cohort": {"manifest_sha256": self.loaded["sha256"],
-                       "test_pool_manifest_sha256": self.cohort["provenance"]["input_manifest_sha256"]},
-            "task_ids": [1, 2],
-            "reference_gate": {"status": "pending", "requirement": self.cohort["required_next_gate"]},
-            "recipes": {"synthetic": {"temperature": 0.1}}})
-        paired = study.experiment_record(self.loaded, "smoke-2", [1, 2],
-                                         {"synthetic": {"prompt": "b"}, "actor": {"prompt": "a"}})
-        self.assertEqual(paired["recipes"], {"actor": {"prompt": "a"}, "synthetic": {"prompt": "b"}})
-        self.assertEqual(list(paired["recipes"]), ["actor", "synthetic"])
-
-    def test_experiment_records_reject_invalid_inputs(self):
-        for experiment_id in ("", "  ", 7):
-            with self.subTest(experiment_id=experiment_id), self.assertRaisesRegex(ValueError, "Experiment ID"):
-                study.experiment_record(self.loaded, experiment_id, [1, 2], {"actor": {}})
-        for recipes in ({}, {"monitor": {}}, {"actor": []}, [("actor", {})], {"actor": {"stop": ("x",)}},
-                        {"actor": {"temperature": math.nan}}, {"actor": {1: "x"}}, {"actor": {"seeds": {1}}}):
-            with self.subTest(recipes=recipes), self.assertRaises(ValueError):
-                study.experiment_record(self.loaded, "smoke", [1, 2], recipes)
-        for task_ids in ([], [1, 1], [True], ["1"], [30], [31], [32], [33], [9999]):
-            with self.subTest(task_ids=task_ids), self.assertRaisesRegex(ValueError, "Experiment tasks"):
-                study.experiment_record(self.loaded, "smoke", task_ids, {"actor": {}})
-
-    def test_records_are_isolated_snapshots(self):
-        task_ids = [1, 2]
-        recipe = {"prompt": {"lines": ["a"]}}
-        record = study.experiment_record(self.loaded, "smoke", task_ids, {"actor": recipe})
-        recipe["prompt"]["lines"].append("b")
-        task_ids.append(30)
-        self.assertEqual(record["recipes"]["actor"], {"prompt": {"lines": ["a"]}})
-        self.assertEqual(record["task_ids"], [1, 2])
-        record["task_ids"].clear()
-        self.assertEqual(self.loaded["groups"]["development"]["initial"], [1, 2, 3])
 
     def test_candidate_identity_hashes_exact_bytes_per_source(self):
         digest = "a" * 64

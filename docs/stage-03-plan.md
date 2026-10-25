@@ -18,6 +18,9 @@ Stage 02 generates and saves every group once in `groups` and `construction_phas
 Stage 03 loads only saved construction/development IDs from initial/reserve blocks;
 protected and deferred tasks are unavailable. Experiments record a worklist of those
 IDs without redefining groups or running allocation. Task reads retain digest checks.
+Metadata validation belongs to Stage 02. The reader verifies the cohort hash and
+restricts membership; task reads check current path containment and file digests.
+Bindings are shared read-only metadata, without copying or repeated schema checks.
 The [cohort plan](stage-02-plan.md) governs activation; the [pilot](pilot.md)
 defines the later monitor experiment.
 
@@ -35,12 +38,12 @@ concrete design and checks when starting it; the rows below describe its purpose
 
 | Batch | Outcome |
 | --- | --- |
-| 1 | Load the saved construction/development groups, pin the reviewed manifest hash, and define a minimal experiment worklist record and candidate identity. Preserve ownership and provenance; group assignment belongs to Stage 02. |
+| 1 | Load the saved construction/development groups, pin the reviewed manifest hash, and define candidate identity. Preserve ownership and provenance; group assignment belongs to Stage 02. |
 | 2 | Establish Inspect Docker execution with one fresh sample/sandbox per program and fresh case processes/directories. Check sample failure isolation, output completeness and limits; use native teardown and document shared writable state/background processes within a program. |
 | 3 | Add the three-reference gate and deterministic candidate verification. Run visible cases before hidden ones, retain all stored cases and test the public-feedback boundary. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
 | 5 | Establish the synthetic runtime using the same small adapter interface. Resolve MLX versus GGUF from observed compatibility, output quality, cost and provenance. |
-| 6 | Implement the experimental generate/verify/repair loop with interruption-safe accounting. Keep generation caching and automatic retries off, and confirm server idleness after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
+| 6 | Implement the experimental generate/verify/repair loop with experiment records and interruption-safe accounting. Keep generation caching and automatic retries off, and confirm server idleness after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
 | 7 | Publish versioned selections, every activated cell's status, native evidence and yield/cost reports. Resume without replaying spent requests or silently changing selected candidates. |
 | 8 | Run iterative prompt and scaffolding experiments, beginning with the development smoke and construction prefixes. Use the results to choose the next experiment and acquisition scale. |
 

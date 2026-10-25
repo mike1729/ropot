@@ -1,11 +1,11 @@
 """Load reviewed cohort tasks for Stage 03 experiments without executing programs.
 
 See docs/stage-03-plan.md. The reviewed cohort manifest is pinned by SHA-256; the
-test-pool manifest and every loaded task must match the digests it records.
+file bytes of every loaded task must match its recorded digest.
 Stage 02 saves every group once; this module can read only construction and
-development tasks. The Docker reference gate stays pending. Records and identities
-are fresh JSON values; budgets, persistence, model calls and program execution
-belong to later batches.
+development tasks. Bindings are shared read-only metadata. The Docker reference
+gate stays pending; budgets, persistence, model calls and program execution belong
+to later batches.
 """
 
 import json
@@ -22,17 +22,6 @@ SOURCES = ("actor", "synthetic")
 DIGEST = re.compile(r"[0-9a-f]{64}")
 
 
-def snapshot(value):
-    """Return a fresh JSON copy, rejecting values that strict JSON would change."""
-    try:
-        copy = json.loads(json.dumps(value, allow_nan=False))
-    except (TypeError, ValueError) as error:
-        raise ValueError("Value is not strict JSON") from error
-    if copy != value:
-        raise ValueError("Value does not round-trip through JSON")
-    return copy
-
-
 def load_cohort(cohort_dir=OUTPUT, test_pool_dir=None):
     """Load only Stage 02's saved construction/development groups and task index.
 
@@ -46,10 +35,10 @@ def load_cohort(cohort_dir=OUTPUT, test_pool_dir=None):
 def load_task(loaded, task_id):
     """Return (binding, decoded task) for one permitted task, reading only its file.
 
-    Manifest bindings were checked at load time. The resolved path must stay
-    inside the test pool and file bytes must match before decoding. Split, integer
-    ID and difficulty must equal the indexed cohort record. Return a fresh binding
-    separately from the decoded task payload.
+    Stage 02 validated the pinned metadata. The requested ID must belong to the
+    restricted index, the resolved path must stay inside the test pool and file
+    bytes must match before decoding. The returned binding is shared read-only
+    metadata; the task payload is decoded afresh.
     """
     if type(task_id) is not int or task_id not in loaded["tasks_by_id"]:
         raise ValueError(f"Task is not in the saved construction/development groups: {task_id!r}")
@@ -61,38 +50,7 @@ def load_task(loaded, task_id):
     raw = path.read_bytes()
     if sha256(raw) != record["sha256"]:
         raise ValueError(f"Task bytes differ from the pinned digest: {record['path']}")
-    task = json.loads(raw)
-    if (type(task["id"]) is not int or (task["split"], task["id"], task["difficulty"])
-            != (record["split"], record["id"], record["difficulty"])):
-        raise ValueError(f"Task identity differs from the cohort record: {record['path']}")
-    return snapshot(record), task
-
-
-def experiment_record(loaded, experiment_id, task_ids, recipes):
-    """Return a fresh, versioned record of one experiment's tasks and source recipes.
-
-    Task IDs are an experiment worklist within the saved groups, not a new split.
-    Recipes are opaque JSON objects for a nonempty subset of SOURCES, kept separate
-    per source. Reply, token and wall-time limits, their enforcement and persistence
-    belong to batch 6; the Docker reference gate remains pending.
-    """
-    task_ids = list(task_ids)
-    if (not task_ids or any(type(identifier) is not int or identifier not in loaded["tasks_by_id"]
-                            for identifier in task_ids) or len(set(task_ids)) != len(task_ids)):
-        raise ValueError("Experiment tasks must be distinct IDs from the saved construction/development groups")
-    if type(experiment_id) is not str or not experiment_id.strip():
-        raise ValueError("Experiment ID must be a nonempty string")
-    if (not isinstance(recipes, dict) or not recipes or not set(recipes) <= set(SOURCES)
-            or not all(isinstance(recipe, dict) for recipe in recipes.values())):
-        raise ValueError(f"Recipes must map a nonempty subset of {SOURCES} to JSON objects")
-    return snapshot({
-        "schema_version": 2, "experiment_id": experiment_id,
-        "cohort": {"manifest_sha256": loaded["sha256"],
-                   "test_pool_manifest_sha256": loaded["test_pool_manifest_sha256"]},
-        "task_ids": task_ids,
-        "reference_gate": {"status": "pending", "requirement": loaded["required_next_gate"]},
-        "recipes": {source: recipes[source] for source in SOURCES if source in recipes},
-    })
+    return record, json.loads(raw)
 
 
 def candidate_identity(split, task_id, task_sha256, source, program):

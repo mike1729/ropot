@@ -129,24 +129,24 @@ Stage 03 experiments read reviewed tasks through the standard-library
 import importlib
 
 study = importlib.import_module("src.data-pipeline.stage03.study_tasks")
-loaded = study.load_cohort()  # pinned data/02_cohort manifest and its test pool
+loaded = study.load_cohort()  # pinned data/02_cohort manifest; task files are read lazily
 task_ids = loaded["groups"]["development"]["initial"][:8]  # this experiment's worklist
 binding, task = study.load_task(loaded, task_ids[0])
-record = study.experiment_record(loaded, "smoke-1", task_ids, {"actor": {"prompt": "draft"}})
 identity = study.candidate_identity("test", task["id"], binding["sha256"], "actor", b"print(0)\n")
 ```
 
 Stage 02 generates and saves all five groups once in the cohort manifest's `groups`,
 with construction phase lists in `construction_phases` (manifest schema version 2).
-Stage 03 uses the [publication loader](src/data-pipeline/stage02/published_cohort.py) to check the pinned
-manifest digests and index only saved construction/development IDs from initial and
-reserve blocks. Protected and deferred tasks cannot be loaded. Treat the returned
-metadata and index as read-only; `test_pool_dir` supports relocation without relaxing
-digest checks. `load_task` checks the current resolved path, file digest and decoded
-identity. Schema version 2 experiment records store their worklist as `task_ids`;
-there is no activation object or allocation in Stage 03.
-Records and identities are fresh JSON values; generation limits, persistence and
-model calls belong to later batches, and the Linux reference gate stays pending.
+Stage 02 validates metadata at publication. Stage 03 uses the
+[publication loader](src/data-pipeline/stage02/published_cohort.py) to check the pinned
+cohort hash and index only saved construction/development IDs from initial and
+reserve blocks. Protected and deferred tasks cannot be loaded. The loader reads no
+test-pool manifest and does not repeat Stage 02's metadata validation. `load_task`
+checks restricted membership, path containment and the task-file digest before
+decoding. Bindings share the loaded metadata and must be treated as read-only;
+`test_pool_dir` supports relocation without relaxing path or digest checks.
+There is no activation object or allocation in Stage 03. Generation limits,
+persistence and model calls belong to later batches; the reference gate stays pending.
 
 Install the optional Inspect execution dependency and run its Docker fixtures:
 

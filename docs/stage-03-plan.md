@@ -43,7 +43,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 | 2 | Establish Inspect Docker execution with one fresh sample/sandbox per program and fresh case processes sharing `/work`. Check sample failure isolation, output completeness and limits; use native teardown and document shared writable state/background processes within a program. |
 | 3 | Verify candidates against every published case, stopping at the first failure, and test the public-feedback boundary. Trust existing reference qualification. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
-| 5 | Establish the synthetic runtime using the same small adapter interface. Resolve MLX versus GGUF from observed compatibility, output quality, cost and provenance. |
+| 5 | Establish the synthetic runtime through the existing direct MLX adapter; see the [Batch 5 plan](stage-03-batch-05-plan.md). Use historical fixture evidence and a current smoke for a provisional MLX baseline; retain the matched warm MLX/GGUF comparison in the benchmark plan. |
 | 6 | Implement the experimental generate/verify/repair loop with experiment records and interruption-safe accounting. Keep generation caching and automatic retries off, and confirm server idleness after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
 | 7 | Publish versioned selections, every activated cell's status, native evidence and yield/cost reports. Resume without replaying spent requests or silently changing selected candidates. |
 | 8 | Run iterative prompt and scaffolding experiments, beginning with the development smoke and construction prefixes. Use the results to choose the next experiment and acquisition scale. |
@@ -51,11 +51,14 @@ concrete design and checks when starting it; the rows below describe its purpose
 Use public [Inspect sandboxing](https://inspect.aisi.org.uk/sandboxing.html) and
 [logging/retry facilities](https://inspect.aisi.org.uk/eval-logs.html), with small
 adapters for experimental rules. Avoid building a general scheduler or inference server.
+The [inference benchmark plan](inference-benchmark-plan.md) maps runtime benchmarks
+and later scheduling extensions to these batches; witness/attack yield work waits
+for the Stage 04–05 contracts.
 
 ### Inspect execution contract
 
 Batch 2's `src/data-pipeline/stage03/inspect_runner.py` exposes
-`run(programs, log_dir, *, concurrent_inference=False, check_answers=False)`, returning Inspect logs.
+`run(programs, log_dir, *, concurrent_inference=False, check_answers=False, max_samples=4)`, returning Inspect logs.
 Each program is `{"program": bytes, "cases": [{"index": int, "input": str}]}`.
 Supply every case from the reduced Stage 02 task file, in publication order.
 The runner executes all supplied cases without filtering or sampling, stopping on
@@ -119,8 +122,16 @@ and generic hidden `passed`/`failed`/`not_run`, without hidden indices or timing
 Native infrastructure failures return generic `verification_error` feedback;
 preflight exceptions and interruptions propagate. Logs remain private.
 
-`reuse(log_path, task, task_sha256, program)` explicitly reads a successful,
-single-sample native log, matching exact request metadata and current execution
+`verify_many(candidates, log_dir, *, max_samples=4, concurrent_inference=False)`
+coalesces finite `(task, task_sha256, program)` tuples into one evaluation, with
+one fresh sandbox per candidate and a hard four-sandbox maximum. Record the
+actual 1–4 sample limit and declared concurrent inference in execution identity.
+Errored evaluations return generic infrastructure errors for every candidate.
+
+`reuse(log_path, task, task_sha256, program, *, sample_id=None, max_samples=4,
+concurrent_inference=False)` explicitly reads successful native evidence. A
+multi-sample log needs an explicit sample ID; omission preserves strict single-
+sample behavior. Match exact request metadata and current execution/scheduling
 contract. Both paths derive verdicts from raw captures with the same comparison
 helper. Evidence must cover every case or end at the first failure. The reuse key
 binds the reduced task, program bytes, Inspect version, Compose, relevant source

@@ -127,14 +127,16 @@ def execute_programs(check_answers=False):
     return execute
 
 
-def execution_contract():
+def execution_contract(*, max_samples=MAX_SANDBOXES):
     """Capture one eval-level identity; Compose binds the pinned image/config."""
+    if type(max_samples) is not int or not 1 <= max_samples <= MAX_SANDBOXES:
+        raise ValueError("Sample concurrency must be an integer from 1 to 4")
     if version("inspect-ai") != INSPECT_VERSION:
         raise RuntimeError(f"Execution requires inspect-ai=={INSPECT_VERSION}")
     info = json.loads(subprocess.run(["docker", "info", "--format", "{{json .}}"],
         capture_output=True, check=True, timeout=15).stdout)
     root = Path(__file__).parents[1]
-    return {"inspect_ai": INSPECT_VERSION, "max_sandboxes": MAX_SANDBOXES,
+    return {"inspect_ai": INSPECT_VERSION, "max_sandboxes": MAX_SANDBOXES, "max_samples": max_samples,
             "docker": {key: info[key] for key in ("NCPU", "MemTotal", "ServerVersion", "Architecture", "OSType")},
             "sources": {name: sha256((root / name).read_bytes()).hexdigest() for name in
                         ("stage03/inspect_runner.py", "stage03/verification.py", "stage01/screen.py")},
@@ -143,7 +145,7 @@ def execution_contract():
             "stdout_limit_bytes": STDOUT_LIMIT_BYTES, "stderr_limit_bytes": STDERR_LIMIT_BYTES}
 
 
-def run(programs, log_dir, *, concurrent_inference=False, check_answers=False):
+def run(programs, log_dir, *, concurrent_inference=False, check_answers=False, max_samples=MAX_SANDBOXES):
     """Return native logs for program/cases dictionaries; no model requests occur.
 
     Each entry has ``program: bytes`` and ``cases: [{index: int, input: str}]``.
@@ -164,7 +166,8 @@ def run(programs, log_dir, *, concurrent_inference=False, check_answers=False):
                     or visible != sorted(visible, reverse=True)
                     or any(integer_answer(c["answer"]) != c["answer"] for c in item["cases"])):
                 raise ValueError("Checked cases need canonical answers and visible-before-hidden ordering")
-    metadata = {**execution_contract(), "concurrent_inference": concurrent_inference, "check_answers": check_answers}
+    metadata = {**execution_contract(max_samples=max_samples),
+                "concurrent_inference": concurrent_inference, "check_answers": check_answers}
     samples = [Sample(id=index, input="Execute supplied program; no model calls.", metadata={
         "program_base64": base64.b64encode(item["program"]).decode("ascii"), "cases": item["cases"],
         **({"verification": item["verification"]} if "verification" in item else {})})
@@ -172,5 +175,5 @@ def run(programs, log_dir, *, concurrent_inference=False, check_answers=False):
     task = Task(name="docker_execution", dataset=samples, solver=execute_programs(check_answers),
                 sandbox=("docker", str(COMPOSE)), metadata=metadata)
     return inspect_eval(task, model="mockllm/model", log_dir=str(log_dir), log_format="eval",
-        max_sandboxes=MAX_SANDBOXES, max_samples=MAX_SANDBOXES, retry_on_error=0,
+        max_sandboxes=MAX_SANDBOXES, max_samples=max_samples, retry_on_error=0,
         fail_on_error=True, continue_on_fail=True, sandbox_cleanup=True, sandbox_prebuilt=True, score=False, display="none")

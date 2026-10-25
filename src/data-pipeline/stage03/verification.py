@@ -27,17 +27,24 @@ def request(task, task_sha256, program):
             "verification": {"task_sha256": task_sha256, "program_sha256": sha256(program).hexdigest()}}
 
 
-def derive(log, item, metadata):
-    """Require complete native evidence for exactly one checked request."""
+def derive(log, item, metadata, *, sample_id=None):
+    """Bind one exact request; multi-sample evidence needs an explicit sample ID."""
     if log.status != "success" or log.error is not None or log.eval.metadata != metadata:
         raise ValueError("Unsuccessful evaluation or changed execution contract")
     samples = log.samples or []
     expected = {"program_base64": base64.b64encode(item["program"]).decode("ascii"),
                 "cases": item["cases"], "verification": item["verification"]}
-    if (len(samples) != 1 or samples[0].id != 0 or samples[0].error is not None
-            or samples[0].metadata != expected):
+    if sample_id is None:
+        if len(samples) != 1:
+            raise ValueError("Multi-sample logs require an explicit sample ID")
+        sample_id = 0
+    if type(sample_id) is not int or sample_id < 0:
+        raise ValueError("Require a nonnegative integer sample ID")
+    matches = [s for s in samples if s.id == sample_id]
+    if (any(type(s.id) is not int for s in samples) or len({s.id for s in samples}) != len(samples) or len(matches) != 1
+            or matches[0].error is not None or matches[0].metadata != expected):
         raise ValueError("Missing, duplicate, errored or mismatched native sample")
-    cases, results = item["cases"], samples[0].store.get("cases", [])
+    cases, results = item["cases"], matches[0].store.get("cases", [])
     if not results or len(results) > len(cases):
         raise ValueError("Missing or excessive case results")
     public, hidden = [], "not_run"
@@ -56,26 +63,41 @@ def derive(log, item, metadata):
         raise ValueError("Incomplete passing coverage")
     verdict = "passed" if status == "passed" else "failed"
     return {"status": verdict, "key": {**item["verification"], "contract_sha256": digest(metadata)},
-            "log": log.location, "sample_id": 0,
+            "log": log.location, "sample_id": sample_id,
             "feedback": {"status": verdict, "visible": public, "hidden": hidden}}
 
 
-def verify(task, task_sha256, program, log_dir):
+def verify(task, task_sha256, program, log_dir, *, concurrent_inference=False):
     """Execute one fresh sandbox and return private evidence plus public feedback.
 
     Preflight/setup exceptions and interruptions propagate. Native evaluation or
     sample failures return error; they do not establish a candidate failure.
     """
-    item = request(task, task_sha256, program)
-    log = runner.run([item], log_dir, check_answers=True)[0]
+    return verify_many([(task, task_sha256, program)], log_dir,
+                       concurrent_inference=concurrent_inference)[0]
+
+
+def verify_many(candidates, log_dir, *, max_samples=4, concurrent_inference=False):
+    """One bounded native eval for (task, task digest, program bytes) tuples.
+
+    All requests keep their own sandbox. An errored eval gives no reusable
+    verdicts; completed captures remain evidence and are never redispatched here.
+    """
+    items = [request(*candidate) for candidate in candidates]
+    if not items:
+        raise ValueError("Require at least one candidate")
+    log = runner.run(items, log_dir, check_answers=True, max_samples=max_samples,
+                     concurrent_inference=concurrent_inference)[0]
     if log.status != "success" or log.error is not None or any(s.error is not None for s in log.samples or []):
-        return {"status": "error", "key": {**item["verification"], "contract_sha256": digest(log.eval.metadata)},
-                "log": log.location, "sample_id": 0, "feedback": {"status": "verification_error"}}
-    return derive(log, item, log.eval.metadata)
+        return [{"status": "error", "key": {**item["verification"], "contract_sha256": digest(log.eval.metadata)},
+                 "log": log.location, "sample_id": i, "feedback": {"status": "verification_error"}}
+                for i, item in enumerate(items)]
+    return [derive(log, item, log.eval.metadata, sample_id=i) for i, item in enumerate(items)]
 
 
-def reuse(log_path, task, task_sha256, program):
+def reuse(log_path, task, task_sha256, program, *, sample_id=None, max_samples=4, concurrent_inference=False):
     """Explicitly recheck successful native evidence; never fall back to execution."""
     item = request(task, task_sha256, program)
-    metadata = {**runner.execution_contract(), "concurrent_inference": False, "check_answers": True}
-    return derive(read_eval_log(str(log_path)), item, metadata)
+    metadata = {**runner.execution_contract(max_samples=max_samples),
+                "concurrent_inference": concurrent_inference, "check_answers": True}
+    return derive(read_eval_log(str(log_path)), item, metadata, sample_id=sample_id)

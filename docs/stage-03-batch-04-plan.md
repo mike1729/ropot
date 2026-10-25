@@ -3,8 +3,9 @@
 Establish warm serial generation for the local Qwen3.5-9B actor, following the
 [Stage 03 plan](stage-03-plan.md). Load the model once per finite run.
 
-Use **8-bit quantization**: prior 16-bit experiments showed no improvement and
-were roughly twice as slow. Benchmarks and batching come later.
+Use **8-bit quantization** for this batch. Benchmarks and batching come later;
+check actual BF16 yield only after the full witness/backdoor pipeline works,
+as specified in the [overview](data-pipeline-overview.md).
 
 ## Implementation
 

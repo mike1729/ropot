@@ -196,5 +196,17 @@ The [batch plan](docs/stage-03-batch-04-plan.md) covers scope and limitations.
 Run focused tests with `python3 -m unittest discover -s tests -p 'test_local_generation.py'`.
 For the fabricated-prompt smoke, run that command using
 `/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python`
-with `ROPOT_MLX_TESTS=1`. It retains evidence under `data/03_generation_checks`;
-benchmarks and batching are deferred.
+with `ROPOT_MLX_TESTS=1`. It retains evidence under `data/03_generation_checks`.
+
+The separate [Q8 benchmark tools](docs/inference-benchmark-implementation.md)
+measure thin recording overhead, matched MLX batching, warm GGUF comparison and
+generation/verification overlap on invented fixtures. Run them with
+`.venv/bin/python -m experiments.run_inference_benchmarks --output data/03_throughput/q8-benchmark-NEW`.
+They consume no cohort tasks. The verifier now also provides
+`verify_many(candidates, log_dir, max_samples=1|4, concurrent_inference=...)`,
+with one native evaluation and a fresh sandbox per program. Multi-sample
+`reuse` requires the returned `sample_id` and the same concurrency/context.
+Scientific witness/backdoor yield and the later BF16 comparison remain gated
+on their stage contracts in the [benchmark plan](docs/inference-benchmark-plan.md).
+The [local fixture results](docs/inference-benchmark-results.md) record provisional
+MLX batch/prefill settings, verifier overlap gains, and the unqualified prefix-cache path.

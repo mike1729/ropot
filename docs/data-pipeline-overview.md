@@ -10,6 +10,15 @@ assembly. Prior exposure constrains holdout eligibility. The implementation plan
 describe current work; Stage 03 develops prompts and scaffolding experimentally,
 recording the actual settings and evidence for each run.
 
+Start inference benchmarks and pipeline development with Q8. Once the full witness
+and backdoor generation pipeline, including verification and independent audit,
+works end to end, run at least one bounded, paired Q8-versus-BF16 comparison of
+actual verified yield and elapsed cost under matched tasks, prompts and budgets.
+See the [inference benchmark plan](inference-benchmark-plan.md).
+The [local Q8 fixture results](inference-benchmark-results.md) select provisional
+runtime and scheduling settings; scientific witness/backdoor yield remains
+unmeasured until the consuming stage contracts exist.
+
 Specification and prompt-preview success do not establish acquisition readiness.
 Panel targets/minima, acquisition ceilings and stratum allocations must be resolved
 by the yield probe before committing to later acquisition or monitor comparisons.

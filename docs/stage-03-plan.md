@@ -3,13 +3,10 @@
 Build a small experimental workflow that generates and verifies benign programs
 from the actor and synthetic generator. Use it to improve prompts and scaffolding,
 measure yield and cost, and supply candidates for witness and attack experiments.
-Passing the stored checks establishes acceptance under those checks, not universal
-correctness.
+
 
 Stage 03 remains exploratory. Prompts, scaffolding, sampling, extraction, repair
-strategies and budgets can evolve throughout the stage. Record what each experiment
-actually used; no generation-policy freeze is required here. Resolve implementation
-details and acceptance checks when preparing each review batch.
+strategies and budgets can evolve throughout the stage. 
 
 ## Starting point
 
@@ -24,53 +21,6 @@ Both selected generators have local MLX conversions; compare that route with the
 available official Ministral GGUF when implementing the adapters. Record actual
 weights, quantization, tokenizer, template and runtime for each experiment.
 
-## Experimental boundaries
-
-- Keep construction and development ownership intact, including development's
-  50-ID cap. Use fixtures and APPS train rows for mechanics tests. Keep protected
-  correction/replay, calibration and evaluation queues behind their existing gates.
-- Before generation on a cohort-owned development/construction task, its same three
-  qualified references must pass every stored case in the actual Inspect Linux
-  environment. Preserve local evidence separately; changed execution contracts
-  need renewed Linux evidence.
-- Keep actor and synthetic program generation independent. Prompts and scaffolding
-  may differ by source; record those differences when comparing yield and cost.
-  Any imposed convention visible in program text must be shared across sources or
-  omitted; allow naturally occurring stylistic differences.
-  References and nonvisible cases never enter generator prompts or tools.
-- Only visible-case diagnostics may inform repairs. Run all visible checks before
-  hidden execution, then return only generic hidden outcomes. Use a fresh sandbox
-  for each program verification attempt so hidden state cannot reach a later retry.
-- Retain every request, response, candidate and verification result. Candidate bytes
-  remain immutable; experiments may generate additional candidates and revise which
-  one is selected. Downstream artifacts bind exact candidate hashes, and a changed
-  selection requires corresponding downstream artifacts for the new candidate.
-
-## Experiment accounting and selection
-
-Give each experiment explicit reply, token and wall-time limits. Record extensions
-before further dispatch and report cumulative effort across experiments and restarts.
-An experiment ID never erases earlier attempts. Use a small durable append-only
-journal so per-request accounting survives interruptions; reconcile unfinished
-dispatches before resuming. Preserve native Inspect logs as execution evidence.
-
-Compare verified yield, format failures, repair effectiveness, runtime and program
-length by source and difficulty. Examine sampling diversity and actual backend
-controls during runtime work. Choose extraction and length rules experimentally;
-preserve raw replies and exact extracted program bytes. Check complete 2,048-token
-monitor-example fit when the actual targets exist in later stages.
-
-Compare recipes on the same tasks within each source at comparable budgets. Report
-cumulative acquisition yield across all experiments separately from each recipe's
-yield at a stated budget.
-
-Keep task selection in cohort order for later acquisition and training comparisons;
-program selection can evolve during experimentation. Repeated variants of one APPS
-task remain one task. Keep settings and resource differences visible in reports,
-and keep monitor outcomes out of generation, candidate selection and recipe choice.
-The consuming stage chooses recipes from construction/development evidence only,
-fixes their use for data in each monitor comparison, and reports each export's
-recipe mix. Stage 03 exploration can continue independently.
 
 ## Implementation batches
 
@@ -95,7 +45,7 @@ adapters for experimental rules. Avoid building a general scheduler or inference
 
 ### Inspect execution contract
 
-Batch 2's `src/data-pipeline/stage03/inspect_runner.py` exposes
+Batch 2's `src/data-pipeline/inspect_runner.py` exposes
 `run(programs, log_dir, *, concurrent_inference=False)`, returning Inspect logs.
 Each program is `{"program": bytes, "cases": [{"index": int, "input": str}]}`;
 case indices must be distinct integers (excluding booleans) within each program,

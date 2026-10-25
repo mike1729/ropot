@@ -56,6 +56,36 @@ settings. The [remaining inference plan](inference-benchmark-plan.md) assigns
 batching, extraction and overlap to the consuming workflow; witness/attack yield
 work waits for the Stage 04–05 contracts.
 
+### Workload sizing and scaffold choices
+
+The [cohort sizing analysis](inference-cohort-sizing.md) records frozen group
+counts, input-length proxies and development timing assumptions. Development has
+50 IDs: eight generation-smoke tasks and 42 for training choices. Construction has
+758 eligible candidates, 379 per phase; correction/replay has 187, calibration 57
+and evaluation 117. These capacities include reserves, not active worklists.
+
+Use MLX Q8 with batch 8 for the eight-task generation smoke and measured batch-32
+settings for larger short/roughly-2k queues. Keep Ministral around-7k repair at
+batch 8 provisionally. A matched development task supplies four monitor examples,
+so 20/42/50 tasks give 80/168/200 requests per checkpoint. Prioritize a finite-panel
+monitor comparison of batches 32 and 64, holding output and prefill settings fixed,
+before another broad capacity sweep. Qualification of the consuming adapter and
+trained checkpoints remains required; the current production adapter is serial.
+
+Freeze a small extractor in Batch 6: plain code or one complete unambiguous Python
+fence, allowing surrounding prose, followed by syntax and published-suite checks.
+Fixture replay recovered 158 additional passing draws without inference; seven
+extracted draws still failed execution. Never salvage incomplete replies. Keep
+response caching and prefix-state reuse off: stable shared-state fingerprints and
+3–7x tiny-JSON speedups did not establish full-program or monitor quality. Revisit
+prefix reuse through paired yield checks; BF16 waits for the complete pipeline.
+
+For the full 50-ID development group, one attempted benign, tiny witness and
+attack per task/source scales to about 10 warm GPU minutes, plus roughly three
+CPU minutes for published-suite verification. The smoke scales to 2–3 GPU minutes.
+These are fixture-based effort scenarios, excluding loading, witness oracle and
+human audit, retries and final-fit work; they do not promise accepted-data yield.
+
 ### Inspect execution contract
 
 Batch 2's `src/data-pipeline/stage03/inspect_runner.py` exposes

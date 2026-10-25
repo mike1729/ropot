@@ -1,5 +1,7 @@
 import asyncio
+import base64
 import importlib
+import json
 import os
 from pathlib import Path
 import signal
@@ -9,6 +11,7 @@ import tempfile
 import time
 import unittest
 from unittest import mock
+from types import SimpleNamespace
 
 try:
     from inspect_ai.util import (ExecResult, OutputLimitExceededError,
@@ -24,10 +27,10 @@ except ModuleNotFoundError as error:
 @unittest.skipIf(runner is None, "requires requirements-execution.txt")
 class InspectRunnerTests(unittest.IsolatedAsyncioTestCase):
     async def invoke(self, result=None, error=None):
-        environment = mock.Mock(exec=mock.AsyncMock(), write_file=mock.AsyncMock())
-        environment.exec.side_effect = [ExecResult(True, 0, "", ""), error or result]
+        environment = mock.Mock(exec=mock.AsyncMock())
+        environment.exec.side_effect = [error or result]
         with mock.patch.object(runner, "sandbox", return_value=environment):
-            return await runner.run_case(b"print(1)\n", "input\n", 7), environment
+            return await runner.run_case("input\n"), environment
 
     async def test_capture_boundaries_and_error_classification(self):
         cases = [(0, "1\n", "", "completed"), (3, "", "failure", "nonzero_exit"),
@@ -72,26 +75,55 @@ class InspectRunnerTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(error=type(error).__name__), self.assertRaises(type(error)):
                 await self.invoke(error=error)
 
-    async def test_setup_errors_propagate_and_capture_override_is_explicit(self):
-        environment = mock.Mock(exec=mock.AsyncMock(return_value=ExecResult(False, 1, "setup output", "setup failed")),
-                                write_file=mock.AsyncMock())
-        with mock.patch.object(runner, "sandbox", return_value=environment), self.assertRaises(RuntimeError) as failed:
-            await runner.run_case(b"pass", "", 0)
-        for detail in ("returncode=1", "stdout='setup output'", "stderr='setup failed'"):
-            self.assertIn(detail, str(failed.exception))
-        environment.exec.return_value = ExecResult(True, 0, "", "")
-        environment.write_file.side_effect = OSError("write failed")
-        with mock.patch.object(runner, "sandbox", return_value=environment), self.assertRaises(OSError):
-            await runner.run_case(b"pass", "", 0)
+    async def test_capture_override_is_explicit(self):
+        environment = mock.Mock(exec=mock.AsyncMock())
         async def execute(*args, **kwargs):
             if kwargs.get("cwd"):
                 self.assertEqual(SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE, 10 * 1024**2)
             return ExecResult(True, 0, "1\n", "")
-        environment.write_file.side_effect = None
         environment.exec.side_effect = execute
         with override_sandbox_output_limit(8, "exec"), mock.patch.object(runner, "sandbox", return_value=environment):
-            await runner.run_case(b"print(1)", "", 0)
+            await runner.run_case("")
             self.assertEqual(SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE, 8)
+
+    async def test_program_written_once_and_cases_use_one_exec_in_shared_work(self):
+        source = b"# coding: latin-1\r\nprint('\xe9')\r\n"
+        state = SimpleNamespace(store=mock.Mock(), metadata={
+            "program_base64": base64.b64encode(source).decode(),
+            "cases": [{"index": index, "input": "input\n"} for index in (7, 12)]})
+        environment = mock.Mock(exec=mock.AsyncMock(return_value=ExecResult(True, 0, "1\n", "")))
+        with mock.patch.object(runner, "sandbox", return_value=environment):
+            await runner.execute_programs()(state, None)
+        preparation, execute1, execute2 = environment.exec.call_args_list
+        self.assertEqual(preparation.kwargs["input"], source)
+        self.assertEqual(preparation.kwargs["user"], "root")
+        self.assertFalse(preparation.kwargs["timeout_retry"])
+        for execution in (execute1, execute2):
+            self.assertEqual(execution.args[0][-1], "/work/program.py")
+            self.assertEqual(execution.kwargs["cwd"], "/work")
+            self.assertIn("TMPDIR=/work", execution.args[0])
+            self.assertNotIn("user", execution.kwargs)
+            self.assertEqual(execution.kwargs["input"], b"input\n")
+        args = preparation.args[0]
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "program.py"
+            command = [sys.executable, *args[args.index("-c"):-1], str(path)]
+            subprocess.run(command, input=source, capture_output=True, check=True)
+            self.assertEqual(path.read_bytes(), source)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o444)
+            repeated = subprocess.run(command, input=b"replacement", capture_output=True)
+            self.assertNotEqual(repeated.returncode, 0)
+            self.assertEqual(path.read_bytes(), source)
+            path.chmod(0o600)
+
+    async def test_program_preparation_failure_prevents_cases(self):
+        state = SimpleNamespace(store=mock.Mock(), metadata={
+            "program_base64": "cGFzcw==", "cases": [{"index": 7, "input": ""}]})
+        environment = mock.Mock(exec=mock.AsyncMock(return_value=ExecResult(False, 1, "", "write failed")))
+        with mock.patch.object(runner, "sandbox", return_value=environment), self.assertRaisesRegex(
+                RuntimeError, "Cannot prepare program"):
+            await runner.execute_programs()(state, None)
+        self.assertEqual(environment.exec.await_count, 1)
 
 
 @unittest.skipUnless(runner is not None and os.environ.get("ROPOT_INSPECT_TESTS") == "1",
@@ -107,23 +139,36 @@ class InspectDockerTests(unittest.TestCase):
                                    capture_output=True, check=True, text=True)
         self.assertTrue(set(containers).isdisjoint(remaining.stdout.split()))
 
+    def run_tracking_containers(self, programs, directory):
+        containers = {}
+        original = runner.run_case
+
+        async def track(*args):
+            name = (await runner.sandbox().connection()).container
+            if name not in containers:
+                observed = subprocess.run(["docker", "inspect", name],
+                                          capture_output=True, check=True, text=True)
+                containers[name] = json.loads(observed.stdout)[0]
+            return await original(*args)
+
+        with mock.patch.object(runner, "run_case", side_effect=track):
+            logs = runner.run(programs, directory)
+        return logs, list(containers.values())
+
     def test_infrastructure_failure_uses_native_teardown(self):
         programs = [{"program": source, "cases": [{"index": i, "input": ""} for i in (7, 12)]}
-                    for source in (b"import os; os.kill(-1, 9)",
-                        b"import os; os.mkdir('/work/case-12')", *([b"print(1)"] * 4))]
-        log = runner.run(programs, self.log_directory("infrastructure-"))[0]
+                    for source in (b"import os; os.kill(-1, 9)", *([b"print(1)"] * 4))]
+        logs, containers = self.run_tracking_containers(programs, self.log_directory("infrastructure-"))
+        log = logs[0]
         self.assertEqual(log.status, "error")
         samples = sorted(log.samples, key=lambda sample: sample.id)
         self.assertEqual(len(samples), len(programs))
         self.assertIn("SandboxUnavailableError", samples[0].error.traceback)
-        self.assertIn("/work/case-12", samples[1].error.message)
-        self.assertEqual(len(samples[1].store["cases"]), 1)
         for sample in samples:
-            self.assertIn("3.12.", sample.store["runtime"]["python"])
-            if sample.id >= 2:
+            if sample.id >= 1:
                 self.assertIsNone(sample.error)
                 self.assertEqual([case["status"] for case in sample.store["cases"]], ["completed"] * 2)
-        self.assert_removed([sample.store["container"]["Id"] for sample in samples])
+        self.assert_removed([container["Id"] for container in containers])
 
     def test_sigint_uses_native_teardown_and_retains_cancelled_log(self):
         from inspect_ai.log import read_eval_log
@@ -158,9 +203,20 @@ class InspectDockerTests(unittest.TestCase):
             fixtures.append((source if isinstance(source, bytes) else source.encode(), stdin, status, stdout, indices))
         add("import os,sys\nassert set(os.environ)=={'PATH','LANG','LC_ALL','TMPDIR'}\n"
             "assert os.environ['PATH']=='/usr/bin:/bin'\nassert os.environ['LANG']==os.environ['LC_ALL']=='C'\n"
-            "assert sys.flags.utf8_mode==1\nassert not os.path.exists('marker')\n"
-            "open('marker','w').close()\nprint(os.getcwd())", indices=(7, 12))
+            "assert sys.flags.utf8_mode==1\nassert os.getcwd()==os.environ['TMPDIR']=='/work'\n"
+            "path='marker'\ncount=int(open(path).read()) if os.path.exists(path) else 0\n"
+            "assert count in (0,1)\nopen(path,'w').write(str(count+1))\nprint(1)",
+            stdout="1\n", indices=(7, 12))
         add(b"# coding: latin-1\nprint('\xe9')\n", stdout="é\n")
+        add("import os\npath='/work/program.py'\n"
+            "assert os.getuid()==65534\nassert os.stat(path).st_uid==0\n"
+            "assert os.stat(path).st_mode & 0o777==0o444\n"
+            "open('replacement','w').close()\n"
+            "for action in (lambda: open(path,'wb'), lambda: os.chmod(path,0o644),\n"
+            "               lambda: os.unlink(path), lambda: os.replace('replacement',path)):\n"
+            " try: action()\n except PermissionError: pass\n"
+            " else: raise AssertionError('program file was mutable')\nprint(1)",
+            stdout="1\n", indices=(7, 12))
         add("print(int(input()))", "9" * 5000, stdout="9" * 5000 + "\n")
         add("import sys\nsys.stdout.write(' '*200000); sys.stdout.flush()\nprint(len(sys.stdin.read()))",
             "x" * 2_000_000, stdout=" " * 200000 + "2000000\n")
@@ -185,7 +241,7 @@ class InspectDockerTests(unittest.TestCase):
                     for source, stdin, _, _, indices in fixtures]
         directory = self.log_directory("fixtures-")
         with mock.patch.dict(os.environ, {"INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE": "8"}):
-            logs = runner.run(programs, directory)
+            logs, containers = self.run_tracking_containers(programs, directory)
             log = logs[0]
             self.assertEqual(log.status, "success", str(log.error))
             self.assertTrue(list(Path(directory).glob("*.eval")))
@@ -194,7 +250,6 @@ class InspectDockerTests(unittest.TestCase):
             self.assertFalse(log.eval.metadata["concurrent_inference"])
             samples = sorted(log.samples, key=lambda sample: sample.id)
             self.assertEqual(len(samples), len(fixtures))
-            containers = []
             for sample, (_, _, status, stdout, indices) in zip(samples, fixtures):
                 with self.subTest(sample=sample.id, status=status):
                     self.assertIsNone(sample.error)
@@ -209,22 +264,18 @@ class InspectDockerTests(unittest.TestCase):
                         self.assertEqual(cases[0]["stdout"], stdout)
                     if fixtures[sample.id][0] == b"a=bytearray(600_000_000)":
                         self.assertEqual(cases[0]["returncode"], 137)
-                    runtime = sample.store["runtime"]
-                    self.assertIn("3.12.", runtime["python"])
-                    self.assertEqual((runtime["system"], runtime["utf8_mode"]), ("Linux", 1))
-                    container = sample.store["container"]
-                    containers.append(container["Id"])
-                    limits = container["HostConfig"]
-                    self.assertEqual((limits["NanoCpus"], limits["Memory"], limits["MemorySwap"], limits["PidsLimit"]),
-                                     (10**9, 512 * 1024**2, 512 * 1024**2, 32))
-                    self.assertTrue(limits["ReadonlyRootfs"])
-                    self.assertEqual(limits["NetworkMode"], "none")
-                    self.assertEqual(container["Config"]["User"], "65534:65534")
-                    self.assertEqual(limits["CapDrop"], ["ALL"])
-                    self.assertTrue(any(option.startswith("no-new-privileges") for option in limits["SecurityOpt"]))
-                    self.assertIn("size=64m", limits["Tmpfs"]["/work"])
-            self.assertEqual(len(set(containers)), len(fixtures))
-            self.assert_removed(containers)
+            for container in containers:
+                limits = container["HostConfig"]
+                self.assertEqual((limits["NanoCpus"], limits["Memory"], limits["MemorySwap"], limits["PidsLimit"]),
+                                 (10**9, 512 * 1024**2, 512 * 1024**2, 32))
+                self.assertTrue(limits["ReadonlyRootfs"])
+                self.assertEqual(limits["NetworkMode"], "none")
+                self.assertEqual(container["Config"]["User"], "65534:65534")
+                self.assertEqual(limits["CapDrop"], ["ALL"])
+                self.assertTrue(any(option.startswith("no-new-privileges") for option in limits["SecurityOpt"]))
+                self.assertIn("size=64m", limits["Tmpfs"]["/work"])
+            self.assertEqual(len(containers), len(fixtures))
+            self.assert_removed([container["Id"] for container in containers])
 
 
 if __name__ == "__main__":

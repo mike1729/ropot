@@ -2,7 +2,7 @@
 
 ``run`` gives each program a fresh sandbox and preserves caller case order, stopping
 at the first execution failure. It checks no answers and clears no reference gate.
-``run_case`` is also usable by a solver inside one program's active Docker sample.
+``prepare_program`` and ``run_case`` are also usable inside an active Docker sample.
 """
 
 import base64
@@ -17,7 +17,6 @@ from inspect_ai import Task, eval as inspect_eval
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import solver
 from inspect_ai.util import OutputLimitExceededError, override_sandbox_output_limit, sandbox
-from inspect_ai.util import subprocess as host_exec
 
 
 INSPECT_VERSION = "0.3.283"
@@ -40,26 +39,32 @@ def diagnostic(text):
     return text.encode("utf-8")[:DIAGNOSTIC_BYTES].decode("utf-8", errors="ignore") if text else None
 
 
-async def run_case(program: bytes, stdin: str, case_index: int) -> dict:
-    """Execute exact bytes; infrastructure errors/cancellation propagate.
+async def prepare_program(program: bytes) -> None:
+    """Write root-owned, read-only source once; /work must be root-owned and sticky."""
+    prepared = await sandbox().exec(command("/work") + ["-c",
+        "import os,sys; "
+        "open(sys.argv[1],'xb').write(sys.stdin.buffer.read()); os.chmod(sys.argv[1],0o444)",
+        "/work/program.py"], input=program, user="root", timeout=5, timeout_retry=False)
+    if not prepared.success:
+        raise RuntimeError(f"Cannot prepare program: {prepared.returncode=}, "
+                           f"stdout={diagnostic(prepared.stdout)!r}, stderr={diagnostic(prepared.stderr)!r}")
+
+
+async def run_case(stdin: str) -> dict:
+    """Run /work/program.py in shared /work; infrastructure errors propagate.
 
     Caps apply to UTF-8 re-encoded captures after execution, not streaming bytes.
     Timeout/overflow results omit streams and keep only a bounded diagnostic, which
     may come from a truncated capture's tail. Native Inspect events keep provider captures.
     Setup time is excluded from elapsed_seconds; Docker execution overhead is included.
     """
-    environment, directory = sandbox(), f"/work/case-{case_index}"
-    created = await environment.exec(["mkdir", directory], timeout=5, timeout_retry=False)
-    if not created.success:
-        raise RuntimeError(f"Cannot create fresh {directory}: {created.returncode=}, "
-                           f"stdout={diagnostic(created.stdout)!r}, stderr={diagnostic(created.stderr)!r}")
-    await environment.write_file(f"{directory}/program.py", program)
+    environment = sandbox()
     started = monotonic()
     result = {"status": "completed", "stdout": None, "stderr": None, "returncode": None}
     try:
         with override_sandbox_output_limit(CAPTURE_BYTES, "exec"):
-            captured = await environment.exec(command(directory) + ["program.py"],
-                input=stdin.encode("utf-8"), cwd=directory, timeout=TIMEOUT_SECONDS, timeout_retry=False)
+            captured = await environment.exec(command("/work") + ["/work/program.py"],
+                input=stdin.encode("utf-8"), cwd="/work", timeout=TIMEOUT_SECONDS, timeout_retry=False)
     except TimeoutError as error:
         # Pinned Inspect proxy -> bare Docker command timeout. Compose host timeouts
         # have another cause; unknown shapes remain infrastructure failures.
@@ -87,28 +92,12 @@ async def run_case(program: bytes, stdin: str, case_index: int) -> dict:
 @solver
 def execute_programs():
     async def execute(state, generate):
-        environment = sandbox()
-        container = (await environment.connection()).container
-        inspected = await host_exec(["docker", "inspect", container], timeout=15)
-        if not inspected.success:
-            raise RuntimeError(f"Docker inspect failed: {inspected.returncode=}, "
-                               f"stdout={diagnostic(inspected.stdout)!r}, stderr={diagnostic(inspected.stderr)!r}")
-        observed = json.loads(inspected.stdout)[0]
-        state.store.set("container", {key: observed[key] for key in ("Id", "Image", "Config", "HostConfig")})
-        with override_sandbox_output_limit(CAPTURE_BYTES, "exec"):
-            probe = await environment.exec(command("/work") + ["-c",
-                "import json,os,platform,sys; print(json.dumps(dict(python=sys.version,"
-                "system=platform.system(),architecture=platform.machine(),"
-                "utf8_mode=sys.flags.utf8_mode,environment=dict(os.environ))))"], timeout=5, timeout_retry=False)
-        if not probe.success:
-            raise RuntimeError(f"Runtime probe failed: {probe.returncode=}, "
-                               f"stdout={diagnostic(probe.stdout)!r}, stderr={diagnostic(probe.stderr)!r}")
-        state.store.set("runtime", json.loads(probe.stdout))
         results = []
         state.store.set("cases", results)
         program = base64.b64decode(state.metadata["program_base64"])
+        await prepare_program(program)
         for case in state.metadata["cases"]:
-            result = await run_case(program, case["input"], case["index"])
+            result = await run_case(case["input"])
             results.append({"index": case["index"], **result})
             state.store.set("cases", results)
             if result["status"] != "completed":

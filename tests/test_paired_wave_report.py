@@ -34,11 +34,92 @@ class PairedWaveReportTests(unittest.TestCase):
     def facts(self): return self.R._validate(**self.inputs())[0]
     def reasons(self): return {r["kind"] for r in self.facts()["invalid_reasons"]}
     def refresh(self):
+        records = {e["experiment_id"]: e for e in self.events if e["kind"] == "experiment"}
+        for event in records.values(): event["record_sha256"] = self.S.digest(event["record"])
+        for event in (e for e in self.events if e["kind"] == "wave_plan"):
+            for member in event["payload"]["records"]:
+                if member["experiment_id"] in records: member["record_sha256"] = records[member["experiment_id"]]["record_sha256"]
         for e in self.events:
             if "payload_sha256" in e: e["payload_sha256"] = self.S.digest(e["payload"])
         setup = next(e for e in self.events if e["kind"] == "wave_setup")
         setup["payload"]["plan_sha256"] = next(e["payload_sha256"] for e in self.events if e["kind"] == "wave_plan")
         setup["payload_sha256"] = self.S.digest(setup["payload"])
+
+    def legacy_authority(self):
+        cls = type(self)
+        if not hasattr(cls, "_legacy_authority"):
+            with mock.patch.object(self.f, "methods", {8: {}, 16: {}}), mock.patch.object(self.f, "qualifications", {8: {}, 16: {}}):
+                for bits in (8, 16):
+                    for source in ("actor", "synthetic"):
+                        ceiling = (3100 if bits == 8 else 3000) if source == "actor" else (3200 if bits == 8 else 3050)
+                        self.f.make_qualification(bits, source, 8 if source == "actor" else 4, ceiling, legacy=True)
+                for source in ("actor", "synthetic"):
+                    minimum = min(self.f.methods[b][source]["prompt_ceiling_tokens"] for b in (8, 16))
+                    for bits in (8, 16): self.f.methods[bits][source]["prompt_ceiling_tokens"] = minimum
+                cls._legacy_authority = copy.deepcopy((self.f.methods, self.f.qualifications))
+        return copy.deepcopy(cls._legacy_authority)
+
+    def test_exact_historical_setup_and_plan_replay_with_four_legacy_qualifications(self):
+        methods, references = self.legacy_authority(); built = self.f.built(methods)
+        records = {r["experiment_id"]: r for r in built["records"]}
+        for event in (e for e in self.events if e["kind"] == "experiment"): event["record"] = copy.deepcopy(records[event["experiment_id"]])
+        next(e for e in self.events if e["kind"] == "wave_plan")["payload"] = built["plan"]
+        setup = next(e for e in self.events if e["kind"] == "wave_setup")["payload"]
+        setup["schema_version"] = 1; setup.pop("qualification_contract"); self.refresh()
+        self.assertEqual(set(setup), set("schema_version plan_id plan_sha256 producer_sources protocol funding".split()))
+        self.assertEqual(set(built["plan"]), self.R.PR.FIELDS | {"opportunities"})
+        self.assertEqual(built["plan"]["schema_version"], 1)
+        for bits in (8, 16):
+            for source in ("actor", "synthetic"):
+                method = methods[bits][source]; reference = references[bits][source]
+                authority, files = self.f.H.read_qualification(reference["path"], reference["response_sha256"])
+                self.assertEqual(authority["schema_version"], 1); self.assertNotIn("contract", authority)
+                self.f.H.copy_qualification(files, self.c.root / method["qualification"]["path"], reference["response_sha256"])
+        with mock.patch.object(type(self.c), "events", new_callable=mock.PropertyMock, return_value=self.events):
+            retained, _ = self.f.C._retained(self.c, self.f.loaded, "trial")
+        self.assertEqual(retained["plan"], built["plan"])
+        with mock.patch.object(self.R.Path, "read_bytes", side_effect=AssertionError("Historical report source read")), \
+             mock.patch.object(self.f.C, "_retained", side_effect=AssertionError("Live replay")):
+            self.assertEqual(self.facts()["invalid_reasons"], [])
+
+    def test_setup_marker_downgrade_and_exact_grammar_reject_after_hash_refresh(self):
+        for fault in ("missing", "wrong", "false", "extra", "bool", "unknown", "downgrade", "legacy_marker"):
+            self.events = copy.deepcopy(self.baseline)
+            setup = next(e for e in self.events if e["kind"] == "wave_setup")["payload"]
+            if fault == "missing": setup.pop("qualification_contract")
+            if fault in ("wrong", "false"): setup["qualification_contract"] = "other" if fault == "wrong" else False
+            if fault == "extra": setup["extra"] = 1
+            if fault in ("bool", "unknown"):
+                setup["schema_version"] = True if fault == "bool" else 3
+                setup.pop("qualification_contract")
+            if fault in ("downgrade", "legacy_marker"):
+                setup["schema_version"] = 1
+                if fault == "downgrade": setup.pop("qualification_contract")
+            self.refresh()
+            with self.subTest(fault=fault), self.assertRaisesRegex(ValueError, "Invalid wave qualification authority" if fault == "downgrade" else "Invalid wave setup"):
+                self.facts()
+            with mock.patch.object(type(self.c), "events", new_callable=mock.PropertyMock, return_value=self.events), \
+                 self.assertRaisesRegex(ValueError, "Wave qualification authority differs" if fault == "downgrade" else "Wave binding differs"):
+                self.f.C._retained(self.c, self.f.loaded, "trial")
+
+    def test_report_rejects_mixed_authority_and_paired_policy_after_hash_refresh(self):
+        legacy, _ = self.legacy_authority()
+        for fault in ("last_legacy", "matched_mixed_sources", "contract", "missing_contract", "config", "cache_value", "cache_presence", "minimum"):
+            self.events = copy.deepcopy(self.baseline)
+            for event in (e for e in self.events if e["kind"] == "experiment"):
+                record = event["record"]; bits = record["profiles"]["actor"]["descriptor"]["bits"]
+                if fault == "matched_mixed_sources" or fault == "last_legacy" and bits == 16:
+                    record["generation_method"]["synthetic"] = copy.deepcopy(legacy[bits]["synthetic"])
+                elif bits == 16:
+                    method = record["generation_method"]["synthetic"]; authority = method["admission"]
+                    if fault == "contract": authority["contract"] = "other"
+                    if fault == "missing_contract": authority.pop("contract")
+                    if fault == "config": authority["config"]["prefill_step_size"] *= 2
+                    if fault == "cache_value": authority["cache_limit_bytes"] = 4 * 1024**3
+                    if fault == "cache_presence": authority.pop("cache_limit_bytes")
+                    if fault == "minimum": method["prompt_ceiling_tokens"] -= 1
+            self.refresh()
+            with self.subTest(fault=fault), self.assertRaises(ValueError): self.facts()
 
     def session(self, opportunity=0, names=None, messages=None):
         o = self.built["plan"]["opportunities"][opportunity]; records = {r["experiment_id"]: r for r in self.built["records"]}

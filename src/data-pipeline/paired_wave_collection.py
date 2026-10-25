@@ -48,7 +48,8 @@ def build(loaded, plan_id, profiles, methods, contract_sha256):
         pair = [methods[b][source] for b in (8, 16)]
         for method in pair: J._batch_method(method)
         a, b = [m["admission"] for m in pair]
-        J.require(J.encoded(a["config"]) == J.encoded(b["config"])
+        J.require(a["schema_version"] == b["schema_version"] and a.get("contract") == b.get("contract")
+            and J.encoded(a["config"]) == J.encoded(b["config"])
             and ("cache_limit_bytes" in a) == ("cache_limit_bytes" in b)
             and a.get("cache_limit_bytes") == b.get("cache_limit_bytes")
             and type(a["config"]["batch_size"]) is int and 1 <= a["config"]["batch_size"] <= 8
@@ -82,6 +83,8 @@ def _methods(campaign, qualifications=None, records=None):
             J.require(type(reference) is dict and set(reference) == {"path", "response_sha256"}, "Qualification input differs")
             identity = reference["response_sha256"]
             admission, files = H.read_qualification(reference["path"], identity)
+            J.require(admission["schema_version"] == 2 and admission.get("contract") == "peer-isolation-v2",
+                "Require peer-isolation-v2 qualification")
             final = directory / identity
             if not os.path.lexists(final):
                 with tempfile.TemporaryDirectory(prefix=".copy-", dir=directory) as temporary:
@@ -157,7 +160,8 @@ def setup(campaign, loaded, plan_id, receipt_path, receipt_sha256, mechanics_aud
         limits, reserved = J.Campaign.totals(campaign.events)
         bound = {s: dict(zip(J.UNITS, (432, 884736, 103680))) for s in study.SOURCES}
         funding = dict(reserved_before=reserved, bound=bound, limits={s: {u: max(limits[s][u], reserved[s][u] + bound[s][u]) for u in J.UNITS} for s in study.SOURCES})
-        anchor = PC._event(campaign, "wave_setup", dict(schema_version=1, plan_id=plan_id, plan_sha256=digest(built["plan"]),
+        anchor = PC._event(campaign, "wave_setup", dict(schema_version=2, qualification_contract="peer-isolation-v2",
+            plan_id=plan_id, plan_sha256=digest(built["plan"]),
             producer_sources=fingerprint(), protocol=protocol, funding=funding))
     current, _ = campaign._accounting()
     campaign.extend({s: {u: max(current[s][u], anchor["payload"]["funding"]["limits"][s][u]) for u in J.UNITS} for s in study.SOURCES})
@@ -171,8 +175,10 @@ def _retained(campaign, loaded, plan_id, *, incomplete=False):
     events = campaign.events
     anchor = PC._one(events, "wave_setup", plan_id)
     payload = anchor["payload"]
-    J.require(set(payload) == {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
-        and type(payload["schema_version"]) is int and payload["schema_version"] == 1, "Wave binding differs")
+    fields = {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
+    J.require(type(payload.get("schema_version")) is int and payload["schema_version"] in (1, 2)
+        and set(payload) == fields | ({"qualification_contract"} if payload["schema_version"] == 2 else set())
+        and (payload["schema_version"] == 1 or payload["qualification_contract"] == "peer-isolation-v2"), "Wave binding differs")
     J.require(not any(e["kind"] in ("collection_setup", "wave_setup") and e["seq"] > anchor["seq"] for e in events), "Collection superseded")
     _producer_guard(campaign, payload)
     registered = {e["experiment_id"]: e for e in events if e["kind"] == "experiment"}
@@ -180,6 +186,10 @@ def _retained(campaign, loaded, plan_id, *, incomplete=False):
     records = [e["record"] for e in registered.values() if e["experiment_id"].rsplit("-", 3)[0] == plan_id]
     J.require(len(records) == 144, "Wave members differ")
     methods = _methods(campaign, records=records)
+    J.require(all(m["admission"]["schema_version"] == payload["schema_version"]
+        and (("contract" not in m["admission"]) if payload["schema_version"] == 1 else
+            m["admission"].get("contract") == "peer-isolation-v2")
+        for bound in methods.values() for m in bound.values()), "Wave qualification authority differs")
     profiles = {b: next(r["profiles"] for r in records if r["profiles"]["actor"]["descriptor"]["bits"] == b) for b in (8, 16)}
     for bound in profiles.values(): P.check_profiles(bound, study.SOURCES, campaign=campaign)
     contract = V.runner.contract()

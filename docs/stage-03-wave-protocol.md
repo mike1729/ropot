@@ -6,6 +6,9 @@ Its panel, independent histories, recipe, verification and pooled decision remai
 The following overrides cold member ordering and per-request wall measurements.
 Freeze one wave plan containing all 144 task/precision records before own work.
 Each source uses a common qualified configuration and prompt MIN across precisions.
+New setup2 binds peer-isolation-v2 and four admission2 qualifications.
+These test fixed peer-content isolation, replay and capacity; serial-equality
+diagnostics do not establish equivalence or program quality.
 Within dev, A tuning, B tuning, A fresh, B fresh, use original 72 ordinal parity.
 Chunk each parity by the largest source capacity and interleave parity groups;
 alternate the leading parity by block. Even tasks prefer 8 first, odd 16 first.

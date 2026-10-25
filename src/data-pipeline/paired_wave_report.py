@@ -26,8 +26,11 @@ def _bindings(events):
             (steps if kind == "wave_step" else confirmations).append(event)
     for event in setups.values():
         p = event["payload"]; item = p.get("protocol", {})
-        J.require(set(p) == {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
-            and type(p["schema_version"]) is int and p["schema_version"] == 1 and PC.P._sha(p["plan_sha256"])
+        fields = {"schema_version", "plan_id", "plan_sha256", "producer_sources", "protocol", "funding"}
+        J.require(type(p.get("schema_version")) is int and p["schema_version"] in (1, 2)
+            and set(p) == fields | ({"qualification_contract"} if p["schema_version"] == 2 else set())
+            and (p["schema_version"] == 1 or p["qualification_contract"] == "peer-isolation-v2")
+            and PC.P._sha(p["plan_sha256"])
             and type(p["producer_sources"]) is dict and bool(p["producer_sources"]) and all(type(k) is str and k and
                 not Path(k).is_absolute() and str(Path(k)) == k and ".." not in Path(k).parts and PC.P._sha(v) for k, v in p["producer_sources"].items())
             and set(item) == {"path", "sha256", "bytes"} and PC.P._sha(item["sha256"]) and type(item["bytes"]) is int
@@ -65,6 +68,10 @@ def _plan(event, setup, events, records, runs, panel, invalid):
         J.require(len(contexts) == 1 and contexts[0]["contract_sha256"] == p["contract_sha256"] == PC.V.digest(contexts[0]["contract"])
             and max(registered["seq"], contexts[0]["seq"]) < setup["seq"], "Invalid wave context")
         for source, method in record["generation_method"].items():
+            admission = method["admission"]
+            J.require(type(admission["schema_version"]) is int and admission["schema_version"] == setup["payload"]["schema_version"]
+                and (("contract" not in admission) if setup["payload"]["schema_version"] == 1 else
+                    admission.get("contract") == "peer-isolation-v2"), "Invalid wave qualification authority")
             descriptor = record["profiles"][source]["descriptor"]
             J.require((descriptor["source"], descriptor["bits"], descriptor["receipt_sha256"], descriptor["runtime_guard_sha256"])
                 == (source, bits, p["receipt_sha256"], p["runtime_guard_sha256"]) and digest(record["recipes"][source]) == p["recipe_sha256"][source], "Invalid wave method")
@@ -76,7 +83,8 @@ def _plan(event, setup, events, records, runs, panel, invalid):
         rows.append((member, record, cells))
     for source in study.SOURCES:
         a, b = [methods[bits][source]["admission"] for bits in (8, 16)]
-        J.require(digest(a["config"]) == digest(b["config"]) and ("cache_limit_bytes" in a) == ("cache_limit_bytes" in b)
+        J.require(a["schema_version"] == b["schema_version"] and a.get("contract") == b.get("contract")
+            and digest(a["config"]) == digest(b["config"]) and ("cache_limit_bytes" in a) == ("cache_limit_bytes" in b)
             and a.get("cache_limit_bytes") == b.get("cache_limit_bytes") and type(a["config"]["batch_size"]) is int and 1 <= a["config"]["batch_size"] <= 8
             and all(methods[bits][source]["prompt_ceiling_tokens"] == min(a["prompt_ceiling_tokens"], b["prompt_ceiling_tokens"]) for bits in (8, 16)), "Invalid common wave method")
     J.require(digest(p["opportunities"]) == digest(W._opportunities(activation, p["records"], methods)), "Invalid wave opportunities")

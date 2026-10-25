@@ -3,12 +3,15 @@ import importlib
 from pathlib import Path
 import unittest
 from unittest import mock
-from tests import test_qualification_admission as qualification, test_study_tasks as study
+from tests import test_qualification_admission as qualification, test_study_tasks as study, test_isolation_admission as isolation
+from tests import test_isolation_qualification as isolation_fixture
 
 
 class PairedWaveCollectionTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self, *, legacy=False):
         self.q = qualification.QualificationAdmissionTests(methodName="runTest"); self.q.setUp(); self.addCleanup(self.q.doCleanups)
+        self.legacy = legacy
+        self.a = isolation_fixture.IsolationQualificationTests(methodName="runTest"); self.a.setUp(); self.addCleanup(self.a.doCleanups)
         self.f, self.H, self.root = self.q.f.f, self.q.H, self.q.root
         self.J, self.P = self.f.J, self.f.P; self.C = importlib.import_module("src.data-pipeline.paired_wave_collection"); self.PC = self.C.PC
         self.s = study.StudyTaskTests(methodName="runTest"); self.s.setUp(); self.addCleanup(self.s.doCleanups)
@@ -19,7 +22,8 @@ class PairedWaveCollectionTests(unittest.TestCase):
         self.qualifications, self.methods = {8: {}, 16: {}}, {8: {}, 16: {}}
         for bits in (8, 16):
             for source in ("actor", "synthetic"):
-                self.make_qualification(bits, source, 8 if source == "actor" else 4, (3100 if bits == 8 else 3000) if source == "actor" else (3200 if bits == 8 else 3050))
+                ceiling = (3100 if bits == 8 else 3000) if source == "actor" else (3200 if bits == 8 else 3050)
+                self.make_qualification(bits, source, 8 if source == "actor" else 4, ceiling if legacy else ceiling + 4200)
         for source in ("actor", "synthetic"):
             minimum = min(self.methods[b][source]["prompt_ceiling_tokens"] for b in (8, 16))
             for bits in (8, 16): self.methods[bits][source]["prompt_ceiling_tokens"] = minimum
@@ -29,18 +33,23 @@ class PairedWaveCollectionTests(unittest.TestCase):
         for target, name in ((self.C.study, "load_task"), (self.C.L, "run"), (self.C.L, "prepare_cell"), (self.C.L, "settle_cell"), (self.C.L.native, "run_native"), (self.J.Campaign, "generate"), (self.J.Campaign, "generate_batch"), (self.H, "run")):
             patch = mock.patch.object(target, name, side_effect=AssertionError("Setup dispatched " + name)); patch.start(); self.addCleanup(patch.stop)
 
-    def make_qualification(self, bits, source, batch, ceiling):
+    def make_qualification(self, bits, source, batch, ceiling, *, legacy=None):
+        legacy = self.legacy if legacy is None else legacy
         descriptor = self.profiles[bits][source]["descriptor"]; proof = copy.deepcopy(self.f.proof)
         def roles(post=False):
             required = self.P.role_suffixes(source, post); sources = descriptor["expected_runtime"]["sources"]
             return self.P.bind_roles(sources, required, {role: next(p for p in sources if p.endswith(suffix or "/transformers/fixture.py")) for role, suffix in required.items()})
         proof.update(descriptor_sha256=self.P.digest(descriptor), model_files=descriptor["model_files"], critical_sources=roles())
         config = dict(batch_size=batch, prefill_batch_size=min(4, batch), prefill_step_size=256)
-        with mock.patch.object(self.f, "d", descriptor), mock.patch.object(self.f, "proof", proof), mock.patch.object(self.f, "roles", side_effect=roles), mock.patch.object(self.q.f, "config", config):
-            job, events = self.q.f.protocol()
-        job["cache_limit_bytes"] = 0; events[2]["fixtures"][1]["prompt_ids"] = [3] * ceiling
-        next(e for e in events if e["event"] == "qualification")["stress"].update(prompt_tokens_min=ceiling, prompt_tokens_max=ceiling, prompt_token_ceiling=ceiling)
-        files = self.q.pack(job, events); pin = self.C.sha256(files["response.json"]).hexdigest(); directory = self.root / f"qualification-{bits}-{source}-{batch}-{ceiling}"
+        if legacy:
+            with mock.patch.object(self.f, "d", descriptor), mock.patch.object(self.f, "proof", proof), mock.patch.object(self.f, "roles", side_effect=roles), mock.patch.object(self.q.f, "config", config):
+                job, events = self.q.f.protocol()
+            job["cache_limit_bytes"] = 0; events[2]["fixtures"][1]["prompt_ids"] = [3] * ceiling
+            next(e for e in events if e["event"] == "qualification")["stress"].update(prompt_tokens_min=ceiling, prompt_tokens_max=ceiling, prompt_token_ceiling=ceiling)
+            files = self.q.pack(job, events)
+        else:
+            job, events, files = isolation.pack_isolation(self.a, descriptor=descriptor, config=config, prompt_tokens=ceiling, cache_limit_bytes=0)
+        pin = self.C.sha256(files["response.json"]).hexdigest(); directory = self.root / f"qualification-{bits}-{source}-{batch}-{ceiling}"
         self.H.copy_qualification(files, directory, pin); admission = self.H.qualification_checked(files)
         self.qualifications[bits][source] = dict(path=str(directory), response_sha256=pin)
         self.methods[bits][source] = dict(method="program-wave-v1", source=source, admission=admission, prompt_ceiling_tokens=ceiling,
@@ -80,8 +89,8 @@ class PairedWaveCollectionTests(unittest.TestCase):
         for member in plan["records"]:
             owned = [o for o in opportunities if member["experiment_id"] in o["experiment_ids"]]
             self.assertEqual([(o["source"], o["reply_index"]) for o in owned], [(s, i) for s in ("actor", "synthetic") for i in range(3)])
-        for bits in (8, 16): self.make_qualification(bits, "synthetic", 8, 3200 if bits == 8 else 3050)
-        for bits in (8, 16): self.methods[bits]["synthetic"]["prompt_ceiling_tokens"] = 3050
+        for bits in (8, 16): self.make_qualification(bits, "synthetic", 8, 7400 if bits == 8 else 7250)
+        for bits in (8, 16): self.methods[bits]["synthetic"]["prompt_ceiling_tokens"] = 7250
         self.assertEqual(len(self.built()["plan"]["opportunities"]), 120)
 
     def test_invalid_last_common_config_cache_ceiling_profile_and_authority(self):
@@ -107,6 +116,8 @@ class PairedWaveCollectionTests(unittest.TestCase):
             return append(kind, **payload)
         with mock.patch.object(c, "_append", side_effect=checked): event = self.setup(c)
         before = c.events; anchor = next(e for e in before if e["kind"] == "wave_setup")
+        self.assertEqual((anchor["payload"]["schema_version"], anchor["payload"]["qualification_contract"]), (2, "peer-isolation-v2"))
+        self.assertEqual(event["payload"]["schema_version"], 1); self.assertNotIn("qualification_contract", event["payload"])
         self.assertEqual([sum(e["kind"] == k for e in before) for k in ("panel", "mechanics_baseline", "experiment", "execution_context", "wave_setup", "wave_plan")], [1, 1, 144, 144, 1, 1])
         self.assertTrue(all(e["seq"] < anchor["seq"] for e in before if e["kind"] in ("experiment", "execution_context")))
         self.assertLess(anchor["seq"], next(e["seq"] for e in before if e["kind"] == "limits")); self.assertLess(anchor["seq"], event["seq"])
@@ -185,3 +196,12 @@ class PairedWaveCollectionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Collection superseded"): self.setup(c)
         funding = [e["payload"]["funding"] for e in c.events if e["kind"] == "wave_setup"][-1]
         self.setup(c, "next"); self.assertEqual(c._accounting()[0], funding["limits"])
+
+    def test_last_legacy_qualification_rejects_before_registration_or_funding(self):
+        self.make_qualification(16, "synthetic", 4, 3050, legacy=True)
+        for bits in (8, 16): self.methods[bits]["synthetic"]["prompt_ceiling_tokens"] = 3050
+        with self.assertRaises(ValueError): self.built()
+        c = self.fresh(); before = c._accounting()
+        with self.assertRaises(ValueError): self.setup(c)
+        self.assertEqual(c._accounting(), before)
+        self.assertFalse(any(e["kind"] in ("experiment", "execution_context", "wave_setup", "wave_plan", "generation_reserved", "native_intent") for e in c.events))

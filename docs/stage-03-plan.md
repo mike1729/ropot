@@ -702,4 +702,6 @@ unchanged, with at most seventeen native calls per sixteen-token target.
 Complete schema 4 evidence yields admission schema 2 with the fixed contract
 `peer-isolation-v2`; historical schema 2 jobs retain their exact schema 1 admission.
 Program waves accept that authority up to its actual qualified minimum, at most
-8,192 tokens. New collection setup enforcement remains a separate consumer batch.
+8,192 tokens. New collection setup schema 2 binds this contract and requires all
+four admission schema 2 qualifications. Historical setup schema 1 keeps its
+original grammar and four legacy authorities for offline replay.

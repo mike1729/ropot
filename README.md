@@ -210,3 +210,5 @@ Scientific witness/backdoor yield and the later BF16 comparison remain gated
 on their stage contracts in the [benchmark plan](docs/inference-benchmark-plan.md).
 The [local fixture results](docs/inference-benchmark-results.md) record provisional
 MLX batch/prefill settings, verifier overlap gains, and the unqualified prefix-cache path.
+The [2k/7k and semantic-cache follow-ups](docs/inference-followup-results.md)
+compare longer repair histories and distinguish format compliance from executable correctness.

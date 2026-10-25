@@ -29,6 +29,14 @@ def code(text):
     return (text+'\n').encode()
 
 
+def timing_summary(rows):
+    """Interrupted windows retain cost but cannot appear to be faster completions."""
+    seconds=[r['elapsed_seconds'] for r in rows if r['status']=='success']
+    return dict(repetitions=len(seconds),median_seconds=median(seconds) if seconds else None,
+        range_seconds=[min(seconds),max(seconds)] if seconds else None,
+        aborted_windows=len(rows)-len(seconds),total_window_seconds=sum(r['elapsed_seconds'] for r in rows))
+
+
 def verify(root):
     """Deduplicate execution only; every draw retains its own score and cost."""
     verifier = importlib.import_module('src.data-pipeline.stage03.verification')
@@ -94,16 +102,17 @@ def report(root):
         output[profile] = {'long': []}
         for context,batch in sorted({(r['context'],r['batch']) for r in rows if r['stage'] != 'warm'}):
             selected = [r for r in rows if r['context']==context and r['batch'] == batch and r['stage'] != 'warm']
-            seconds = [r['elapsed_seconds'] for r in selected]
+            timing=timing_summary(selected)
             draws = [r for r in evidence['draws'] if r['profile'] == profile and r['context']==context and r['batch'] == batch] if evidence else []
-            row = dict(context=context, batch=batch, repetitions=len(selected), median_seconds=median(seconds),
-                range_seconds=[min(seconds), max(seconds)], completed_windows=sum(r['status']=='success' for r in selected),
+            row = dict(context=context, batch=batch, **timing, completed_windows=timing['repetitions'],
                 verified=Counter(r['status'] for r in draws), peak_gib=max(r['peak_memory_bytes'] for r in selected)/1024**3,
                 delivered_tokens=sum(r['delivered_tokens'] for r in selected),
                 max_observed_decode_batch=max(r['max_observed_decode_batch'] for r in selected))
             output[profile]['long'].append(row)
-            lines.append(f"| {profile} | {context} | {batch} | {len(selected)} | {median(seconds):.3f} | "
-                f"{min(seconds):.3f}–{max(seconds):.3f} | {row['verified']} | {row['peak_gib']:.2f} |")
+            seconds='—' if timing['median_seconds'] is None else f"{timing['median_seconds']:.3f}"
+            interval='—' if timing['range_seconds'] is None else f"{timing['range_seconds'][0]:.3f}–{timing['range_seconds'][1]:.3f}"
+            lines.append(f"| {profile} | {context} | {batch} | {timing['repetitions']} | {seconds} | "
+                f"{interval} | {row['verified']} | {row['peak_gib']:.2f} |")
         folder = root/f'{profile}-semantic'
         rows = json.loads((folder/'summary.json').read_text()) if (folder/'summary.json').exists() else []
         complete = json.loads((folder/'complete.json').read_text()) if (folder/'complete.json').exists() else {}
@@ -140,11 +149,17 @@ def report(root):
     (root/'report.md').write_text('\n'.join(lines)+'\n')
 
 
-if __name__ == '__main__':
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', required=True)
     parser.add_argument('--verify', action='store_true')
-    args = parser.parse_args()
-    if args.verify:
+    parser.add_argument('--verify-only',action='store_true')
+    args = parser.parse_args(argv)
+    if args.verify or args.verify_only:
         verify(Path(args.root))
-    report(Path(args.root))
+    if not args.verify_only:
+        report(Path(args.root))
+
+
+if __name__ == '__main__':
+    main()

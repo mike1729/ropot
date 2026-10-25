@@ -147,9 +147,9 @@ works end to end, followed by at least one bounded paired actual-yield check.
 Cloud benchmarking waits for a real local completion forecast that misses the
 desired experiment window.
 
-## Authorized follow-ups
+## Follow-up increment
 
-The next increment will run two bounded local Q8 checks on new invented fixtures:
+The follow-up increment ran two bounded local Q8 checks on new invented fixtures:
 
 1. Natural, substantive roughly 2k and 7k repair histories, comparing conservative and wider
    batching with identical finite worklists, including queue tails, memory and
@@ -160,6 +160,7 @@ The next increment will run two bounded local Q8 checks on new invented fixtures
    checks. Keep token equality as a diagnostic; freeze semantic acceptance before
    new draws. Preserve the previous failed exact-equality gate and its evidence.
 
-These checks do not consume cohort IDs or replace the later full-pipeline useful
+These checks consumed no cohort IDs and do not replace the later full-pipeline useful
 yield comparison. BF16 and cloud runs remain deferred.
 The frozen matrix and run commands are in the [follow-up plan](inference-followup-plan.md).
+Findings are retained in the [2k/7k and semantic-cache follow-up results](inference-followup-results.md).

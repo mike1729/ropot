@@ -1,5 +1,10 @@
 # Long-context and semantic cache checks
 
+Execution results are in the [follow-up findings](inference-followup-results.md).
+The original pre-run version is preserved with the retained source snapshots.
+The initial matrix hit time caps and a later Ministral 7k/batch-32 native memory
+failure; its historical command is not the recommended operating configuration.
+
 This is a new local Q8 fixture increment after commit `20130cc`. It preserves the
 earlier measurements and failed exact-equality cache gate. No cohort IDs, BF16,
 cloud inference or scientific acquisition occurs.

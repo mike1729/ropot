@@ -18,6 +18,8 @@ See the [inference benchmark plan](inference-benchmark-plan.md).
 The [local Q8 fixture results](inference-benchmark-results.md) select provisional
 runtime and scheduling settings; scientific witness/backdoor yield remains
 unmeasured until the consuming stage contracts exist.
+The [2k/7k and semantic-cache follow-ups](inference-followup-results.md) refine
+the operating settings and record parser/scaffold findings on invented fixtures.
 
 Specification and prompt-preview success do not establish acquisition readiness.
 Panel targets/minima, acquisition ceilings and stratum allocations must be resolved

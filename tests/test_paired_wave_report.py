@@ -151,6 +151,266 @@ class PairedWaveReportTests(unittest.TestCase):
         p = next(e for e in self.events if e["kind"] == "wave_plan")
         return self.anchor("wave_step", dict(plan_id="trial", plan_sha256=p["payload_sha256"], opportunity_id=opportunity, session_seq=session))
 
+    def scientific(self, opportunity=0, names=None, status="verified", messages=None):
+        # Accepted S event projections, not a fabricated retained/native log proof.
+        intent, rows = self.session(opportunity, names, messages)
+        group = next(e for e in self.events if e["kind"] == "batch_done" and e["session_seq"] == intent["seq"])
+        group.update(session_copy_complete=True, evidence_errors=[]); group["shared"]["status"] = "passed"
+        for row in rows:
+            done = self.outcomes[row["seq"]]; result = next(e for e in self.events if e["kind"] == "attempt_result" and e["reservation_seq"] == row["seq"])
+            if status == "format_failed": continue
+            program = self.L.generation.extract_program("print(0)"); candidate = self.S.sha256(program).hexdigest(); op = f"{row['seq']:012x}"
+            done["text"] = program.decode(); result.update(status=status, candidate_sha256=candidate, operation_id=op, sample_id=0)
+            self.emit("native_intent", operation_id=op, reservation_seq=row["seq"], task_sha256=row["attempt"]["task_sha256"], reference_indices=None,
+                contract_sha256=self.built["plan"]["contract_sha256"], program_sha256=[candidate])
+            native_status = {"verified": "passed", "verification_failed": "failed", "verification_error": "error"}[status]
+            self.emit("native_verdict", operation_id=op, status=native_status, results=[dict(sample_id=0, status=native_status,
+                key=dict(program_sha256=candidate, task_sha256=row["attempt"]["task_sha256"], contract_sha256=self.built["plan"]["contract_sha256"]))])
+            self.emit("native_closed", operation_id=op)
+        return intent, rows
+
+    def own_cell(self, row):
+        record = next(r for r in self.built["records"] if r["experiment_id"] == row["experiment_id"])
+        return next(c for c in self.L.cell_states(self.events, record) if c["id"] == row["attempt"]["id"] and c["source"] == row["source"])
+
+    def tuning_complete(self):
+        tuning = self.R.PR._layout()[3]; target = tuning[0]["id"]; generated = []
+        for task in tuning[1:]:
+            op = task["sha256"][:12]
+            self.emit("native_intent", operation_id=op, task_sha256=task["sha256"], reference_indices=[0, 1, 2], contract_sha256=self.built["plan"]["contract_sha256"])
+            self.emit("native_verdict", operation_id=op, status="failed"); self.emit("native_closed", operation_id=op)
+        target_names = {m["experiment_id"] for m in self.built["plan"]["records"] if m["task"]["id"] == target}
+        for opportunity in self.built["plan"]["opportunities"]:
+            if opportunity["block"].endswith("fresh"): break
+            names = [n for n in opportunity["experiment_ids"] if n in target_names]
+            if names and opportunity["reply_index"] == 0:
+                session, rows = self.scientific(opportunity["id"], names); generated.extend(rows)
+                self.step(opportunity["id"], session["seq"])
+            else: self.step(opportunity["id"], None)
+        return generated
+
+    def confirm(self):
+        return self.anchor("wave_confirmation", dict(plan_id="trial", plan_sha256=next(e["payload_sha256"] for e in self.events if e["kind"] == "wave_plan"), decision="unchanged", rationale="Fixture pooled review"))
+
+    def confirmation(self, fact=None):
+        return self.R._confirmation(self.facts() if fact is None else fact, events=self.events, ready_by_session=self.ready, layout=self.R.PR._layout())
+
+    def restore_science(self, saved):
+        self.events, self.ready = copy.deepcopy(saved)
+        self.outcomes = {e["reservation_seq"]: e for e in self.events if e["kind"] == "generation_done"}
+
+    def late(self, event):
+        if event in self.events: self.events.remove(event)
+        event["seq"] = max(e["seq"] for e in self.events) + 1; self.events.append(event)
+        if event["kind"] == "batch_done":
+            for row in self.outcomes.values():
+                if row["session_seq"] == event["session_seq"]: row["batch_done_seq"] = event["seq"]
+
+    def supersede(self, kind):
+        payload = copy.deepcopy(next(e["payload"] for e in self.events if e["kind"] == "wave_setup")); payload["plan_id"] = "later"
+        limits, reserved = self.J.Campaign.totals(self.events); funding = payload["funding"]
+        funding.update(reserved_before=reserved, limits={s: {u: max(limits[s][u], reserved[s][u] + funding["bound"][s][u]) for u in self.J.UNITS} for s in limits})
+        return self.anchor(kind, payload)
+
+    def test_scientific_result_candidates_and_shared_authority(self):
+        name = self.built["plan"]["opportunities"][0]["experiment_ids"][:1]
+        for status in ("verified", "verification_failed", "verification_error"):
+            self.restore_science((self.baseline, {})); _, rows = self.scientific(names=name, status=status)
+            self.assertEqual(self.R._result_usable(rows[0]["seq"], self.events), status != "verification_error")
+        self.restore_science((self.baseline, {})); _, rows = self.scientific(names=name); seq = rows[0]["seq"]
+        self.assertTrue(self.R._result_usable(seq, self.events)); saved = copy.deepcopy((self.events, self.ready))
+        for kind, field, value in (("generation_done", "profile_guarded", False), ("generation_done", "protocol_error", "bad proof"),
+                ("generation_done", "eligible", False), ("batch_done", "eligible", False), ("batch_done", "session_copy_complete", False),
+                ("batch_done", "evidence_errors", ["copy failed"]), ("shared", "resources_closed", False), ("shared", "status", "timeout")):
+            self.restore_science(saved); event = next(e for e in self.events if e["kind"] == ("batch_done" if kind == "shared" else kind))
+            (event["shared"] if kind == "shared" else event)[field] = value
+            with self.subTest(kind=kind, field=field): self.assertFalse(self.R._result_usable(seq, self.events))
+        for field in ("session_copy_complete", "evidence_errors"):
+            self.restore_science(saved); next(e for e in self.events if e["kind"] == "batch_done").pop(field)
+            self.assertFalse(self.R._result_usable(seq, self.events))
+        self.restore_science(saved); next(e for e in self.events if e["kind"] == "batch_done")["shared"].pop("status")
+        self.assertFalse(self.R._result_usable(seq, self.events))
+        for kind in ("attempt_result", "generation_done", "batch_reserved", "batch_done"):
+            self.restore_science(saved); self.events.remove(next(e for e in self.events if e["kind"] == kind))
+            self.assertFalse(self.R._result_usable(seq, self.events))
+        self.restore_science((self.baseline, {})); _, members = self.scientific(names=self.built["plan"]["opportunities"][0]["experiment_ids"][:2])
+        self.assertEqual(len(members), 2); self.assertTrue(self.R._result_usable(members[0]["seq"], self.events))
+        self.events.remove(self.outcomes[members[1]["seq"]]); self.assertFalse(self.R._result_usable(members[0]["seq"], self.events))
+
+    def test_candidate_free_format_and_exact_shared_failure_mapping(self):
+        _, rows = self.scientific(names=self.built["plan"]["opportunities"][0]["experiment_ids"][:1], status="format_failed"); seq = rows[0]["seq"]
+        row = self.outcomes[seq]; result = next(e for e in self.events if e["kind"] == "attempt_result"); group = next(e for e in self.events if e["kind"] == "batch_done")
+        for finish in ("stop", "length"):
+            row["status"] = finish; self.assertTrue(self.R._result_usable(seq, self.events))
+        row["text"] = "print(0)"; self.assertFalse(self.R._result_usable(seq, self.events)); row["text"] = "not python !"
+        row["eligible"] = False; self.assertFalse(self.R._result_usable(seq, self.events)); row["eligible"] = True
+        group["shared"]["status"] = "timeout"; self.assertFalse(self.R._result_usable(seq, self.events)); group["shared"]["status"] = "passed"
+        row.update(eligible=False, status="interrupted"); group["eligible"] = False
+        for status, expected in ((None, "interrupted"), ("interrupted", "interrupted"), ("cancelled", "interrupted"),
+                ("parent_error", "interrupted"), ("timeout", "generation_timeout"), ("worker_error", "generation_error")):
+            group["shared"]["status"] = status; result["status"] = expected
+            with self.subTest(status=status): self.assertTrue(self.R._result_usable(seq, self.events))
+            result["status"] = "format_failed"; self.assertFalse(self.R._result_usable(seq, self.events))
+        group["shared"]["status"] = "timeout"; result["status"] = "generation_timeout"; group["evidence_errors"] = ["missing telemetry"]
+        self.assertFalse(self.R._result_usable(seq, self.events)); group["evidence_errors"] = []
+        group["shared"]["status"] = "passed"; result["status"] = "generation_error"
+        self.assertFalse(self.R._result_usable(seq, self.events)); group.pop("session_copy_complete")
+        self.assertFalse(self.R._result_usable(seq, self.events))
+
+    def test_first_reply_final_all_attempts_and_closed_failed_gates(self):
+        session, rows = self.scientific(names=self.built["plan"]["opportunities"][0]["experiment_ids"][:1], status="format_failed"); first = rows[0]
+        self.assertTrue(self.R._usable(self.own_cell(first), self.events, first=True)); self.assertFalse(self.R._usable(self.own_cell(first), self.events))
+        messages = json.loads(first["request_text"])["messages"] + [dict(role="assistant", content="not python !"), dict(role="user", content=self.L.FORMAT_REPAIR)]
+        _, repairs = self.scientific(1, [first["experiment_id"]], messages=messages); last = next(e for e in self.events if e["kind"] == "attempt_result" and e["reservation_seq"] == repairs[0]["seq"])
+        self.events.remove(last); self.assertTrue(self.R._usable(self.own_cell(first), self.events, first=True)); self.assertFalse(self.R._usable(self.own_cell(first), self.events))
+        self.late(last); self.assertTrue(self.R._usable(self.own_cell(first), self.events))
+        next(e for e in self.events if e["kind"] == "batch_done" and e["session_seq"] == session["seq"])["session_copy_complete"] = False
+        self.assertFalse(self.R._usable(self.own_cell(first), self.events, first=True)); self.assertFalse(self.R._usable(self.own_cell(first), self.events))
+        next(e for e in self.events if e["kind"] == "batch_done" and e["session_seq"] == session["seq"])["session_copy_complete"] = True
+        cell = self.own_cell(first); first["attempt"]["reply_index"] = 1
+        self.assertFalse(self.R._usable(cell, self.events, first=True))
+        self.restore_science((self.baseline, {})); record = self.built["records"][0]; task = next(t for t in record["activation"]["tasks"] if t["id"] in record["assigned_task_ids"])
+        self.assertFalse(self.R._usable(next(c for c in self.L.cell_states(self.events, record) if c["id"] == task["id"]), self.events))
+        op = task["sha256"][:12]; self.emit("native_intent", operation_id=op, task_sha256=task["sha256"], reference_indices=[0, 1, 2], contract_sha256=self.built["plan"]["contract_sha256"])
+        verdict = self.emit("native_verdict", operation_id=op, status="failed"); closed = self.emit("native_closed", operation_id=op)
+        for status in ("failed", "error", None):
+            verdict["status"] = status; cell = next(c for c in self.L.cell_states(self.events, record) if c["id"] == task["id"])
+            self.assertEqual(self.R._usable(cell, self.events), status == "failed")
+            self.assertEqual(self.R._usable(cell, self.events, first=True), status == "failed")
+        verdict["status"] = "failed"; self.events.remove(closed)
+        self.assertFalse(self.R._usable(next(c for c in self.L.cell_states(self.events, record) if c["id"] == task["id"]), self.events))
+        self.events.append(closed); self.events.remove(verdict)
+        self.assertFalse(self.R._usable(next(c for c in self.L.cell_states(self.events, record) if c["id"] == task["id"]), self.events))
+        self.restore_science((self.baseline, {})); next(e for e in reversed(self.events) if e["kind"] in ("initial", "limits"))["limits"] = {s: dict.fromkeys(self.J.UNITS, 1) for s in ("actor", "synthetic")}
+        cell = next(c for c in self.L.cell_states(self.events, record) if c["id"] == task["id"])
+        self.assertEqual(cell["reason"], "campaign_budget"); self.assertFalse(self.R._usable(cell, self.events))
+
+    def test_real_tuning160_confirmation_contract_and_late_cutoff_support(self):
+        rows = self.tuning_complete(); decision = self.confirm(); fact = self.facts(); self.assertEqual(fact["invalid_reasons"], [])
+        tuning = {self.R.PR._key(t) for t in self.R.PR._layout()[3]}
+        cells = [c for member, record, _ in fact["rows"] if self.R.PR._key(member["task"]) in tuning for c in self.L.cell_states(self.events, record) if self.R.PR._key(c) == self.R.PR._key(member["task"])]
+        self.assertEqual((len(cells), sum(bool(c["attempt_seqs"]) for c in cells)), (160, 4)); self.assertTrue(all(self.R._usable(c, self.events) for c in cells))
+        result = self.confirmation(fact); self.assertEqual(result, dict(decision=decision, prefix_valid=True, prior_exposed_tasks=[], invalid_reasons=[])); self.assertIs(type(result["prefix_valid"]), bool)
+        self.assertEqual(sum(c["status"] == "not_started" for _, _, cs in fact["rows"] for c in cs), 128)
+        saved = copy.deepcopy((self.events, self.ready)); seq = rows[0]["seq"]
+        for kind in ("generation_done", "batch_done", "attempt_result", "native_verdict", "native_closed"):
+            self.restore_science(saved); event = next(e for e in self.events if e["kind"] == kind and (e.get("reservation_seq") == seq or e.get("session_seq") == rows[0]["session_seq"] or e.get("operation_id") == f"{seq:012x}"))
+            self.late(event); observed = self.confirmation()
+            with self.subTest(kind=kind):
+                self.assertFalse(observed["prefix_valid"]); self.assertIn("confirmation_premature", {r["kind"] for r in observed["invalid_reasons"]})
+        for kind in ("native_verdict", "native_closed"):
+            self.restore_science(saved); gate = next(e["operation_id"] for e in self.events if e["kind"] == "native_intent" and e["reference_indices"] is not None and e["task_sha256"] == rows[0]["attempt"]["task_sha256"])
+            event = next(e for e in self.events if e["kind"] == kind and e["operation_id"] == gate); event["seq"] = rows[0]["seq"] + 0.5
+            self.assertFalse(self.R._result_usable(seq, self.events))
+
+    def test_confirmation_prechecks_all_group_members_and_predecessor_results(self):
+        rows = self.tuning_complete(); self.confirm(); fact = self.facts(); saved = copy.deepcopy((self.events, self.ready))
+        seq = rows[0]["seq"]; batch = next(e for e in self.events if e["kind"] == "batch_reserved" and e["seq"] == rows[0]["session_seq"])
+        # Defensive incomplete accepted projection: no claim S admits this journal.
+        batch["rows"].append(dict(reservation_seq=999999, row_id="missing", request_sha256="0" * 64))
+        with mock.patch.object(self.R, "_requests", wraps=self.R._requests) as requests:
+            self.assertFalse(self.confirmation(fact)["prefix_valid"]); requests.assert_not_called()
+        self.restore_science((self.baseline, {})); first_session, first_rows = self.scientific(names=self.built["plan"]["opportunities"][0]["experiment_ids"][:1], status="format_failed")
+        first = first_rows[0]; self.step(0, first_session["seq"])
+        messages = json.loads(first["request_text"])["messages"] + [dict(role="assistant", content="not python !"), dict(role="user", content=self.L.FORMAT_REPAIR)]
+        self.scientific(1, [first["experiment_id"]], messages=messages); self.confirm()
+        self.late(next(e for e in self.events if e["kind"] == "attempt_result" and e["reservation_seq"] == first["seq"]))
+        fact = self.facts(); self.assertIn("repair_history_mismatch", {r["kind"] for r in fact["invalid_reasons"]})
+        with mock.patch.object(self.R, "_requests", wraps=self.R._requests) as requests:
+            self.assertFalse(self.confirmation(fact)["prefix_valid"]); requests.assert_not_called()
+        self.restore_science(saved); self.ready[rows[-1]["session_seq"]]["fixtures"][0]["prompt_ids"] = [2]
+        self.assertFalse(self.confirmation()["prefix_valid"])
+
+    def test_confirmation_absent_duplicate_local_structure_and_ready_cutoff(self):
+        rows = self.tuning_complete(); fact = self.facts(); absent = self.confirmation(fact)
+        self.assertEqual(absent, dict(decision=None, prefix_valid=False, prior_exposed_tasks=[], invalid_reasons=[]))
+        self.confirm(); saved = copy.deepcopy((self.events, self.ready)); self.confirm()
+        self.assertIsNone(self.confirmation()["decision"]); self.assertFalse(self.confirmation()["prefix_valid"])
+        self.restore_science(saved); fact = self.facts(); original = list(fact["invalid_reasons"]); fact["invalid_reasons"].append(dict(kind="later_violation"))
+        result = self.confirmation(fact); self.assertTrue(result["prefix_valid"]); self.assertEqual(result["invalid_reasons"], fact["invalid_reasons"]); self.assertIsNot(result["invalid_reasons"], fact["invalid_reasons"])
+        self.assertEqual(original, []); self.assertEqual(set(result), {"decision", "prefix_valid", "prior_exposed_tasks", "invalid_reasons"})
+        self.restore_science(saved); decision = next(e for e in self.events if e["kind"] == "wave_confirmation"); decision["seq"] = next(e["seq"] for e in self.events if e["kind"] == "wave_plan")
+        self.assertFalse(self.confirmation()["prefix_valid"])
+        self.restore_science(saved); fresh_op = next(o for o in self.built["plan"]["opportunities"] if o["block"].endswith("fresh"))
+        late_session, _ = self.scientific(fresh_op["id"], fresh_op["experiment_ids"][:1]); fact = self.facts()
+        with mock.patch.object(self.R, "_requests", wraps=self.R._requests) as requests:
+            self.assertTrue(self.confirmation(fact)["prefix_valid"]); self.assertNotIn(late_session["seq"], requests.call_args.args[5])
+            self.assertEqual(set(requests.call_args.args[5]), set(self.ready) - {late_session["seq"]})
+        self.restore_science(saved); step = next(e for e in self.events if e["kind"] == "wave_step" and e["payload"]["session_seq"] is not None)
+        step["seq"] = rows[0]["seq"] + 0.5; self.assertFalse(self.confirmation()["prefix_valid"])
+        self.restore_science(saved); plan = next(e for e in self.events if e["kind"] == "wave_plan")
+        native = self.emit("native_intent", operation_id="e" * 12, task_sha256=rows[0]["attempt"]["task_sha256"], reference_indices=[0], contract_sha256=self.built["plan"]["contract_sha256"])
+        native["seq"] = plan["seq"] - 0.5
+        self.assertFalse(self.confirmation()["prefix_valid"])
+
+    def test_fresh_native_ownership_exposure_and_both_superseders(self):
+        self.tuning_complete(); self.confirm(); saved = copy.deepcopy((self.events, self.ready)); fresh = self.R.PR._layout()[4][0]
+        member = next(m for m in self.built["plan"]["records"] if m["task"]["id"] == fresh["id"]); own = member["experiment_id"]
+        for owner in (own, "foreign-cold"):
+            self.restore_science(saved); decision = next(e for e in self.events if e["kind"] == "wave_confirmation")
+            reservation = self.emit("generation_reserved", experiment_id=owner, source="actor", request_text=self.J.encoded(dict(max_tokens=1, wall_time_seconds=1)), attempt={**member["task"], "reply_index": 0})
+            reservation["seq"] = decision["seq"] - 0.5
+            native = self.emit("native_intent", operation_id="f" * 12, reservation_seq=reservation["seq"], task_sha256=fresh["sha256"], reference_indices=None, contract_sha256=self.built["plan"]["contract_sha256"])
+            native["seq"] = decision["seq"] - 0.25
+            # Minimal global reservation projections exercise the post-S helper seam.
+            fact = self.facts() if owner != own else None
+            if fact is None:
+                self.restore_science(saved); fact = self.facts(); self.events.extend([reservation, native])
+            observed = self.confirmation(fact); kinds = {r["kind"] for r in observed["invalid_reasons"]}
+            self.assertEqual("fresh_native_before_confirmation" in kinds, owner == own); self.assertEqual("fresh_before_confirmation" in kinds, owner == own)
+            self.assertEqual(observed["prior_exposed_tasks"], [member["task"]]); self.assertEqual(observed["prefix_valid"], owner != own)
+            self.events.remove(native); kinds = {r["kind"] for r in self.confirmation(fact)["invalid_reasons"]}
+            self.assertEqual("fresh_before_confirmation" in kinds, owner == own); self.assertNotIn("fresh_native_before_confirmation", kinds)
+        for inherited in (True, False):
+            self.restore_science(saved); fact = self.facts(); decision = fact["confirmations"][0]
+            native = self.emit("native_intent", operation_id="e" * 12, task_sha256=fresh["sha256"], reference_indices=[0], contract_sha256=self.built["plan"]["contract_sha256"])
+            native["seq"] = (min(e["seq"] for e in self.events if e["kind"] == "experiment") - 0.5) if inherited else decision["seq"] - 0.5
+            observed = self.confirmation(fact); self.assertEqual(observed["prefix_valid"], inherited); self.assertEqual(observed["prior_exposed_tasks"], [])
+        for setup_kind in ("collection_setup", "wave_setup"):
+            for target in (self.built["plan"]["records"][0]["task"], member["task"]):
+                self.restore_science(saved); self.supersede(setup_kind); fact = self.facts()
+                native = self.emit("native_intent", operation_id="d" * 12, task_sha256=target["task_sha256"], reference_indices=[0], contract_sha256=self.built["plan"]["contract_sha256"])
+                observed = self.confirmation(fact); self.assertTrue(observed["prefix_valid"]); self.assertIn("native_after_supersession", {r["kind"] for r in observed["invalid_reasons"]})
+                native["contract_sha256"] = "0" * 64; self.assertNotIn("native_after_supersession", {r["kind"] for r in self.confirmation(fact)["invalid_reasons"]})
+
+    def test_global_exposure_exact_keys_deduplicate_sort_and_decision_cutoffs(self):
+        self.tuning_complete(); self.confirm(); fact = self.facts(); decision = fact["confirmations"][0]
+        fresh = [{k: t["sha256"] if k == "task_sha256" else t[k] for k in ("split", "id", "task_sha256")} for t in self.R.PR._layout()[4][:2]]
+        # Global accepted reservation projections need no UID or resident session.
+        for index, task in enumerate((fresh[1], fresh[0], fresh[1])):
+            event = self.emit("generation_reserved", experiment_id="older-cold", source="actor", request_text=self.J.encoded(dict(max_tokens=1, wall_time_seconds=1)), attempt={**task, "reply_index": 0})
+            event["seq"] = decision["seq"] - 0.9 + index / 10
+        changed = {**fresh[0], "task_sha256": "0" * 64}
+        self.emit("generation_reserved", experiment_id="older-cold", source="actor", request_text=self.J.encoded(dict(max_tokens=1, wall_time_seconds=1)), attempt={**changed, "reply_index": 0})["seq"] = decision["seq"] - 0.25
+        for field, value in (("split", "other"), ("id", 999999)):
+            self.emit("generation_reserved", experiment_id="older-cold", source="actor", request_text=self.J.encoded(dict(max_tokens=1, wall_time_seconds=1)), attempt={**fresh[0], field: value, "reply_index": 0})["seq"] = decision["seq"] - (0.1 if field == "id" else 0.2)
+        observed = self.confirmation(fact); expected = sorted(fresh, key=self.R.PR._key)
+        self.assertTrue(observed["prefix_valid"]); self.assertEqual(observed["prior_exposed_tasks"], expected)
+        later = self.R.PR._layout()[4][2]; key = dict(split=later["split"], id=later["id"], task_sha256=later["sha256"])
+        self.emit("generation_reserved", experiment_id="superseded-cold", source="actor", request_text=self.J.encoded(dict(max_tokens=1, wall_time_seconds=1)), attempt={**key, "reply_index": 0})
+        self.assertEqual(self.confirmation(fact)["prior_exposed_tasks"], expected)
+        fact["confirmations"] = []; self.assertEqual(self.confirmation(fact)["prior_exposed_tasks"], sorted(fresh + [key], key=self.R.PR._key))
+        fact["confirmations"] = [decision, decision]; self.assertIsNone(self.confirmation(fact)["decision"])
+        self.assertEqual(self.confirmation(fact)["prior_exposed_tasks"], sorted(fresh + [key], key=self.R.PR._key))
+
+    def test_supersession_decisions_reservations_and_candidate_ownership(self):
+        rows = self.tuning_complete(); self.confirm(); saved = copy.deepcopy((self.events, self.ready))
+        fresh_op = next(o for o in self.built["plan"]["opportunities"] if o["block"].endswith("fresh"))
+        for kind in ("collection_setup", "wave_setup"):
+            self.restore_science(saved); self.supersede(kind)
+            self.scientific(fresh_op["id"], fresh_op["experiment_ids"][:1]); observed = self.confirmation()
+            self.assertTrue(observed["prefix_valid"]); self.assertIn("work_after_supersession", {r["kind"] for r in observed["invalid_reasons"]})
+            self.restore_science(saved); self.supersede(kind)
+            self.late(next(e for e in self.events if e["kind"] == "wave_confirmation")); observed = self.confirmation()
+            self.assertFalse(observed["prefix_valid"]); self.assertIn("confirmation_after_supersession", {r["kind"] for r in observed["invalid_reasons"]})
+            for owned in (True, False):
+                self.restore_science(saved); self.supersede(kind); fact = self.facts(); reservation = rows[0]
+                if not owned:
+                    reservation = self.emit("generation_reserved", experiment_id="foreign", source="actor", request_text=self.J.encoded(dict(max_tokens=1, wall_time_seconds=1)), attempt=copy.deepcopy(rows[0]["attempt"]))
+                self.emit("native_intent", operation_id="c" * 12, reservation_seq=reservation["seq"], task_sha256=rows[0]["attempt"]["task_sha256"], reference_indices=None, contract_sha256=self.built["plan"]["contract_sha256"])
+                observed = self.confirmation(fact); self.assertTrue(observed["prefix_valid"])
+                self.assertEqual("native_after_supersession" in {r["kind"] for r in observed["invalid_reasons"]}, owned)
+
     def test_facts_provisional_contract_and_pending_setup(self):
         facts = self.facts(); self.assertEqual(set(facts), {"setup", "plan", "rows", "session_opportunities", "steps", "confirmations", "invalid_reasons"})
         self.assertEqual((len(facts["rows"]), facts["invalid_reasons"]), (144, []))

@@ -221,6 +221,108 @@ def _validate(*, events, records, runs, outcomes, reservations, panel, ready_by_
     return facts
 
 
+def _result_usable(seq, prefix):
+    """Assess an own attempt after S's retained row/native proof boundary."""
+    done, results, _ = PR._views(prefix)
+    row, result = done.get(seq), results.get(seq)
+    reservation = next((e for e in prefix if e["kind"] == "generation_reserved" and e["seq"] == seq), None)
+    if row is None or result is None or reservation is None: return False
+    group = next((e for e in prefix if e["kind"] == "batch_done" and e["seq"] == row.get("batch_done_seq")), None)
+    if (group is None or group.get("session_seq") != reservation.get("session_seq")
+        or row.get("session_seq") != group["session_seq"]): return False
+    batch = next((e for e in prefix if e["kind"] == "batch_reserved" and e["seq"] == group["session_seq"]), None)
+    if batch is None or not all(r["reservation_seq"] in done
+        and done[r["reservation_seq"]].get("batch_done_seq") == group["seq"] for r in batch["rows"]): return False
+    shared = group["shared"]
+    if ("status" not in shared or shared.get("resources_closed") is not True or group.get("session_copy_complete") is not True
+        or group.get("evidence_errors") != [] or row.get("profile_guarded") is not True
+        or J.profile_control_reason(row) is not None or not _effects(prefix, [seq])): return False
+    positive = (row.get("eligible") is True and group.get("eligible") is True
+        and shared.get("status") == "passed" and row["status"] in ("stop", "length"))
+    if result["candidate_sha256"] is not None:
+        # S binds the extracted candidate and exact native sample/key/status.
+        return positive and result["status"] in ("verified", "verification_failed") and result["operation_id"] is not None
+    if result["operation_id"] is not None or result["sample_id"] is not None or result["reused"] is not False: return False
+    if result["status"] == "format_failed":
+        if not positive: return False
+        try: L.generation.extract_program(row["text"])
+        except ValueError: return True
+        return False
+    if shared.get("status") == "passed" or row["status"] in ("stop", "length"): return False
+    status = shared.get("status")
+    expected = ("interrupted" if status in (None, "interrupted", "cancelled", "parent_error")
+        else "generation_timeout" if status == "timeout" else "generation_error")
+    return result["status"] == expected
+
+
+def _usable(cell, prefix, *, first=False):
+    """Keep first-reply assessment independent of later repair support."""
+    views, seqs = PR._views(prefix), cell["attempt_seqs"]
+    if not seqs:
+        gate = cell["gate_operation_id"]
+        return (cell["reason"] == "gate_failed" and PR._terminal(cell, views)
+            and any(e["kind"] == "native_verdict" and e["operation_id"] == gate and e["status"] == "failed" for e in prefix))
+    if first:
+        reservation = next((e for e in prefix if e["kind"] == "generation_reserved" and e["seq"] == seqs[0]), None)
+        return (reservation is not None and reservation["attempt"]["reply_index"] == 0
+            and PR._first_assessed(cell, views) and _result_usable(seqs[0], prefix))
+    return PR._terminal(cell, views) and all(_result_usable(seq, prefix) for seq in seqs)
+
+
+def _confirmation(fact, *, events, ready_by_session, layout):
+    """Private prefix facts for the separately bounded scientific publication slice."""
+    plan, rows = fact["plan"], fact["rows"]
+    invalid = list(fact["invalid_reasons"])
+    decision = fact["confirmations"][0] if len(fact["confirmations"]) == 1 else None
+    cutoff = decision["seq"] if decision is not None else len(events) + 1
+    names = {m["experiment_id"] for m, _, _ in rows}
+    tuning, fresh = ({PR._key(t) for t in layout[i]} for i in (3, 4))
+    hashes = {m["task"]["task_sha256"] for m, _, _ in rows}
+    fresh_hashes = {k[2] for k in fresh}
+    reservations = {e["seq"]: e for e in events if e["kind"] == "generation_reserved"}
+    first_registration = min(e["seq"] for e in events if e["kind"] == "experiment" and e["experiment_id"] in names)
+    superseded = min((e["seq"] for e in events if e["kind"] in ("collection_setup", "wave_setup")
+        and e["seq"] > fact["setup"]["seq"]), default=len(events) + 1)
+    exposed = sorted({PR._key(e["attempt"]) for e in reservations.values() if e["seq"] < cutoff and PR._key(e["attempt"]) in fresh})
+    early_model = any(e["seq"] < cutoff and e["experiment_id"] in names and PR._key(e["attempt"]) in fresh for e in reservations.values())
+    matching_native = [e for e in events if e["kind"] == "native_intent" and e["task_sha256"] in hashes
+        and e["contract_sha256"] == plan["payload"]["contract_sha256"]]
+    native = [e for e in matching_native if e["reference_indices"] is not None
+        or reservations.get(e.get("reservation_seq"), {}).get("experiment_id") in names]
+    early_native = any(first_registration < e["seq"] < cutoff and e["task_sha256"] in fresh_hashes for e in native)
+    if early_model: invalid.append(dict(kind="fresh_before_confirmation"))
+    if early_native: invalid.append(dict(kind="fresh_native_before_confirmation"))
+    if any(e["seq"] > superseded for e in native): invalid.append(dict(kind="native_after_supersession"))
+    if decision is not None and decision["seq"] > superseded: invalid.append(dict(kind="confirmation_after_supersession"))
+    if len(fact["confirmations"]) > 1 and not any(r["kind"] == "confirmation_duplicate" for r in invalid):
+        invalid.append(dict(kind="confirmation_duplicate"))
+    valid = False
+    if decision is not None:
+        prefix = [e for e in events if e["seq"] < cutoff]
+        selected = {s: e for s, e in reservations.items() if s < cutoff}
+        done, results, _ = PR._views(prefix)
+        groups = {e["session_seq"]: e for e in prefix if e["kind"] == "batch_done"}
+        batches = [e for e in prefix if e["kind"] == "batch_reserved"]
+        complete = {b["seq"] for b in batches if b["seq"] in groups and all(
+            r["reservation_seq"] in done and done[r["reservation_seq"]].get("batch_done_seq") == groups[b["seq"]]["seq"]
+            and done[r["reservation_seq"]].get("session_seq") == b["seq"] for r in b["rows"])}
+        own = [e for e in selected.values() if e["experiment_id"] in names]
+        supported = all(e.get("session_seq") in complete and e["seq"] in results for e in own)
+        local = []
+        if supported and plan["seq"] < cutoff < superseded:
+            outcomes = {s: e for s, e in done.items() if e.get("session_seq") in complete}
+            ready = {s: r for s, r in ready_by_session.items() if s in complete}
+            mapping = _requests(plan, rows, prefix, selected, outcomes, ready, local)
+            _steps([e for e in fact["steps"] if e["seq"] < cutoff], plan, rows, mapping, prefix, local)
+            if any(first_registration < e["seq"] <= plan["seq"] for e in matching_native): local.append(dict(kind="native_before_plan"))
+            cells = [c for m, record, _ in rows if PR._key(m["task"]) in tuning for c in L.cell_states(prefix, record)
+                if PR._key(c) == PR._key(m["task"]) and c["source"] in study.SOURCES]
+            valid = not local and not early_model and not early_native and len(cells) == 160 and all(_usable(c, prefix) for c in cells)
+        if not valid: invalid.append(dict(kind="confirmation_premature"))
+    return dict(decision=decision, prefix_valid=valid,
+        prior_exposed_tasks=[dict(zip(("split", "id", "task_sha256"), key)) for key in exposed], invalid_reasons=invalid)
+
+
 def derive(*, events, records, runs, eligible, outcomes, reservations, panel, sessions, ready_by_session):
     return [dict(report_scope="resident_wave", validation_scope="structure_only", provisional=True,
         plan_id=f["plan"]["payload"]["plan_id"], plan_sha256=f["plan"]["payload_sha256"], structure_valid=not f["invalid_reasons"], invalid_reasons=f["invalid_reasons"])

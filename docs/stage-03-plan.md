@@ -682,6 +682,13 @@ frozen metadata, opportunities, all row requests and their own repair histories.
 Its wave_trials output is explicitly provisional with structure-only validity;
 quality, completion, session cost and confirmation claims belong to the next slice.
 
+The first metrics slice adds private own-attempt assessment and confirmation-prefix
+facts while retaining that exact provisional report. It requires complete guarded
+session evidence and reconstructs the decision's own closed tuning160 prefix;
+global prior fresh model exposure and later procedure violations remain separate.
+Scientific publication and the nonempty retained-wave integration remain with
+metrics slice B; these helpers alone grant no fresh-work admission.
+
 Prospective peer-isolation qualification uses schema 4 with two invented
 targets, equal-length but
 different peer contexts, controlled peer decoding, and fresh-cache replays after

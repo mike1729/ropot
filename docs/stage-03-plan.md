@@ -675,3 +675,9 @@ at token index 10. Original requests, samplers, stress checks and verdict remain
 Its baseline binds the retained failing job and rendered prompts. An expected
 qualification failure can yield diagnostic evidence with proven cleanup; it
 provides no new cohort admission or inference speed measurement.
+
+Wave snapshots retain the base protocol and amendment and reparse each shared
+session's already bound ready evidence once. The first report consumer checks
+frozen metadata, opportunities, all row requests and their own repair histories.
+Its wave_trials output is explicitly provisional with structure-only validity;
+quality, completion, session cost and confirmation claims belong to the next slice.

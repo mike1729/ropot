@@ -14,6 +14,8 @@ from . import experiment_loop as loop, local_generation as generation, native_re
 from . import study_tasks as study, verification
 from . import precision_profiles as precision
 from . import paired_report
+from . import paired_wave_report
+from experiments import batch_throughput as batch_host
 from . import generation_journal as journal
 from .generation_journal import Campaign, encoded, require, sync_directory, limits_checked
 
@@ -178,6 +180,13 @@ def snapshot(campaign, *, selections=None):
     require(all(name in collections and collections[name]["seq"] < event["seq"]
                 and collections[name]["payload"]["plan_sha256"] == event["payload_sha256"]
                 for name, event in plans.items()), "Unbound paired plan")
+    for event in (e for e in events if e["kind"] == "wave_setup"):
+        item = event["payload"]["protocol"]
+        raw = add(item["path"], item["sha256"], item["bytes"])
+        base = paired_wave_report.W.BASE_PROTOCOL_SHA256
+        require(("\n" + base + ".\n").encode() in raw, "Wave protocol base differs")
+        add(f"audits/{base}-paired-protocol.md", base)
+    ready_by_session = {}
     reservations = {e["seq"]: e for e in events if e["kind"] == "generation_reserved"}
     batches = {e["seq"]: e for e in events if e["kind"] == "batch_reserved"}
     completions = {e["session_seq"]: e for e in events if e["kind"] == "batch_done"}
@@ -187,6 +196,11 @@ def snapshot(campaign, *, selections=None):
                 add(f"requests/{event['reservation_seq']:06d}/{name}", evidence["sha256"], evidence["bytes"])
         elif event["kind"] == "batch_done":
             for name, evidence in event["evidence"].items(): add(name, evidence["sha256"], evidence["bytes"])
+            session = event["session_seq"]; name = f"sessions/{session:06d}/stdout.jsonl"
+            evidence = event["evidence"].get(name)
+            raw = add(name, evidence["sha256"], evidence["bytes"]) if evidence else b""
+            parsed = batch_host.validate_events(raw, json.loads(batches[session]["job_text"]), pid=event["shared"]["pid"])
+            ready_by_session[session] = next((e for e in parsed["events"] if e["event"] == "ready"), None) if type(event["shared"]["pid"]) is int and event["shared"]["pid"] > 0 else None
     intents = {e["operation_id"]: e for e in events if e["kind"] == "native_intent"}
     closed = {e["operation_id"] for e in events if e["kind"] == "native_closed"}
     verdicts, proofs, native_tasks = {}, {}, {}
@@ -401,6 +415,9 @@ def snapshot(campaign, *, selections=None):
     if any(e["kind"] == "paired_plan" for e in events):
         report["paired_trials"] = paired_report.derive(events=events, records=records, runs=runs, eligible=eligible,
             outcomes=outcomes, reservations=reservations, panel=panel)
+    if any(e["kind"] in ("wave_setup", "wave_plan") for e in events):
+        report["wave_trials"] = paired_wave_report.derive(events=events, records=records, runs=runs, eligible=eligible,
+            outcomes=outcomes, reservations=reservations, panel=panel, sessions=sessions, ready_by_session=ready_by_session)
     if baseline is not None:
         report["combined_known"] = {unit: baseline["combined"][unit] + (sum(v[unit] for v in reserved.values())
             if unit != "observed_generation_tokens" else sum(v[unit] for v in costs["observed_by_source"].values())) for unit in BASE_UNITS}

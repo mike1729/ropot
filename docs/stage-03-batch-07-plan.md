@@ -30,7 +30,10 @@ MLX environment and repository Inspect environment without new dependencies.
 Use the current repository wrappers and keep Inspect pinned to `0.3.283`.
 Preserve execution limits and case semantics; the narrow cancellation correction
 below changes source hashes in the execution identity. Do not adopt newer APIs.
-Selection publication, cross-run resume and cumulative reporting belong to Batch 8.
+Evidence reconciliation, selection publication and cumulative reporting belong to
+[Batch 8](stage-03-batch-08-plan.md). General extraction recovery and dispatch
+continuation wait for a demonstrated consumer and a separate bounded review plan;
+spent or uncertain requests must never be replayed.
 Measure generation/verification overlap in a separately reviewed follow-up after
 this sequential loop passes; add no scheduler, persistent worker or cache system.
 
@@ -317,7 +320,11 @@ together allow **12 replies and 3,072 output tokens**, separate from Batch 6's
 qualification. Full repair-loop qualification remains pending until 7b; its smoke
 qualifies decode 8 only. Report checks, actual diff sizes and retained evidence
 at each boundary. Stop after 7a for review, then again after 7b before overlap,
-selection/resume or cohort acquisition.
+resume or cohort acquisition. Offline Batch 8 reconciliation/publication may
+proceed after a reviewed committed format baseline and compatible retained
+artifacts exist, while live repair qualification remains pending. Complete that
+gate before overlap or Batch 9 dispatch. Batch 8b's activation-digest field is
+bookkeeping only: unchanged requests and execution need no additional model gate.
 
 ## 7a validation — 2026-10-26
 

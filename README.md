@@ -235,7 +235,7 @@ Python paths, and a new directory under `data/03_benign_experiments/`:
 ```python
 loop = importlib.import_module("src.data-pipeline.stage03.benign_loop")
 outcome = loop.run(
-    worklist, "data/03_benign_experiments/my-run", source="actor",
+    worklist, "data/03_benign_experiments/0001-my-run", source="actor",
     model_path=model_path, model_manifest=model_manifest, mlx_python=mlx_python,
     cohort_sha256=study_tasks.COHORT_SHA256,
     recipe={"system": "Return only a complete Python 3 program.",
@@ -257,6 +257,10 @@ for states, interruption and review boundaries. Run its four-reply smoke with
 `ROPOT_BENIGN_LOOP_TESTS=1 .venv/bin/python -m unittest tests.test_benign_loop_live -v`.
 The separate eight-reply repair gate uses `ROPOT_BENIGN_REPAIR_TESTS=1` and
 `tests.test_benign_repairs_live`; unexpected outcomes stop the gate without redrawing.
+
+The [experiment summary](src/data-pipeline/stage03/experiment_summary.py) reads only
+numbered experiments' coordinator JSON. Call `summarize(root)` for recorded states,
+histories and cumulative effort; see the [Batch 8 plan](docs/stage-03-batch-08-plan.md).
 
 The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
 MLX settings, scheduling and extraction gains, capacity limits, and the archive

@@ -37,6 +37,8 @@ JSON-serializable summary that its caller may save:
 - Per worklisted task/source: copy each saved binding as-is, including minimal fixtures;
   ordered experiment membership, saved submission/attempt states, every recorded
   pass and latest state, including `not_run`. Membership alone is not exposure.
+  Key cells by source, split, id and saved task sha256, so different fixture content
+  at the same split/id has separate histories; expose that digest on each cell.
 - Totals: sum each run's recorded commitments, submission counts/lower bounds,
   observed tokens and timings once; retain nulls and usage-completeness flags. Never
   refund reservations. Repeated draws are not independent tasks, and benign passes
@@ -52,7 +54,12 @@ effort makes that aggregate unknown/incomplete, retaining known subtotals; never
 silently count it as zero. Only root-level problems above stop the whole report.
 For intact producer outputs, an absent outcome means zero dispatch even if inputs
 are truncated: inputs are written before initial progress, which precedes launch.
+If `round-0000.json` exists, the missing outcome is demonstrably lost: report unknown
+effort and unresolved state. Check only that round file's existence, not its contents.
 An existing but malformed/unreadable outcome means unknown effort, not zero.
+Diagnose missing/null counters, an unavailable timing block and missing study cohort
+provenance per experiment. Unknown submission counts can occur in valid error runs;
+the diagnostic explains the unknown without discarding other readable counters.
 Add no stopped declarations, hashing or reconstruction.
 
 ## Deferred work and paused draft
@@ -72,9 +79,53 @@ coordinator JSON using mocked children/verifiers. Modify JSON only for damaged o
 unfinished cases; cover absent optional lower-bound fields and null timings.
 Check numbered scan/order, duplicate prefixes, fixture/study and cohort mixing,
 binding preservation, histories, repeated draws, final-state counts and recorded
-totals. Check that one unreadable/malformed/unsupported run does not hide healthy
+totals, including different fixture content at the same split/id and coordinator-written
+incomplete-native and cancelled outcomes. Check that one unreadable/malformed/unsupported run does not hide healthy
 runs or unknown cost; distinguish absent outcome from unreadable outcome and keep
 readable commitments exact for unfinished runs or damaged inputs. The summary
 imports no Inspect/MLX and makes no Docker, model or sandbox calls. Run focused
 tests and the repository suite; report non-test/test line counts separately.
 No new live gate is needed.
+
+## Implementation and validation — 2026-10-26
+
+The standard-library reader exposes `summarize(root)` and reads only each immediate
+experiment's `inputs.json` and `outcome.json`, with an existence check for the first
+round when an outcome is absent. Names match
+`NNNN-lowercase-hyphenated-name`; duplicate four-digit prefixes are refused.
+
+```python
+import importlib
+import json
+from pathlib import Path
+
+reader = importlib.import_module("src.data-pipeline.stage03.experiment_summary")
+report = reader.summarize("data/03_benign_experiments")
+Path("data/03_benign_summary.json").write_text(json.dumps(report, indent=2, allow_nan=False))
+```
+
+The result contains `experiments`, task/source `cells`, and `totals`. Each aggregate
+has a `recorded_total` (null if any value is unknown), `known_subtotal`, and
+`complete` flag. Nonterminal observations remain snapshots/lower bounds even when
+their sum is known; committed reservations remain exact. Lower-bound counters
+remain bounds. Per-run completeness flags and null timings are preserved.
+An absent outcome without a saved first round contributes zero for every timing phase.
+An outcome lost after round preparation contributes unknown effort. In an existing outcome,
+a null phase remains unknown, including when the coordinator never ran that phase.
+Completeness describes recorded effort, not format validation: readable commitment
+counters can remain exact when the run also reports an unsupported-format problem.
+Cell histories retain saved bindings and attempts; `passes` references every saved
+passing attempt, while `latest_state` may be unresolved or failed after earlier passes.
+
+All 26 focused tests pass, using actual coordinator JSON emitted by mocked Batch 7
+fixtures. From the repository root, `.venv/bin/python -m unittest discover -s tests`
+runs **267 tests with eleven optional skips**. A fresh
+process confirms the reader neither imports Inspect/MLX nor invokes subprocesses.
+The [JSON-only fixture check](../data/03_generation_checks/batch-08-summary-odjpckeh/validation.json)
+copies only four coordinator JSON files from the retained two-model 7b run into an
+isolated numbered root. Its report preserves seven recorded replies, 1,792 committed
+tokens and 652 observed tokens. No original runs were renamed or modified.
+That fixture root, summary, test output and validation comprise seven JSON/text
+files totaling 47,171 bytes; no native logs or binary artifacts were copied.
+The paused reconciler remains unchanged under `unused/batch08-reconciliation/`.
+No new inference, Docker execution or live gate ran. Stop here for review.

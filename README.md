@@ -170,7 +170,8 @@ cohort acquisition jobs. Batch 3 adds the [candidate verifier](src/data-pipeline
 `reuse(log_path, task, binding["sha256"], program_bytes)`. Only the returned `feedback`
 may enter repair prompts; native logs and the rest of the result are private evidence.
 
-Batch 4 adds [warm serial actor generation](src/data-pipeline/stage03/local_generation.py).
+The [warm serial generation adapter](src/data-pipeline/stage03/local_generation.py)
+supports the Qwen actor and, in Batch 5, the Ministral synthetic generator.
 Call it directly from the existing MLX Python with Metal access. The 8-bit model
 loads once per finite run; requests carry no previous state:
 
@@ -191,12 +192,19 @@ artifact hashes are recorded without revalidating weights. Existing destinations
 are refused. Inputs, runtime identity, streamed reply text and outcomes remain in
 the run directory. Request deadlines are soft checks between chunks; loading and
 stalled native calls cannot be forcibly interrupted. Failure stops the run without
-retry. No generated code runs.
-The [batch plan](docs/stage-03-batch-04-plan.md) covers scope and limitations.
+retry. Generation itself executes no generated code.
+For Ministral, pass `/Users/michal/Workspace/models/mlx-community/Ministral-3-8B-Instruct-2512-8bit`
+and its corresponding artifact manifest through the same API, with an explicit
+system message. The adapter applies its tokenizer regex fix and records the
+effective tokenizer and model sources. Both models use request-owned seeded samplers;
+earlier global-reseed replies remain historical evidence. The
+[Batch 5 plan](docs/stage-03-batch-05-plan.md) covers scope and limitations.
 Run focused tests with `python3 -m unittest discover -s tests -p 'test_local_generation.py'`.
-For the fabricated-prompt smoke, run that command using
+For the actor and synthetic fixture smokes, run that command using
 `/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python`
-with `ROPOT_MLX_TESTS=1`. It retains evidence under `data/03_generation_checks`.
+with `ROPOT_MLX_TESTS=1`. Metal access is required. The synthetic smoke also needs
+Docker and Inspect installed in `.venv`; it verifies three generated fixture
+programs there. Both smokes retain evidence under `data/03_generation_checks`.
 
 The verifier also provides
 `verify_many(candidates, log_dir, max_samples=1|4, concurrent_inference=...)`,

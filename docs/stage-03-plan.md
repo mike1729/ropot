@@ -26,9 +26,10 @@ The [cohort plan](stage-02-plan.md) governs activation; the [pilot](pilot.md)
 defines the later monitor experiment.
 
 Start runtime work from existing local model artifacts and established tooling.
-Both selected generators have local MLX conversions; compare that route with the
-available official Ministral GGUF when implementing the adapters. Record actual
-weights, quantization, tokenizer, template and runtime for each experiment.
+The completed [Q8 fixture comparison](inference-benchmark-results.md) supports MLX
+provisionally for both generators. The direct synthetic adapter passed its
+[Batch 5 fixture smoke](stage-03-batch-05-plan.md#implementation-validation).
+Record actual weights, quantization, tokenizer, template and runtime for each experiment.
 
 
 ## Implementation batches

@@ -52,9 +52,9 @@ protocol, GGUF server controller and later campaign machinery are unnecessary he
 
 Use the existing input, runtime, reply and outcome files. Preserve raw replies,
 native token counts, partial output and unstarted requests. Keep response caching
-and prefix-state reuse off. The existing soft deadline and interruption limitations
-remain: checks between chunks cannot stop model loading or a stalled native call.
-The benchmark's hard worker interruption does not transfer to this direct path.
+and prefix-state reuse off. Enforce no wall-time limit. Python interruption cannot
+stop model loading or a stalled native call; the benchmark's hard worker
+interruption does not transfer to this direct path.
 Failure stops the run without retries.
 
 ## Validation
@@ -62,7 +62,7 @@ Failure stops the run without retries.
 Extend the current mocked tests to check synthetic tokenizer arguments, metadata
 and model source records. Update sampler assertions to check a fresh sampler with
 each request's seed for both models. Keep actor regression coverage and the existing
-serial-load, raw-output, stop/length, timeout and interruption checks. Retain the
+serial-load, raw-output, stop/length and interruption checks. Retain the
 actor's opt-in smoke for the shared sampler change.
 
 Add an opt-in smoke using fabricated tasks only:
@@ -76,7 +76,7 @@ Add an opt-in smoke using fabricated tasks only:
   fixtures in an A/B/A sequence with repeated A settings/seed and greedy B;
   and one request forced to exhaust a one-token limit. Use temperature 0.2 and
   top-p 0.95 for A, matching the measured sampling policy.
-  Cap each coding reply at 256 tokens and each request at 120 soft seconds.
+  Cap each coding reply at 256 tokens.
   This synthetic smoke caps dispatch at four replies and 769 output tokens,
   with no retries; any actor smoke is separate effort.
 - Check seeded A replay, natural completion, token exhaustion, native usage and

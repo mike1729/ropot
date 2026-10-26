@@ -170,8 +170,8 @@ cohort acquisition jobs. Batch 3 adds the [candidate verifier](src/data-pipeline
 `reuse(log_path, task, binding["sha256"], program_bytes)`. Only the returned `feedback`
 may enter repair prompts; native logs and the rest of the result are private evidence.
 
-The [warm serial generation adapter](src/data-pipeline/stage03/local_generation.py)
-supports the Qwen actor and, in Batch 5, the Ministral synthetic generator.
+The [local generation adapter](src/data-pipeline/stage03/local_generation.py)
+supports the Qwen actor and Ministral synthetic generator.
 Call it directly from the existing MLX Python with Metal access. The 8-bit model
 loads once per finite run; requests carry no previous state:
 
@@ -181,7 +181,7 @@ result = generation.generate(
     "/Users/michal/Workspace/models/mlx-community/Qwen3.5-9B-8bit",
     [{"messages": [{"role": "user", "content": "Reply with exactly OK."}],
       "seed": 17, "temperature": 0.7, "top_p": 0.9,
-      "max_tokens": 32, "wall_time_seconds": 30}],
+      "max_tokens": 32}],
     "data/03_generation_checks/my-run",
     model_manifest="/Users/michal/Workspace/models/metadata/Qwen3.5-9B-8bit-16daa4818c54ce5f5436f929d52542eb65bbed9d.json",
 )
@@ -190,9 +190,15 @@ result = generation.generate(
 The manifest must describe the unchanged model files supplied by the caller;
 artifact hashes are recorded without revalidating weights. Existing destinations
 are refused. Inputs, runtime identity, streamed reply text and outcomes remain in
-the run directory. Request deadlines are soft checks between chunks; loading and
-stalled native calls cannot be forcibly interrupted. Failure stops the run without
-retry. Generation itself executes no generated code.
+the run directory. `max_tokens` bounds each reply; wall time is recorded, not
+enforced, and loading or stalled native calls cannot be interrupted from Python.
+Failure stops the run without retry. Generation itself executes no generated code.
+For native batching, call `generate_batched` with the same arguments plus explicit
+`completion_batch_size`, `prefill_batch_size` and `prefill_step_size`. It bounds
+unfinished submissions by the decode size; interruption cancels unfinished
+submissions. `extract_program(row)` returns exact Python
+bytes only from natural completions. See the [Batch 6 plan](docs/stage-03-batch-06-plan.md)
+for settings, statuses, extraction rules and fixture qualification.
 For Ministral, pass `/Users/michal/Workspace/models/mlx-community/Ministral-3-8B-Instruct-2512-8bit`
 and its corresponding artifact manifest through the same API, with an explicit
 system message. The adapter applies its tokenizer regex fix and records the
@@ -205,6 +211,9 @@ For the actor and synthetic fixture smokes, run that command using
 with `ROPOT_MLX_TESTS=1`. Metal access is required. The synthetic smoke also needs
 Docker and Inspect installed in `.venv`; it verifies three generated fixture
 programs there. Both smokes retain evidence under `data/03_generation_checks`.
+The separate batched qualification uses `ROPOT_MLX_BATCH_TESTS=1` with the same
+MLX Python and `-m unittest tests.test_batched_generation_live -v`; it stops at the
+first failed gate and retains every attempted reply.
 
 The verifier also provides
 `verify_many(candidates, log_dir, max_samples=1|4, concurrent_inference=...)`,
@@ -214,5 +223,7 @@ with one native evaluation and a fresh sandbox per program. Multi-sample
 The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
 MLX settings, scheduling and extraction gains, capacity limits, and the archive
 branch containing the one-off benchmark tools and detailed reports. The current
-generation adapter remains serial; adopting batching and measuring actual
-witness/backdoor yield follow the [remaining plan](docs/inference-benchmark-plan.md).
+generation adapter provides native batching and Python extraction; the
+[Batch 6 plan](docs/stage-03-batch-06-plan.md) records fixture qualification at
+decode 8 and 32. Actual witness/backdoor yield follows the
+[remaining plan](docs/inference-benchmark-plan.md).

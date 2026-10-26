@@ -8,11 +8,10 @@ replace the detailed benchmark plans and reports on main. Continue with the
 ## Carry measured settings into the workflow
 
 Use MLX Q8, one generating model at a time, and the measured per-model/context
-settings as starting points. The current production adapter is warm serial;
-batching and overlap were exercised by the archived benchmark adapters. When
-needed, implement a small native batched path rather than restoring the benchmark
-orchestrator. Do not claim an unrun production path is qualified.
-Stage 03 Batch 6 owns this batched path and the reusable extractor. Batch 7
+settings as starting points. [Batch 6](stage-03-batch-06-plan.md) adds a bounded
+native batched path and reusable extractor beside the serial entry point, with
+short fixture qualification. Archived benchmark timings used different admission
+and do not measure this adapter. Keep the benchmark orchestrator archived. [Batch 7](stage-03-batch-07-plan.md)
 composes them with verification and repair, starting with sequential phases;
 add and measure independent generation/verification overlap after that loop works.
 Selections/reporting and iterative experiments follow in Batches 8 and 9.
@@ -22,7 +21,7 @@ can raise decode capacity to its prefill setting. Use request-owned seeded
 samplers through `BatchGenerator.insert(..., samplers=...)`; the pinned
 `batch_generate` wrapper does not forward them. Keep prefill concurrency no
 greater than the requested decode target, and record actual activity. The
-serial adapter's global reseeding is a distinct baseline. Recheck association,
+historical global-reseed replies are a distinct baseline. Recheck association,
 neighbour/order changes, early stopping and cancellation on the adopted path.
 
 Use `verification.verify_many` for bounded verification worklists, preserving

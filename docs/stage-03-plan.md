@@ -34,8 +34,10 @@ Record actual weights, quantization, tokenizer, template and runtime for each ex
 
 ## Implementation batches
 
-Work on `main` in coherent batches of at most 500 additions plus deletions, including
-tests and documentation, and stop for review between batches. Set each batch's
+Work on `main` in coherent batches of at most 400 additions plus deletions excluding
+tests, following [the review rules](AGENTS.md), and stop for review between batches. The user explicitly
+approved exceeding that limit for Batch 6 as one review batch; its
+[detailed plan](stage-03-batch-06-plan.md) records the exception. Set each batch's
 concrete design and checks when starting it; the rows below describe its purpose.
 
 | Batch | Outcome |
@@ -45,8 +47,8 @@ concrete design and checks when starting it; the rows below describe its purpose
 | 3 | Verify candidates against every published case, stopping at the first failure, and test the public-feedback boundary. Trust existing reference qualification. Reuse verification results only by task digest, program digest and execution contract, independent of generator source. |
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
 | 5 | Establish the synthetic runtime through the existing direct MLX adapter; see the [Batch 5 plan](stage-03-batch-05-plan.md). Use the measured MLX/GGUF fixture comparison and a current smoke for a provisional MLX baseline. |
-| 6 | Promote the benchmark-supported generation and extraction scaffold: a small native MLX batched path for both models with explicit decode/prefill settings and request-owned seeded samplers, preserving request identity, raw replies, token accounting, partial output and cancellation behavior. Extract plain Python or one complete unambiguous Python fence with optional surrounding prose; reject incomplete replies. Qualify on fixtures before cohort generation. Keep response caching and prefix-state reuse off. |
-| 7 | Implement the experimental generate/verify/repair loop using Batch 6's generation/extraction and the existing coalesced verifier, with experiment records and interruption-safe accounting. Start with sequential generation and verification phases. Keep automatic retries off, and confirm native inference has stopped after a timeout. Require explicit reply, token and wall-time limits before dispatch; define their units, verification-time treatment and enforcement. |
+| 6 | Add an explicit native MLX batched path beside the serial baseline, plus a byte-preserving Python extractor; see the [Batch 6 plan](stage-03-batch-06-plan.md). Preserve identity, raw/partial replies, token accounting and cancellation. Qualify both models on fabricated fixtures at decode 8 and 32 with bounded admission and request-owned seeded samplers. Reject incomplete replies; keep response caching and prefix-state reuse off. |
+| 7 | Implement the experimental generate/verify/repair loop; see the [Batch 7 plan](stage-03-batch-07-plan.md). Compose Batch 6's generation/extraction with the coalesced verifier, sequential rounds, experiment records and interruption-safe accounting. Require explicit repair, reply and token limits; technical retries remain off. Add no wall-time limits: token limits bound generation, and verification keeps its per-case program timeout. |
 | 8 | Publish versioned selections, every activated cell's status, native evidence and yield/cost reports. Resume without replaying spent requests or silently changing selected candidates. |
 | 9 | Run iterative prompt and scaffolding experiments, beginning with the development smoke and construction prefixes. Use the results to choose the next experiment and acquisition scale. |
 
@@ -77,7 +79,8 @@ batch 8 provisionally. A matched development task supplies four monitor examples
 so 20/42/50 tasks give 80/168/200 requests per checkpoint. Prioritize a finite-panel
 monitor comparison of batches 32 and 64, holding output and prefill settings fixed,
 before another broad capacity sweep. Qualification of the consuming adapter and
-trained checkpoints remains required; the current production adapter is serial.
+trained checkpoints remains required. Batch 6's bounded native path has short
+fixture qualification recorded in its [detailed plan](stage-03-batch-06-plan.md#implementation-validation--2026-10-26).
 
 Freeze a small extractor in Batch 6: plain code or one complete unambiguous Python
 fence, allowing surrounding prose, followed by syntax and published-suite checks.

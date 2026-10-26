@@ -12,7 +12,7 @@ as specified in the [overview](data-pipeline-overview.md).
 1. Add direct MLX calls in `stage03/local_generation.py`, run from the existing
    MLX Python. Accept a local model path, finite ordered request list, model
    artifact manifest and new output directory. Each request specifies messages,
-   seed, temperature, top-p, output-token limit and soft wall-time limit. The caller
+   seed, temperature, top-p and output-token limit. The caller
    constructs these arguments; avoid a schema-validation layer.
 2. Reuse the existing pinned MLX environment (`mlx-lm==0.32.2`, `mlx==0.32.4`),
    including its [documented local patches][patches]. Load the model/tokenizer once
@@ -22,11 +22,11 @@ as specified in the [overview](data-pipeline-overview.md).
 3. Apply the model's chat template with `enable_thinking=False` and
    `add_generation_prompt=True`. Inspect the rendered prompt and returned text
    to check thinking behavior. Preserve replies verbatim.
-4. Check each request's soft deadline before generation and between returned
-   chunks. It cannot forcibly interrupt model loading, a stalled native call or
-   cleanup. On an observed timeout or technical failure, stop the run without
-   starting another request. Close the native generator and preserve records on
-   Python interruption, then re-raise. Hard process termination can lose metadata.
+4. Enforce no wall-time limit; the output-token limit bounds each reply. On a
+   technical failure, stop the run without starting another request. Close the
+   native generator and preserve records on Python interruption, then re-raise.
+   Python interruption cannot stop model loading or a stalled native call; hard
+   process termination can lose metadata.
 
 Record model/runtime identity once per run, including the model artifact manifest,
 quantization, tokenizer/template and relevant runtime patches. For each request,
@@ -42,7 +42,7 @@ Use mocked MLX calls to check:
 - One model load serves multiple serial requests, with seed and decoding state reset.
 - Messages, template options, sampler settings and token limits reach the runtime.
 - Completed, token-limited and failed requests remain distinguishable, with raw
-  output preserved and the generator closed after soft timeout or interruption.
+  output preserved and the generator closed after interruption.
 
 An opt-in live smoke uses fabricated prompts: a short reply, a stdin/stdout coding
 request, forced token exhaustion and an A/B/A sequence to check state carryover.

@@ -16,9 +16,13 @@ Archived benchmark timings used different admission
 and do not measure this adapter. Keep the benchmark orchestrator archived.
 [Batch 7a](stage-03-batch-07-plan.md) first composes one sequential generation and
 verification round with explicit output budgets and cancellation; 7b adds bounded
-repair and full-loop qualification, with review between the two parts. After 7b,
-add and measure independent generation/verification overlap.
-Selections/reporting and iterative experiments follow in Batches 8 and 9.
+repair and full-loop qualification, with review between the two parts.
+[Batch 8](stage-03-batch-08-plan.md) summarizes saved experiments;
+[Batch 9](stage-03-batch-09-plan.md) sizes prompts offline and runs one bounded
+development baseline without changing the adapter. Review before dispatch and
+again before further recipes or construction.
+Measure overlap only if workflow timings justify a separate change; selection
+and publication wait for their consuming stages.
 
 Set both decode and prefill batch sizes explicitly: the pinned `BatchGenerator`
 can raise decode capacity to its prefill setting. Use request-owned seeded

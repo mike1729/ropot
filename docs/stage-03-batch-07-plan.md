@@ -119,11 +119,11 @@ verification order and introduces no hidden indices.
 
 Parts 7a/7b use controlled fixture statements, explicit output-token and repair
 limits, and bounded feedback. They add no input-token cap or prompt-length refusal
-path. Preserve the prompt/token counts already recorded by Batch 6. Before cohort
-experiments, Batch 9 must measure tokenized statements and representative repair
-histories, choose model/batch-specific input limits and handling of oversized
-tasks, then implement and qualify that admission check. Do not invent a universal
-token threshold from the short-fixture smokes or alter the Batch 6 prerequisite.
+path. Preserve the prompt/token counts already recorded by Batch 6. The fixed
+one-repair [Batch 9 smoke](stage-03-batch-09-plan.md) uses offline prompt sizing
+and a reviewed empirical operating assumption, leaving the adapter unchanged.
+Runtime input admission waits for a later worklist that needs it. Do not infer a
+universal threshold or memory guarantee from short-fixture success.
 
 `length`, extraction-format failure and Python syntax failure may consume a
 declared repair too. Keep their original replies, classify them separately, and
@@ -290,16 +290,30 @@ under `data/03_generation_checks`; stop on a failed or inconclusive gate without
 redrawing. These calls check child launch and round-file integration, not
 decode-32 or long-context qualification.
 
-In 7b, add an opt-in end-to-end smoke through the coordinator for each model,
+### Pending rerun criterion
+
+For the next 7b rerun, review a test-only change from the original exact-sequence
+criterion to repair coverage. Historical runs retain their recorded status;
+they are not qualified retroactively by this revision.
+Keep the opt-in end-to-end smoke through the coordinator for each model,
 using two fabricated tasks: square and distinct-count programs. Put the initial
 control instruction to return zero in the square fixture's `question`, explicitly
 labelled as applying only to its first draft. Retain its correct square
 specification and nonzero expected answer. Give distinct-count its ordinary
-statement. The shared repair instruction explicitly ends the initial control and
-requests the correct square program using only public feedback. Require the
-initial square to fail verification, the other task to pass without repair, and
-the repaired square to pass. Unexpected outcomes stop qualification for review
-without redrawing; these controlled failures measure plumbing, not benign yield.
+statement. The shared repair instruction ends the initial control and requests a
+correct solution to the original task using public feedback, without hardcoding
+square. For each model require at least one extracted initial program that fails
+verification, followed by a repair containing its preceding reply and recorded
+public feedback that receives a normal `passed` or `failed` verifier verdict.
+Require natural completion, extraction and verification for this coverage pair.
+The other task may pass initially, need repair or exhaust its repair, including
+through `length`, format or syntax failures, without invalidating coverage.
+
+Require completed processing and recorded outcomes, association and accounting
+for every dispatched reply. Check seeds, rows/sample IDs and commitments against
+the actual bounded schedule instead of requiring exactly three attempts. Missing
+repair coverage, technical failures or source changes stop qualification for review
+without redrawing. These controlled failures measure plumbing, not benign yield.
 
 Use temperature 0.2/top-p 0.95, saved seeds, 256 tokens per reply, one repair per
 task, 512 bytes per feedback field, 4,096 bytes of rendered feedback, decode 8

@@ -51,12 +51,12 @@ concrete design and checks when starting it; the rows below describe its purpose
 | 7a | Establish one initial generate/extract/verify round, experiment records, generation-child control and caller-visible verification cancellation; see the [Batch 7 plan](stage-03-batch-07-plan.md). Require explicit reply/output-token allowances, qualify the real child entry point on a bounded two-model smoke, keep repairs disabled and stop for review. |
 | 7b | Add bounded repair rounds and feedback rendering to 7a, then qualify the full loop on fabricated tasks; see the [Batch 7 plan](stage-03-batch-07-plan.md). Require explicit repair limits, retain every attempt and keep technical retries off. Add no generation wall-time limits; verification retains its per-case timeout. Stop for review before overlap or acquisition. |
 | 8 | Scan numbered experiment directories and summarize the coordinator's saved worklists, verdicts, statuses and cumulative effort for Batch 9; see the [Batch 8 plan](stage-03-batch-08-plan.md). Trust recorded JSON without re-verifying execution or changing the coordinator. Report damaged runs without dropping their unknown cost. Selection/publication waits for its consuming stage; recovery/continuation remains deferred. |
-| 9 | Before Batch 9 dispatch, complete the pending two-model Batch 7b live repair qualification; offline Batch 8 summaries need only the reviewed format and saved JSON. Measure tokenized statements and representative repair histories, then choose and qualify input-token limits and handling of oversized tasks for the selected model/batch settings. Run iterative prompt and scaffolding experiments, beginning with the development smoke and construction prefixes. Use the results to choose the next experiment and acquisition scale. Add deferred recovery/continuation only for a demonstrated consumer under a separate bounded review plan; never replay spent or uncertain requests or erase prior costs. |
+| 9 | Size complete prompts offline and prepare a small caller, leaving pipeline code unchanged; see the [Batch 9 plan](stage-03-batch-09-plan.md). Review and commit the caller and proposed Batch 7b gate-test revision before dispatch. After repair qualification, run one bounded baseline on the same eight development tasks per source and summarize it with Batch 8. Stop with results and a next-experiment recommendation; further recipes and construction wait. |
 
 Batch 6 supplies the reusable prerequisites; the coalesced verifier already exists.
-After 7b's full loop passes fixture checks, add and measure overlap of
-generation with verification of independent work. Selectively port the necessary
-benchmark code; keep the archived benchmark orchestration out of the workflow.
+Keep the first development baseline sequential. Add generation/verification
+overlap only if measured workflow timings justify a separately reviewed change;
+keep the archived benchmark orchestration out of the workflow.
 
 Use public [Inspect sandboxing](https://inspect.aisi.org.uk/sandboxing.html) and
 [logging/retry facilities](https://inspect.aisi.org.uk/eval-logs.html), with small

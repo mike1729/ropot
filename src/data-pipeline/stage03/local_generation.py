@@ -304,3 +304,7 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
         if interruption is not None and not was_cancelled:
             raise interruption
     return result
+
+
+if __name__ == "__main__":
+    generate_batched(**json.loads(Path(sys.argv[1]).read_text()))

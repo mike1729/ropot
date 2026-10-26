@@ -227,7 +227,7 @@ with one native evaluation and a fresh sandbox per program. Multi-sample
 Each fresh verification call requires an empty native log directory. Confirmed
 Inspect cancellation propagates as `KeyboardInterrupt` after native teardown.
 
-Batch 7a adds [benign_loop.run](src/data-pipeline/stage03/benign_loop.py), called
+Batch 7 adds [benign_loop.run](src/data-pipeline/stage03/benign_loop.py), called
 from the repository `.venv`. Supply ordered `(binding, task)` pairs from
 `study_tasks.load_task`, the pinned cohort digest, explicit model/manifest/MLX
 Python paths, and a new directory under `data/03_benign_experiments/`:
@@ -248,9 +248,15 @@ outcome = loop.run(
 
 Generation exits before coalesced verification. Inputs, task snapshots, exact
 programs, native evidence and atomic progress retain every attempt and its costs.
+To enable repairs, set recipe `max_repairs` above zero and supply `repair`
+(instruction), `repair_max_tokens`, `feedback_field_bytes` and `feedback_bytes`.
+Repairs preserve history and original-position seeds; only bounded public feedback
+enters their prompts. Global allowances reserve full request limits without refunds.
 Fixtures use complete bindings and `fixtures=True`. See the [Batch 7 plan](docs/stage-03-batch-07-plan.md)
 for states, interruption and review boundaries. Run its four-reply smoke with
 `ROPOT_BENIGN_LOOP_TESTS=1 .venv/bin/python -m unittest tests.test_benign_loop_live -v`.
+The separate eight-reply repair gate uses `ROPOT_BENIGN_REPAIR_TESTS=1` and
+`tests.test_benign_repairs_live`; unexpected outcomes stop the gate without redrawing.
 
 The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
 MLX settings, scheduling and extraction gains, capacity limits, and the archive

@@ -14,6 +14,25 @@ b = importlib.import_module("src.data-pipeline.stage03.benign_loop")
 
 
 class ProcessTests(unittest.TestCase):
+    def test_generation_entry_point_does_not_import_coordinator_dependencies(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            specification = Path(temporary) / "round.json"
+            specification.write_text("{}")
+            script = (
+                "import json,runpy,sys\n"
+                "sys.argv=['generation-child',sys.argv[1]]\n"
+                "try:\n"
+                f" runpy.run_module({b.generation.__name__!r},run_name='__main__')\n"
+                "except TypeError as error:\n"
+                " forbidden=('inspect_ai','mlx','src.data-pipeline.stage01','src.data-pipeline.stage02',"
+                "'src.data-pipeline.stage03.study_tasks','src.data-pipeline.stage03.benign_loop')\n"
+                " print(json.dumps(dict(error=str(error),unexpected=[n for n in sys.modules if n.startswith(forbidden)])))\n"
+                "else: raise AssertionError('Generation entry point was not called')\n")
+            result = subprocess.run([sys.executable, "-c", script, str(specification)], capture_output=True, text=True, check=True)
+            evidence = json.loads(result.stdout)
+            self.assertIn("model_path", evidence["error"])
+            self.assertEqual(evidence["unexpected"], [])
+
     def await_file(self, path, process):
         deadline = time.monotonic() + 10
         while not path.exists() and process.poll() is None and time.monotonic() < deadline:
@@ -84,5 +103,5 @@ class ProcessTests(unittest.TestCase):
             self.assertEqual(observed, [state["child"]["pid"]])
             with self.assertRaises(ProcessLookupError):
                 os.kill(state["child"]["pid"], 0)
-            self.assertIsNone(b.collect_generation(root, state, 2))
+            self.assertIsNone(b.collect_generation(root, state, [{}, {}]))
             self.assertIn("generation_evidence_error", state)

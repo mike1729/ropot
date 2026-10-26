@@ -11,8 +11,7 @@ b = importlib.import_module("src.data-pipeline.stage03.benign_loop")
 from tests.test_verification import v
 
 
-@unittest.skipIf(v is None, "requires requirements-execution.txt")
-class LoopTests(unittest.TestCase):
+class LoopFixture(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -32,11 +31,12 @@ class LoopTests(unittest.TestCase):
                            top_p=.95, base_seed=17, max_tokens=16, max_repairs=0)
         self.texts, self.row_statuses, self.native_status = ["print(1)\r\n", "```py\nprint(2)\n```"], None, "success"
         self.addCleanup(mock.patch.stopall)
+        self.actual_run_child = b.run_child
         self.child = mock.patch.object(b, "run_child", side_effect=self.generate).start()
         self.verifier = mock.patch.object(v, "verify_many", side_effect=self.verify).start()
 
     def generate(self, command, progress, persist):
-        self.assertEqual(command[1:3], ["-m", b.__name__])
+        self.assertEqual(command[1:3], ["-m", b.generation.__name__])
         saved = json.loads((self.root / "run/outcome.json").read_text())
         self.assertEqual(saved["phase"], "dispatching")
         self.assertEqual(saved["committed_replies"], len(self.worklist))
@@ -81,6 +81,9 @@ class LoopTests(unittest.TestCase):
     def saved(self):
         return json.loads((self.root / "run/outcome.json").read_text())
 
+
+@unittest.skipIf(v is None, "requires requirements-execution.txt")
+class LoopTests(LoopFixture):
     def test_order_exact_bytes_private_snapshots_and_coalesced_verification(self):
         original = deepcopy(self.worklist)
         result = self.run_loop()
@@ -268,4 +271,33 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(result["committed_replies"], 2)
         self.assertEqual(result["committed_tokens"], 32)
         self.assertEqual([a["state"] for a in result["attempts"]], ["submission_unknown"] * 2)
+        self.verifier.assert_not_called()
+
+    def test_missing_interpreter_is_confirmed_not_submitted(self):
+        self.child.side_effect = self.actual_run_child
+        result = self.run_loop()
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["phase"], "dispatching")
+        self.assertEqual([t["state"] for t in result["tasks"]], ["not_run"] * 2)
+        current = result["rounds"][0]
+        self.assertIn("FileNotFoundError", current["popen_error"])
+        self.assertNotIn("child", current)
+        self.assertEqual((result["known_submissions"], result["observed_tokens"]), (0, 0))
+        self.assertTrue(result["usage_complete"])
+        self.assertEqual((result["committed_replies"], result["committed_tokens"]), (2, 32))
+        self.verifier.assert_not_called()
+
+    def test_interrupted_popen_without_child_record_remains_ambiguous(self):
+        self.child.side_effect = self.actual_run_child
+        with mock.patch.object(b.subprocess, "Popen", side_effect=KeyboardInterrupt("launch")):
+            with self.assertRaises(KeyboardInterrupt):
+                self.run_loop()
+        result = self.saved()
+        self.assertEqual(result["status"], "cancelled")
+        self.assertEqual([t["state"] for t in result["tasks"]], ["submission_unknown"] * 2)
+        self.assertNotIn("child", result["rounds"][0])
+        self.assertNotIn("popen_error", result["rounds"][0])
+        self.assertIsNone(result["known_submissions"])
+        self.assertFalse(result["usage_complete"])
+        self.assertEqual(result["committed_tokens"], 32)
         self.verifier.assert_not_called()

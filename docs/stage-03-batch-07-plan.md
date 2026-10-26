@@ -8,8 +8,9 @@ verdict and cost. Begin with sequential generation and verification rounds.
 ## Scope and review boundary
 
 Before 7a, complete Batch 6's final decode-8/decode-32 qualification and establish
-its reviewed source/tests as a separate committed baseline. Consume that adapter
-unchanged. Keep that work out of Batch 7's change counts. Implement on `main` in
+its reviewed source/tests as a separate committed baseline. Consume its generation
+functions unchanged; 7b adds only their child CLI entry point. Keep Batch 6 work
+out of Batch 7's change counts. Implement on `main` in
 these two review batches, each within 400 additions plus deletions excluding
 tests, following [the review rules](AGENTS.md):
 
@@ -192,7 +193,7 @@ rewrite them or rerun historical verification to make them match the new source.
 
 ## Process boundary and interruption
 
-Run generation as one synchronous, finite child invocation of this module under
+Run generation as one synchronous, finite invocation of `stage03.local_generation` under
 the supplied MLX Python. Pass a saved round-file path and import MLX only in that
 child; keep Inspect imports in the coordinator's verification path. Reuse
 `generate_batched` unchanged. The child loads once per round, then exits before
@@ -344,3 +345,54 @@ also passed its [finite worklist](../data/03_generation_checks/batch-06-_t4adhp6
 88 submissions and 7,090 output tokens, retained separately in 294 files totaling
 700,309 bytes. The cap edits were removed; this is supplemental evidence only.
 Part 7b, overlap, selection/resume and cohort acquisition remain pending review.
+
+## 7b validation — 2026-10-26
+
+The repair API and bounded public-feedback renderer are implemented. The repository
+suite passes 241 tests with eleven optional skips. Fixture tests cover shrinking
+rounds, deterministic seeds, full histories, repeated candidate bytes, mixed
+failures, stable budget prefixes and technical stops during later rounds.
+Review fixes preserve already exhausted tasks across later technical stops. Round
+records reference the single attempt list through `attempt_ids` and own their
+artifact paths and child identity. Planned destinations remain recorded if writing
+fails. Feedback fitting caches case encodings, preserves nulls and shares cap
+validation with the coordinator. These changes made no further model calls.
+The child now enters the generation module directly, without coordinator/task
+imports. A recorded `Popen` `OSError` establishes non-submission while retaining
+reservations; interrupted launches without that evidence stay unknown. Tests cover
+both cases and repair-launch failure, with no further model calls.
+
+The [bounded live gate](../data/03_generation_checks/batch-07b-hsm_lima/qualification.json)
+stopped for review after Qwen's two initial replies: both programs passed, so the
+square's first-draft control failed to induce the required wrong answer. Saved
+native inputs match the round requests, including that control. The coordinator
+correctly scheduled no repair for passing tasks. No redraw or Ministral call ran.
+The attempt used 219 output tokens against 512 committed tokens in 12.277 seconds
+(loading 1.198, preparation 0.011, generation 4.676, verification 5.155 seconds).
+It retains 20 files totaling 43,637 bytes, including one 10,831-byte native log,
+fixture snapshots and the pinned Qwen manifest copy. Sources stayed unchanged
+during the gate. Live repair qualification remains pending for both models;
+overlap, selection/resume and cohort acquisition remain outside this batch.
+
+### Additional integration checks and authorized rerun
+
+All six real Docker tests passed in 45.067 seconds, covering execution limits,
+verification/reuse, cancellation propagation and sandbox teardown without model
+calls. The [check record](../data/03_generation_checks/batch-07b-hx8hvdj5/validation-checks.json)
+links their 11 retained files (127,945 bytes), including nine native logs totaling
+127,893 bytes. The ordinary suite also passed: 241 tests, eleven optional skips.
+
+The user authorized one further bounded gate after strengthening the fixture's
+first-draft control. Qwen followed the required fail/pass/repair-pass sequence.
+Ministral's initial square and distinct-count programs both failed, then both
+repairs passed. The unexpected distinct-count failure stops qualification; no
+redraw followed. The new gate used seven replies and 652 output tokens under its
+separate eight-reply/2,048-token allowance, committing 1,792 tokens. Across the
+two 7b gates, nine replies and 871 output tokens were observed.
+
+The gate's strict source check also failed because the user added two comments
+during execution. Removing only those two lines reproduces the exact pre-gate
+source hash; this review is saved separately and the original check is preserved.
+The new gate retains 63 files totaling 193,884 bytes, including four native logs
+totaling 38,408 bytes, exact requests/replies/programs, model manifest copies and
+the test/check records. The required two-model repair gate remains unqualified.

@@ -7,17 +7,28 @@ verdict and cost. Begin with sequential generation and verification rounds.
 
 ## Scope and review boundary
 
-Implement on `main`, within 400 additions plus deletions excluding tests, following
-[the review rules](AGENTS.md). Report production/documentation and test changes
-separately, then stop for review. Batch 6's size exception does not carry forward.
-If the implementation cannot fit, narrow or split it before exceeding the limit.
-This planning change runs no models or programs; implementation qualification uses
-fabricated tasks only. Cohort experimentation remains Batch 9 work.
+Before 7a, complete Batch 6's final decode-8/decode-32 qualification and establish
+its reviewed source/tests as a separate committed baseline. Consume that adapter
+unchanged. Keep that work out of Batch 7's change counts. Implement on `main` in
+these two review batches, each within 400 additions plus deletions excluding
+tests, following [the review rules](AGENTS.md):
+
+| Part | Implementation and acceptance boundary |
+| --- | --- |
+| 7a | One initial generate/extract/verify round with `max_repairs=0` and explicit reply/output-token allowances; experiment records; generation-child control; and cancellation normalization at the runner/verifier boundary. Validate association, accounting, real child-process control, verification SIGINT and a bounded two-model MLX-child smoke. Stop for review with a usable initial-round API. |
+| 7b | Extend that API with bounded repair rounds, feedback rendering, deterministic seeds across rounds and repair outcomes. Validate repair limits and private-data boundaries, then run the bounded two-model smoke below. Stop for review before overlap or acquisition. |
+
+Add repair-specific recipe fields and behavior in 7b; 7a rejects nonzero repair
+limits. Report production/documentation and test totals separately for each part.
+Batch 6's size exception does not carry forward. This planning change runs no
+models or programs; qualification uses fabricated tasks only. Cohort experiments
+remain Batch 9 work.
 
 Keep one source and model per experiment. Reuse the pinned Q8 artifacts, patched
 MLX environment and repository Inspect environment without new dependencies.
-Use the current repository wrappers; keep Inspect pinned to `0.3.283` and preserve
-its execution contract rather than adopting newer documentation's API features.
+Use the current repository wrappers and keep Inspect pinned to `0.3.283`.
+Preserve execution limits and case semantics; the narrow cancellation correction
+below changes source hashes in the execution identity. Do not adopt newer APIs.
 Selection publication, cross-run resume and cumulative reporting belong to Batch 8.
 Measure generation/verification overlap in a separately reviewed follow-up after
 this sequential loop passes; add no scheduler, persistent worker or cache system.
@@ -29,19 +40,28 @@ Add a small `stage03/benign_loop.py` with a Python entry point accepting:
 - A finite ordered worklist of `(binding, task)` pairs, one `actor` or `synthetic`
   source, and a new output directory. Study callers obtain pairs through
   `study_tasks.load_task` and supply the pinned cohort hash; fixture callers supply
-  digests of their saved fabricated task artifacts and mark the run as fixtures.
+  complete bindings (`split`, integer `id`, task-artifact `sha256`) and mark the
+  run as fixtures. These fields are required by `candidate_identity`.
 - Concrete model, artifact-manifest and MLX-Python paths. Run the coordinator from
   the repository `.venv` so it can call verification directly. Keep the interpreter
   executable path without resolving its virtual-environment symlink.
 - A recipe containing explicit system, initial and repair instructions, sampling
-  settings, deterministic seeds indexed by worklist position and round, initial
-  and repair `max_tokens`, and a nonnegative `max_repairs` per task.
+  settings, `base_seed`, initial and repair `max_tokens`, and a nonnegative
+  `max_repairs` per task. For original worklist length `N`, use
+  `base_seed + round * N + position`, with round zero for initial requests and the
+  original position even when later rounds shrink. The coordinator requires an
+  integer `base_seed` excluding booleans and checks the whole potential schedule
+  satisfies `0 <= seed < 2**64`, without wrapping, before starting a child. Check
+  the largest seed using `N` and the declared `max_repairs`. Seeds identify draws;
+  changed batch layouts can change replies despite identical prompts and seeds.
+- Explicit `feedback_field_bytes` and `feedback_bytes` limits for repair feedback
+  rendered below, separately from output-token allowances.
 - Explicit total reply and output-token allowances, plus decode, prefill and
   prefill-chunk settings. Use decode 8 initially, with Batch 6's per-model settings;
   long Ministral repair histories remain outside batch-32 qualification.
 
-Reject duplicate worklist identities, invalid source, missing/nonpositive limits
-and insufficient allowance for the complete initial worklist before dispatch.
+Reject an empty worklist, duplicate identities, invalid source, missing/nonpositive
+limits and insufficient allowance for the complete initial worklist before dispatch.
 Exclude booleans from integer limits; `max_repairs=0` disables repair. Check only
 these experiment invariants and trust the existing task/model contracts. Preserve
 saved ownership, construction phase and worklist order without allocating groups
@@ -74,9 +94,34 @@ task digest used by candidate identity and verification.
 
 For a verification failure, append the exact preceding assistant reply and a user
 message containing the recipe's repair instruction and only the returned
-`feedback` projection. Preserve the conversation history. The rest of the verdict,
-native logs, hidden indices, timing and reference solutions stay private. Do not
-substitute supplied references or another source's solution into repair history.
+`feedback` projection, rendered under the limits below. Preserve conversation
+history without silently shortening it. Other verdict fields, native logs,
+hidden indices, timing and reference solutions stay private. Do not substitute
+references or another source's solution into history.
+
+Render a copy of `feedback` deterministically. Cap each visible case's `input`,
+`answer`, `stdout`, `stderr` and `diagnostic` string at `feedback_field_bytes` in
+UTF-8. Truncate at a valid character boundary and append `[truncated]`, counting
+the marker inside the cap; require both byte caps to accommodate the marker.
+Keep status fields and nulls unchanged. Render the overall and hidden statuses
+first as a fixed summary, then compact JSON (`ensure_ascii=False`) for visible
+cases, placing a failing visible case before passing cases when one exists.
+Reserve room for the summary and truncation marker inside `feedback_bytes`;
+reject a recipe whose cap cannot fit them. If the field-capped text is too large,
+remove detail from passing cases first, then omit passing entries from the end
+until it fits. Only then truncate remaining case text at a UTF-8 boundary using
+the same marker rule; retain the summary. Mark omissions explicitly. This is
+display text, not JSON for reparsing. Save full private feedback and the exact
+bounded text, including reached limits. Rendering order changes no execution or
+verification order and introduces no hidden indices.
+
+Parts 7a/7b use controlled fixture statements, explicit output-token and repair
+limits, and bounded feedback. They add no input-token cap or prompt-length refusal
+path. Preserve the prompt/token counts already recorded by Batch 6. Before cohort
+experiments, Batch 9 must measure tokenized statements and representative repair
+histories, choose model/batch-specific input limits and handling of oversized
+tasks, then implement and qualify that admission check. Do not invent a universal
+token threshold from the short-fixture smokes or alter the Batch 6 prerequisite.
 
 `length`, extraction-format failure and Python syntax failure may consume a
 declared repair too. Keep their original replies, classify them separately, and
@@ -88,6 +133,13 @@ verification `error`, preflight exceptions and broken evidence associations stop
 the experiment without another model or execution call. Preserve any results
 already obtained. Ordinary wrong answers remain candidate failures.
 
+Use the extractor's exception types for format/syntax categories: its
+`SyntaxError` category also includes prose-only replies with no code fence.
+Catch compiler `MemoryError` and `RecursionError` separately and record extraction
+category `compiler_resource`. Treat both as technical stops, without repair or
+further generation/verification calls. Preserve the reply and exception; host
+resource exhaustion does not establish that the candidate is incorrect.
+
 ## Allowances and retained records
 
 Before launching each round, reserve one reply and that request's full
@@ -95,7 +147,8 @@ Before launching each round, reserve one reply and that request's full
 eligible repairs that fits both remaining allowances; do not shrink token limits
 to squeeze in another request. Unscheduled repairs retain `budget_exhausted`
 status. Keep committed allowances separate from observed submissions and actual
-token usage. Do not refund a dispatched round's allowance after failure.
+token usage. Committed allowances are never refunded, including after successful
+short replies, cancellation or failure.
 
 Use plain JSON and existing native generation/Inspect files, under a new
 `data/03_benign_experiments/<run>/` directory:
@@ -119,10 +172,23 @@ where evidence exists; retain native counters independently on failure. Unknown
 usage after hard termination stays unknown, with observed usage a lower bound.
 Do not equate missing outcomes or zero delivered tokens with zero spent work.
 
+Final task states are `passed`, `repairs_exhausted`, `budget_exhausted`, `not_run`,
+`submission_unknown`, `error` or `cancelled`. A known passing verdict takes
+precedence. Use `repairs_exhausted` when all permitted draws failed, and
+`budget_exhausted` when an otherwise eligible repair cannot fit global allowances.
+`not_run` means the initial request definitely never reached native submission;
+`submission_unknown` means that fact cannot be established. An attempted task
+left unresolved by a technical stop or interruption is `error` or `cancelled`.
+Retain the stop reason and prior attempt outcomes separately.
+
 Existing run directories are refused. Interrupted experiments retain enough
 evidence to inspect attempts and later recover processing, but this batch adds
 no resume command, automatic log reuse, redraw or re-execution. Batch 8 must bind
 and reconcile these artifacts before allowing any continuation.
+
+Changing the runner/verifier source invalidates older `reuse` keys under the
+existing execution contract. Preserve old logs and their identities; do not
+rewrite them or rerun historical verification to make them match the new source.
 
 ## Process boundary and interruption
 
@@ -132,60 +198,121 @@ child; keep Inspect imports in the coordinator's verification path. Reuse
 `generate_batched` unchanged. The child loads once per round, then exits before
 verification; repair rounds reload the model and retain that loading cost.
 
-Start the generation child in its own process group. On coordinator interruption,
-stop further dispatch, forward interruption to that owned group and reap it.
-Allow graceful Batch 6 cleanup; a subsequent explicit interruption kills and
-reaps the group if loading/native work is stalled. Add no generation deadlines
-or timeout probes. Inspect verification keeps its per-case program timeout and
-native cancellation/teardown. Preserve the original interruption after recording
-the available child/native evidence and any cleanup error.
+Start the generation child in its own process group with `Popen` and an explicit
+wait/interrupt loop. Do not use `subprocess.run` or `call`: their exception paths
+kill the child on `KeyboardInterrupt`, bypassing graceful cleanup. Record its PID
+and process-group ID in progress immediately after creation. On coordinator
+interruption, stop dispatch, forward SIGINT to that owned group and reap it.
+Allow graceful Batch 6 cleanup; a subsequent explicit interruption sends SIGKILL
+and reaps the group if loading/native work is stalled. Add no generation deadlines
+or timeout probes. Preserve the original interruption after recording available
+child/native evidence and any cleanup error. Process-group isolation does not
+stop a child when the coordinator is hard-killed or its terminal closes; the
+recorded identity supports manual cleanup, not automatic orphan recovery.
+
+In 7a, normalize confirmed Inspect cancellation at the runner/verifier boundary
+to `KeyboardInterrupt` after native log saving and teardown. Inspect may return
+an empty log list after SIGINT, so the verifier must not index it unconditionally.
+Create a fresh, empty native log directory for every verification call and refuse
+a prepopulated destination. If no log is returned, inspect only that directory
+with the public log API and check for a cancelled run matching this invocation's
+execution contract and candidate worklist. An earlier identical cancelled run
+must not supply evidence for this call. Raise `KeyboardInterrupt`
+only with cancellation evidence; an unexplained empty return is a descriptive
+infrastructure error. Preserve any interruption that already propagates and keep
+the cancelled log path in progress. Verification retains its per-case timeout.
+A second SIGINT can interrupt Inspect's asyncio teardown and leave sandboxes
+running. If teardown is interrupted, record cleanup as unconfirmed rather than
+claiming sandbox removal; the single-interruption test below requires completion.
 
 Mark a round as dispatching before process creation. If launch/submission becomes
 ambiguous or the child exits without a complete outcome, label affected rows
 `submission_unknown` and retain the whole reservation. When an outcome exists,
 preserve its `submitted`, `not_run`, completion and cancellation distinctions.
+Treat truncated, unparsable or incomplete `outcome.json` as missing evidence:
+the existing generation writer uses a non-atomic write. Keep that file intact.
 Never infer that an interrupted `insert` did no work because no UID was returned.
-Forced termination may lose the child's final metadata; the coordinator must
-still save its phase, artifact paths, committed budget and uncertainty. A hard
-kill of the coordinator itself can leave only the last saved progress record.
+SIGKILL, including the second-interruption path, loses unfinished partial replies
+and token lists held only in child memory as well as final metadata. Completed
+reply files may remain; missing outcomes still leave usage/submission uncertain.
+The coordinator must save its phase, artifact paths, committed budget and that
+uncertainty. A hard kill of the coordinator itself can leave only the last saved
+progress record.
 
 ## Validation
 
-Use mocked generation/verification with otherwise valid fabricated tasks to test:
+For 7a, use otherwise valid fabricated tasks and mocked generation/verification
+to test initial association, exact bytes/digests, allowances, input-only privacy,
+request construction, missing/malformed outcomes and technical stops.
+Inject `MemoryError` and `RecursionError` during extraction of otherwise
+valid rows and require `compiler_resource` with no repair or later execution.
+Test seed-range boundaries before child creation. Cover a direct interruption,
+a returned cancelled log, an empty return with fresh cancellation evidence, an
+unexplained empty return and refusal of a prepopulated log directory separately.
+
+For 7b, extend those checks to cover:
 
 - Stable task/attempt association through mixed passes, wrong answers, format and
   syntax failures, token exhaustion and repairs; passing tasks receive no new draw.
 - Reply/token ceilings, stable repair prefixes, deterministic seeds, zero repair
-  allowance, duplicate IDs and refusal of existing output directories.
+  allowance, duplicate IDs and refusal of existing output directories. Check seeds
+  against original positions and ensure committed allowances never receive refunds.
 - Exact candidate bytes and digests, distinct attempts for repeated bytes, and
   one coalesced verification call per round with the unchanged execution settings.
 - Initial and repair messages with private-data sentinels: only the statement,
   recipe, prior replies and permitted public/local feedback enter model input.
+- Large/multibyte feedback fields, many visible cases, aggregate rendering limits
+  and growing history. Retain the status summary and failing visible case before
+  passing detail under tight caps, while preserving full private evidence.
 - Failure before/after dispatch, missing child outcomes, partial native rows,
   verifier infrastructure errors and interruption during each phase. Retain
   completed artifacts and conservative accounting with no retry or later dispatch.
 
 Exercise actual process-group interruption and reaping with a tiny Python child
 that makes zero inference requests. Cover graceful exit, repeated interruption,
-nonzero exit and missing outcome. Keep the existing Batch 6 native cleanup tests.
+nonzero exit and missing outcome in 7a. Extend the existing Docker SIGINT test
+through `verify_many` to require caller-visible `KeyboardInterrupt`, a cancelled
+native log and sandbox teardown. Mocked interruption tests alone do not qualify
+this boundary. Keep the existing Batch 6 native cleanup tests.
 
-Add an opt-in end-to-end smoke through the coordinator for each model, using two
-fabricated tasks: square and distinct-count programs. Use an explicit initial
-control instruction to make the square reply return zero; let the distinct-count
-task solve normally. The repair instruction explicitly ends that control and
+Before the 7a review, run a separately gated live smoke through the actual
+round-file-to-MLX-child entry point, once per model. Use two ordinary fabricated
+tasks (square and distinct count), with no initial failure control and
+`max_repairs=0`. Use decode 8, Batch 6's per-model prefill settings, temperature
+0.2/top-p 0.95, saved seeds and 256 output tokens per reply. Require both replies
+to stop naturally, extract and pass coalesced Docker
+verification. Cap each source at two replies/512 output tokens: **four replies
+and 1,024 output tokens total**. Retain all round files, replies and native logs
+under `data/03_generation_checks`; stop on a failed or inconclusive gate without
+redrawing. These calls check child launch and round-file integration, not
+decode-32 or long-context qualification.
+
+In 7b, add an opt-in end-to-end smoke through the coordinator for each model,
+using two fabricated tasks: square and distinct-count programs. Put the initial
+control instruction to return zero in the square fixture's `question`, explicitly
+labelled as applying only to its first draft. Retain its correct square
+specification and nonzero expected answer. Give distinct-count its ordinary
+statement. The shared repair instruction explicitly ends the initial control and
 requests the correct square program using only public feedback. Require the
 initial square to fail verification, the other task to pass without repair, and
 the repaired square to pass. Unexpected outcomes stop qualification for review
 without redrawing; these controlled failures measure plumbing, not benign yield.
 
 Use temperature 0.2/top-p 0.95, saved seeds, 256 tokens per reply, one repair per
-task, decode 8 and Batch 6's per-model prefill settings. Cap each source at four
-replies/1,024 output-token allowances: **eight replies and 2,048 tokens total**,
+task, 512 bytes per feedback field, 4,096 bytes of rendered feedback, decode 8
+and Batch 6's per-model prefill settings.
+Cap each source at four replies/1,024 output-token allowances:
+**eight replies and 2,048 tokens total**,
 including unused repair slots, without retries. Retain every attempted reply,
 program and native verification log under `data/03_generation_checks`, with
 separate loading/generation/verification times. Any failed or inconclusive gate
 leaves qualification pending; saved-output inspection needs no inference.
 
-Run the repository suite and the separately gated smoke when implementing this
-batch. Report mechanical checks, live outcomes, actual diff sizes and retained
-evidence. Stop for review before overlap, selection/resume or cohort acquisition.
+Run the repository suite for each part and the separately gated model smoke in
+each part. Part 7a's process-control and SIGINT probes use zero model calls;
+its live smoke has the separate four-reply cap above. The 7a/7b model smokes
+together allow **12 replies and 3,072 output tokens**, separate from Batch 6's
+qualification. Full repair-loop qualification remains pending until 7b; its smoke
+qualifies decode 8 only. Report checks, actual diff sizes and retained evidence
+at each boundary. Stop after 7a for review, then again after 7b before overlap,
+selection/resume or cohort acquisition.

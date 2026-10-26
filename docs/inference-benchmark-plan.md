@@ -13,9 +13,11 @@ native batched path and reusable extractor beside the serial entry point, with
 short fixture qualification required for its final implementation. Earlier runs
 remain supplemental while the simplified adapter awaits a fresh live run.
 Archived benchmark timings used different admission
-and do not measure this adapter. Keep the benchmark orchestrator archived. [Batch 7](stage-03-batch-07-plan.md)
-composes them with verification and repair, starting with sequential phases;
-add and measure independent generation/verification overlap after that loop works.
+and do not measure this adapter. Keep the benchmark orchestrator archived.
+[Batch 7a](stage-03-batch-07-plan.md) first composes one sequential generation and
+verification round with explicit output budgets and cancellation; 7b adds bounded
+repair and full-loop qualification, with review between the two parts. After 7b,
+add and measure independent generation/verification overlap.
 Selections/reporting and iterative experiments follow in Batches 8 and 9.
 
 Set both decode and prefill batch sizes explicitly: the pinned `BatchGenerator`

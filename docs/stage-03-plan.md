@@ -48,12 +48,13 @@ concrete design and checks when starting it; the rows below describe its purpose
 | 4 | Establish the actor's actual local runtime entry point and inspect its messages, thinking behavior, completion status, token counts, seeds and cancellation. Use fixtures/train tasks first. |
 | 5 | Establish the synthetic runtime through the existing direct MLX adapter; see the [Batch 5 plan](stage-03-batch-05-plan.md). Use the measured MLX/GGUF fixture comparison and a current smoke for a provisional MLX baseline. |
 | 6 | Add an explicit native MLX batched path beside the serial baseline, plus a byte-preserving Python extractor; see the [Batch 6 plan](stage-03-batch-06-plan.md). Preserve identity, raw/partial replies, token accounting and cancellation. Qualify both models on fabricated fixtures at decode 8 and 32 with bounded admission and request-owned seeded samplers. Reject incomplete replies; keep response caching and prefix-state reuse off. |
-| 7 | Implement the experimental generate/verify/repair loop; see the [Batch 7 plan](stage-03-batch-07-plan.md). Compose Batch 6's generation/extraction with the coalesced verifier, sequential rounds, experiment records and interruption-safe accounting. Require explicit repair, reply and token limits; technical retries remain off. Add no wall-time limits: token limits bound generation, and verification keeps its per-case program timeout. |
+| 7a | Establish one initial generate/extract/verify round, experiment records, generation-child control and caller-visible verification cancellation; see the [Batch 7 plan](stage-03-batch-07-plan.md). Require explicit reply/output-token allowances, qualify the real child entry point on a bounded two-model smoke, keep repairs disabled and stop for review. |
+| 7b | Add bounded repair rounds and feedback rendering to 7a, then qualify the full loop on fabricated tasks; see the [Batch 7 plan](stage-03-batch-07-plan.md). Require explicit repair limits, retain every attempt and keep technical retries off. Add no generation wall-time limits; verification retains its per-case timeout. Stop for review before overlap or acquisition. |
 | 8 | Publish versioned selections, every activated cell's status, native evidence and yield/cost reports. Resume without replaying spent requests or silently changing selected candidates. |
-| 9 | Run iterative prompt and scaffolding experiments, beginning with the development smoke and construction prefixes. Use the results to choose the next experiment and acquisition scale. |
+| 9 | Before cohort dispatch, measure tokenized statements and representative repair histories, then choose and qualify input-token limits and handling of oversized tasks for the selected model/batch settings. Run iterative prompt and scaffolding experiments, beginning with the development smoke and construction prefixes. Use the results to choose the next experiment and acquisition scale. |
 
 Batch 6 supplies the reusable prerequisites; the coalesced verifier already exists.
-After Batch 7's basic loop passes fixture checks, add and measure overlap of
+After 7b's full loop passes fixture checks, add and measure overlap of
 generation with verification of independent work. Selectively port the necessary
 benchmark code; keep the archived benchmark orchestration out of the workflow.
 

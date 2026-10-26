@@ -229,7 +229,7 @@ The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measu
 MLX settings, scheduling and extraction gains, capacity limits, and the archive
 branch containing the one-off benchmark tools and detailed reports. The current
 generation adapter provides native batching and Python extraction. The
-[Batch 6 plan](docs/stage-03-batch-06-plan.md) records earlier fixture results at
-decode 8 and 32; fresh qualification of the simplified adapter is pending.
+[Batch 6 plan](docs/stage-03-batch-06-plan.md) records final fixture qualification
+at decode 8 and 32 for both models, with all 80 generated programs verified.
 Actual witness/backdoor yield follows the
 [remaining plan](docs/inference-benchmark-plan.md).

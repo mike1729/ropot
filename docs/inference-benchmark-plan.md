@@ -10,8 +10,8 @@ replace the detailed benchmark plans and reports on main. Continue with the
 Use MLX Q8, one generating model at a time, and the measured per-model/context
 settings as starting points. [Batch 6](stage-03-batch-06-plan.md) adds a bounded
 native batched path and reusable extractor beside the serial entry point, with
-short fixture qualification required for its final implementation. Earlier runs
-remain supplemental while the simplified adapter awaits a fresh live run.
+short fixture qualification passed for its final implementation at decode 8 and
+32 for both models. Earlier runs remain supplemental historical evidence.
 Archived benchmark timings used different admission
 and do not measure this adapter. Keep the benchmark orchestrator archived.
 [Batch 7a](stage-03-batch-07-plan.md) first composes one sequential generation and

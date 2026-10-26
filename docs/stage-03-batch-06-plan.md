@@ -251,10 +251,34 @@ both mechanical and end-to-end fixture results; no throughput threshold is impli
 
 ## Implementation validation — 2026-10-26
 
-The simplified adapter's exact final version still requires a fresh live
-qualification. The following runs validate earlier versions and remain
-supplemental evidence; replay and tiny Metal controls do not replace that gate.
-No further inference was run for this revision.
+The final adapter from commit `c6737ea` passed live
+[qualification](../data/03_generation_checks/batch-06-6y_e_l0q/qualification.json)
+in 92.240 seconds. Both Q8 models reached decode 8 and 32; all 80 coding replies
+stopped naturally, extracted and passed Docker verification. Seeded sampler
+independence, same-group replay and token exhaustion passed. Both interruption
+probes retained partial replies, removed unfinished UIDs, independently
+synchronized the native stream, restored the allocator limit and propagated
+interruption.
+
+The run supplied 90 rows, submitted 88 and produced 7,090 output tokens; each
+interruption probe left one tail row undispatched. Qwen's cross-layout rows 5 and
+7 differed, as permitted; same-group replay pairs matched in every layout.
+The generation source hash was
+`541726cabe8e6d7ccff17ff71ac673a7719e01fbf89943b5a1e29082ae3c8177`.
+Generation, live-test and verifier-helper hashes stayed unchanged throughout;
+the qualification records their hashes and exact command. Concurrent Batch 7
+edits changed the verifier wrappers during the run: Qwen's two worklists and
+Ministral decode 8 record execution contract
+`4313c8dd86fd706fbba29b97c605ce303378a2977799ff1462afdd58038fb59b`;
+Ministral decode 32 records
+`0109688885f6b80f498773919daebcd8c839fe3e15db1324689e30a6f48f8f62`.
+Every verdict passed under its recorded contract. This qualifies the unchanged
+Batch 6 generator, not the concurrent verifier/cancellation changes.
+Evidence comprises
+294 files totaling 700,283 bytes. These short fixtures do not qualify long
+contexts, actual cohort yield or the Batch 7 child-process integration.
+
+The earlier runs below remain supplemental historical evidence.
 
 The final whole-call implementation passes the repository suite: 186 tests,
 with nine optional skips. Its 26 focused batch/extraction tests cover whole-call

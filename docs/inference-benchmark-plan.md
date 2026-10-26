@@ -12,6 +12,10 @@ settings as starting points. The current production adapter is warm serial;
 batching and overlap were exercised by the archived benchmark adapters. When
 needed, implement a small native batched path rather than restoring the benchmark
 orchestrator. Do not claim an unrun production path is qualified.
+Stage 03 Batch 6 owns this batched path and the reusable extractor. Batch 7
+composes them with verification and repair, starting with sequential phases;
+add and measure independent generation/verification overlap after that loop works.
+Selections/reporting and iterative experiments follow in Batches 8 and 9.
 
 Set both decode and prefill batch sizes explicitly: the pinned `BatchGenerator`
 can raise decode capacity to its prefill setting. Use request-owned seeded

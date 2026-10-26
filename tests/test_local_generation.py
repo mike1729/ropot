@@ -2,38 +2,23 @@ import importlib
 import json
 import os
 from pathlib import Path
-import re
-import subprocess
 import tempfile
 from types import ModuleType, SimpleNamespace as NS
 import unittest
 from unittest import mock
 
+from tests.fixture_verification import verify_saved_programs
+
 g = importlib.import_module("src.data-pipeline.stage03.local_generation")
 
 
-def request(text="A", seed=17, cap=2, seconds=1):
+def request(text="A", seed=17, cap=2):
     return dict(messages=[dict(role="user", content=text)], seed=seed, temperature=.7,
-                top_p=.9, max_tokens=cap, wall_time_seconds=seconds)
+                top_p=.9, max_tokens=cap)
 
 
 def response(text="partial<unk>", token=7, count=1, reason=None):
     return NS(text=text, token=token, prompt_tokens=1, generation_tokens=count, finish_reason=reason)
-
-
-def smoke_program(row):
-    """Fixture-only extraction; the study extractor belongs to Batch 6."""
-    if row["status"] != "stop":
-        raise ValueError("Require natural completion")
-    text = row["text"]
-    if "```" in text:
-        blocks = re.findall(r"^```(?:python|py)?[ \t]*\r?\n(.*?)^```[ \t]*\r?$", text, re.M | re.S)
-        if text.count("```") != 2 or len(blocks) != 1:
-            raise ValueError("Require one complete unambiguous Python block")
-        text = blocks[0]
-    program = text.encode("utf-8")
-    compile(program, "<smoke>", "exec")
-    return program
 
 
 class GenerationTests(unittest.TestCase):
@@ -116,24 +101,6 @@ class GenerationTests(unittest.TestCase):
                          g.file_hash(self.root / "tokenizer_config.json"))
         self.sampler.assert_called_once_with(temp=.7, top_p=.9, seed=17)
 
-    def test_soft_timeout_preserves_late_chunk_closes_stream_and_stops_run(self):
-        clock = [0.]
-        def slow(*args, **kwargs):
-            try:
-                clock[0] = 2.
-                yield response()
-                self.fail("Generation continued after soft deadline")
-            finally:
-                self.closed()
-        self.stream.side_effect = slow
-        with mock.patch.object(g, "monotonic", side_effect=lambda: clock[0]):
-            result = self.generate([request(), request("B")])
-        self.assertEqual(result["status"], "timeout")
-        self.assertEqual([r["status"] for r in result["requests"]], ["timeout", "not_run"])
-        self.assertEqual(result["requests"][0]["text"], "partial<unk>")
-        self.assertEqual(result["requests"][0]["elapsed_seconds"], 2)
-        self.closed.assert_called_once()
-
     def test_errors_and_interruptions_preserve_completed_and_partial_results(self):
         for error, status in ((RuntimeError, "error"), (KeyboardInterrupt, "cancelled")):
             def failing(model, tokenizer, ids, **kwargs):
@@ -189,14 +156,14 @@ class SmokeExtractionTests(unittest.TestCase):
     def test_raw_fenced_and_prose_wrapped_python_preserve_code(self):
         code = "print('żółw')\n"
         for text in (code, f"```python\n{code}```", f"Here is the code:\n```python\n{code}```\nDone."):
-            self.assertEqual(smoke_program({"status": "stop", "text": text}), code.encode())
+            self.assertEqual(g.extract_program({"status": "stop", "text": text}), code.encode())
 
     def test_incomplete_ambiguous_and_invalid_replies_are_rejected(self):
-        for status, text in (("length", "print(1)"), ("timeout", "print(1)"),
+        for status, text in (("length", "print(1)"), ("cancelled", "print(1)"),
                 ("stop", "```python\nprint(1)"), ("stop", "```python\nprint(1)\n```\n```python\nprint(2)\n```"),
                 ("stop", "```javascript\nprint(1)\n```"), ("stop", "print(")):
             with self.subTest(status=status, text=text), self.assertRaises((ValueError, SyntaxError)):
-                smoke_program({"status": status, "text": text})
+                g.extract_program({"status": status, "text": text})
 
 
 @unittest.skipUnless(os.environ.get("ROPOT_MLX_TESTS") == "1", "set ROPOT_MLX_TESTS=1 in the MLX Python")
@@ -205,10 +172,10 @@ class LiveSmoke(unittest.TestCase):
         model = Path("/Users/michal/Workspace/models/mlx-community/Qwen3.5-9B-8bit")
         manifest = model.parents[1] / "metadata/Qwen3.5-9B-8bit-16daa4818c54ce5f5436f929d52542eb65bbed9d.json"
         root = Path(tempfile.mkdtemp(prefix="direct-actor-", dir="data/03_generation_checks"))
-        a = request("Write one short sentence about a red fox.", cap=32, seconds=30)
-        b = request("Reply with exactly OK.", seed=18, cap=32, seconds=30)
+        a = request("Write one short sentence about a red fox.", cap=32)
+        b = request("Reply with exactly OK.", seed=18, cap=32)
         result = g.generate(model, [a, b, a, request("Write Python: read two integers and print their sum. Code only.",
-            cap=128, seconds=30), request("List the integers from one to one hundred.", cap=1, seconds=30)],
+            cap=128), request("List the integers from one to one hundred.", cap=1)],
             root / "serial", model_manifest=manifest)
         self.assertEqual(result["status"], "success", root)
         self.assertEqual(result["requests"][0]["tokens"], result["requests"][2]["tokens"])
@@ -237,8 +204,8 @@ class LiveSmoke(unittest.TestCase):
         for index, task in enumerate(tasks):
             g.save(root / f"task-{index}.json", task)
         a, b = [request(t["question"] + "\nExample input:\n" + t["cases"][0]["input"]
-                        + "Example output:\n" + t["cases"][0]["answer"], cap=256, seconds=120) for t in tasks]
-        cap = request("List integers from one to one hundred.", cap=1, seconds=120)
+                        + "Example output:\n" + t["cases"][0]["answer"], cap=256) for t in tasks]
+        cap = request("List integers from one to one hundred.", cap=1)
         for row in (a, b, cap):
             row.update(temperature=.2, top_p=.95)
             row["messages"].insert(0, {"role": "system", "content": "Return only a Python 3 program."})
@@ -262,24 +229,14 @@ class LiveSmoke(unittest.TestCase):
         candidates, failures = [], []
         for index, row in enumerate(result["requests"][:3]):
             try:
-                (root / f"candidate-{index}.py").write_bytes(smoke_program(row))
+                (root / f"candidate-{index}.py").write_bytes(g.extract_program(row))
                 candidates.append({"task": index % 2, "program": f"candidate-{index}.py"})
-            except (ValueError, SyntaxError) as error:
+            except (ValueError, SyntaxError, MemoryError, RecursionError) as error:
                 failures.append({"request": index, "error": repr(error)})
         g.save(root / "smoke.json", {"candidates": candidates, "extraction_failures": failures})
         if candidates:
             # Inspect lives in the repository venv; keep the pinned MLX environment unchanged.
-            subprocess.run([str(Path(".venv/bin/python").absolute()), "-c", """
-import importlib,json,sys
-from pathlib import Path
-g=importlib.import_module('src.data-pipeline.stage03.local_generation')
-v=importlib.import_module('src.data-pipeline.stage03.verification')
-root=Path(sys.argv[1]); candidates=[]
-for item in json.loads((root/'smoke.json').read_text())['candidates']:
-    task=root/f"task-{item['task']}.json"
-    candidates.append((json.loads(task.read_text()),g.file_hash(task),(root/item['program']).read_bytes()))
-g.save(root/'verification.json',v.verify_many(candidates,root/'verification'))
-""", str(root)], check=True)
+            verify_saved_programs(root, candidates)
         self.assertEqual(result["status"], "success", root)
         self.assertEqual(failures, [], root)
         self.assertEqual([r["status"] for r in result["requests"]], ["stop", "stop", "stop", "length"])

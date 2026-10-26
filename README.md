@@ -189,14 +189,19 @@ result = generation.generate(
 
 The manifest must describe the unchanged model files supplied by the caller;
 artifact hashes are recorded without revalidating weights. Existing destinations
-are refused. Inputs, runtime identity, streamed reply text and outcomes remain in
+are refused. Inputs, runtime identity, raw reply text and outcomes remain in
 the run directory. `max_tokens` bounds each reply; wall time is recorded, not
 enforced, and loading or stalled native calls cannot be interrupted from Python.
 Failure stops the run without retry. Generation itself executes no generated code.
 For native batching, call `generate_batched` with the same arguments plus explicit
 `completion_batch_size`, `prefill_batch_size` and `prefill_step_size`. It bounds
 unfinished submissions by the decode size; interruption cancels unfinished
-submissions. `extract_program(row)` returns exact Python
+submissions. Batched generation retains token IDs in memory, decodes each finished
+request and writes its reply file before marking it complete; Python abort also
+saves partial replies and retries failed reply writes. Malformed native calls
+retain scalar evidence without applying their events to rows.
+Hard termination can lose active partial replies and outcome metadata.
+`extract_program(row)` returns exact Python
 bytes only from natural completions. See the [Batch 6 plan](docs/stage-03-batch-06-plan.md)
 for settings, statuses, extraction rules and fixture qualification.
 For Ministral, pass `/Users/michal/Workspace/models/mlx-community/Ministral-3-8B-Instruct-2512-8bit`
@@ -223,7 +228,8 @@ with one native evaluation and a fresh sandbox per program. Multi-sample
 The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
 MLX settings, scheduling and extraction gains, capacity limits, and the archive
 branch containing the one-off benchmark tools and detailed reports. The current
-generation adapter provides native batching and Python extraction; the
-[Batch 6 plan](docs/stage-03-batch-06-plan.md) records fixture qualification at
-decode 8 and 32. Actual witness/backdoor yield follows the
+generation adapter provides native batching and Python extraction. The
+[Batch 6 plan](docs/stage-03-batch-06-plan.md) records earlier fixture results at
+decode 8 and 32; fresh qualification of the simplified adapter is pending.
+Actual witness/backdoor yield follows the
 [remaining plan](docs/inference-benchmark-plan.md).

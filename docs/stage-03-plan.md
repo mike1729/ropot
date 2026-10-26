@@ -79,8 +79,9 @@ batch 8 provisionally. A matched development task supplies four monitor examples
 so 20/42/50 tasks give 80/168/200 requests per checkpoint. Prioritize a finite-panel
 monitor comparison of batches 32 and 64, holding output and prefill settings fixed,
 before another broad capacity sweep. Qualification of the consuming adapter and
-trained checkpoints remains required. Batch 6's bounded native path has short
-fixture qualification recorded in its [detailed plan](stage-03-batch-06-plan.md#implementation-validation--2026-10-26).
+trained checkpoints remains required. Batch 6's [detailed plan](stage-03-batch-06-plan.md#implementation-validation--2026-10-26)
+records earlier short-fixture results; fresh qualification of the simplified
+adapter remains pending.
 
 Freeze a small extractor in Batch 6: plain code or one complete unambiguous Python
 fence, allowing surrounding prose, followed by syntax and published-suite checks.

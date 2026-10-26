@@ -224,6 +224,33 @@ The verifier also provides
 `verify_many(candidates, log_dir, max_samples=1|4, concurrent_inference=...)`,
 with one native evaluation and a fresh sandbox per program. Multi-sample
 `reuse` requires the returned `sample_id` and the same concurrency/context.
+Each fresh verification call requires an empty native log directory. Confirmed
+Inspect cancellation propagates as `KeyboardInterrupt` after native teardown.
+
+Batch 7a adds [benign_loop.run](src/data-pipeline/stage03/benign_loop.py), called
+from the repository `.venv`. Supply ordered `(binding, task)` pairs from
+`study_tasks.load_task`, the pinned cohort digest, explicit model/manifest/MLX
+Python paths, and a new directory under `data/03_benign_experiments/`:
+
+```python
+loop = importlib.import_module("src.data-pipeline.stage03.benign_loop")
+outcome = loop.run(
+    worklist, "data/03_benign_experiments/my-run", source="actor",
+    model_path=model_path, model_manifest=model_manifest, mlx_python=mlx_python,
+    cohort_sha256=study_tasks.COHORT_SHA256,
+    recipe={"system": "Return only a complete Python 3 program.",
+            "initial": "Read stdin; print the answer.", "temperature": 0.2,
+            "top_p": 0.95, "base_seed": 17, "max_tokens": 256, "max_repairs": 0},
+    reply_allowance=len(worklist), output_token_allowance=256 * len(worklist),
+    completion_batch_size=8, prefill_batch_size=4, prefill_step_size=256,
+)
+```
+
+Generation exits before coalesced verification. Inputs, task snapshots, exact
+programs, native evidence and atomic progress retain every attempt and its costs.
+Fixtures use complete bindings and `fixtures=True`. See the [Batch 7 plan](docs/stage-03-batch-07-plan.md)
+for states, interruption and review boundaries. Run its four-reply smoke with
+`ROPOT_BENIGN_LOOP_TESTS=1 .venv/bin/python -m unittest tests.test_benign_loop_live -v`.
 
 The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
 MLX settings, scheduling and extraction gains, capacity limits, and the archive

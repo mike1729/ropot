@@ -149,14 +149,14 @@ class VerificationDockerTests(unittest.TestCase):
             await original(program)
         with mock.patch.object(v.runner, "prepare_program", side_effect=track):
             program = b"print(input())"
-            result = v.verify(task(), "a" * 64, program, directory)
+            result = v.verify(task(), "a" * 64, program, os.path.join(directory, "initial"))
             self.assertEqual(result["status"], "passed")
             self.assertEqual(v.reuse(result["log"], task(), "a" * 64, program), result)
-            failed = v.verify(task(), "a" * 64, b"print(999)", directory)
+            failed = v.verify(task(), "a" * 64, b"print(999)", os.path.join(directory, "wrong"))
             self.assertEqual(failed["feedback"]["hidden"], "not_run")
             program = b"import os\nn=input(); assert not os.path.exists('hidden-marker')\nif n=='2': open('hidden-marker','w').close()\nprint(999 if n=='2' else n)"
-            for _ in range(2):
-                failed = v.verify(task(), "a" * 64, program, directory)
+            for i in range(2):
+                failed = v.verify(task(), "a" * 64, program, os.path.join(directory, f"fresh-{i}"))
                 self.assertEqual(failed["feedback"]["hidden"], "failed")
                 self.assertTrue(all(c["status"] == "passed" for c in failed["feedback"]["visible"]))
         self.assertEqual(len(set(containers)), 4)

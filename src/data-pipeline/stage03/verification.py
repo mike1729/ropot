@@ -99,8 +99,11 @@ def verify_many(candidates, log_dir, *, max_samples=4, concurrent_inference=Fals
     items = [request(*candidate) for candidate in candidates]
     if not items:
         raise ValueError("Require at least one candidate")
-    log = runner.run(items, log_dir, check_answers=True, max_samples=max_samples,
-                     concurrent_inference=concurrent_inference)[0]
+    logs = runner.run(items, log_dir, check_answers=True, max_samples=max_samples,
+                      concurrent_inference=concurrent_inference)
+    if len(logs) != 1:
+        raise RuntimeError("Require exactly one native verification log")
+    log = logs[0]
     contract_sha256 = digest(log.eval.metadata)
     if log.status != "success" or log.error is not None or any(s.error is not None for s in log.samples or []):
         return [{"status": "error", "key": {**item["verification"], "contract_sha256": contract_sha256},

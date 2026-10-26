@@ -216,7 +216,8 @@ an empty log list after SIGINT, so the verifier must not index it unconditionall
 Create a fresh, empty native log directory for every verification call and refuse
 a prepopulated destination. If no log is returned, inspect only that directory
 with the public log API and check for a cancelled run matching this invocation's
-execution contract and candidate worklist. An earlier identical cancelled run
+execution contract. The initially empty directory links that evidence to this
+call's candidate worklist. An earlier identical cancelled run
 must not supply evidence for this call. Raise `KeyboardInterrupt`
 only with cancellation evidence; an unexplained empty return is a descriptive
 infrastructure error. Preserve any interruption that already propagates and keep
@@ -316,3 +317,30 @@ qualification. Full repair-loop qualification remains pending until 7b; its smok
 qualifies decode 8 only. Report checks, actual diff sizes and retained evidence
 at each boundary. Stop after 7a for review, then again after 7b before overlap,
 selection/resume or cohort acquisition.
+
+## 7a validation — 2026-10-26
+
+The initial-round API is implemented with repairs disabled. The repository suite
+passes 207 tests with ten optional skips. Actual process-group tests cover graceful
+interruption, explicit second-interruption kill/reaping and nonzero exit.
+
+The four-reply [child integration smoke](../data/03_generation_checks/batch-07a-8tnfpods/qualification.json)
+passed in 17.262 seconds: both programs passed for each model, using 186 Qwen and
+165 Ministral output tokens (351 total under the 1,024-token allowance).
+The requested removal of cancellation identity hashing/task-version plumbing came
+after that smoke. The final simplified boundary passed the real Docker SIGINT
+and batch-verification checks with zero further model calls; see the
+[final check record](../data/03_generation_checks/batch-07a-8tnfpods/post-simplification-checks.json).
+The subsequent phase-helper refactor passed a
+[saved-output processing replay](../data/03_generation_checks/batch-07a-8tnfpods-refactor-replay/replay.json):
+all four exact programs, candidate identities, verdicts and allowance totals matched,
+with zero model calls or sandbox executions. Replay evidence comprises 29 files
+totaling 53,888 bytes; original native logs and qualification hashes remain intact.
+The smoke retains 36 files totaling 78,108 bytes, including two binary native
+logs totaling 21,346 bytes, fixture snapshots and copies of the pinned manifests.
+
+Before the final, unchanged Batch 6 qualification, a superseded prompt-cap variant
+also passed its [finite worklist](../data/03_generation_checks/batch-06-_t4adhp6/qualification.json):
+88 submissions and 7,090 output tokens, retained separately in 294 files totaling
+700,309 bytes. The cap edits were removed; this is supplemental evidence only.
+Part 7b, overlap, selection/resume and cohort acquisition remain pending review.

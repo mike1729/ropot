@@ -15,6 +15,7 @@ from time import monotonic
 
 from inspect_ai import Task, eval as inspect_eval
 from inspect_ai.dataset import Sample
+from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.solver import solver
 from inspect_ai.util import OutputLimitExceededError, override_sandbox_output_limit, sandbox
 
@@ -166,6 +167,10 @@ def run(programs, log_dir, *, concurrent_inference=False, check_answers=False, m
                     or visible != sorted(visible, reverse=True)
                     or any(integer_answer(c["answer"]) != c["answer"] for c in item["cases"])):
                 raise ValueError("Checked cases need canonical answers and visible-before-hidden ordering")
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    if any(log_dir.iterdir()):
+        raise ValueError("Require an empty native log directory")
     metadata = {**execution_contract(max_samples=max_samples),
                 "concurrent_inference": concurrent_inference, "check_answers": check_answers}
     samples = [Sample(id=index, input="Execute supplied program; no model calls.", metadata={
@@ -174,6 +179,15 @@ def run(programs, log_dir, *, concurrent_inference=False, check_answers=False, m
         for index, item in enumerate(programs)]
     task = Task(name="docker_execution", dataset=samples, solver=execute_programs(check_answers),
                 sandbox=("docker", str(COMPOSE)), metadata=metadata)
-    return inspect_eval(task, model="mockllm/model", log_dir=str(log_dir), log_format="eval",
+    logs = inspect_eval(task, model="mockllm/model", log_dir=str(log_dir), log_format="eval",
         max_sandboxes=MAX_SANDBOXES, max_samples=max_samples, retry_on_error=0,
         fail_on_error=True, continue_on_fail=True, sandbox_cleanup=True, sandbox_prebuilt=True, score=False, display="none")
+    evidence = logs or [read_eval_log(info, header_only=True) for info in list_eval_logs(str(log_dir))]
+    for log in evidence:
+        if log.status == "cancelled" and log.eval.metadata == metadata:
+            error = KeyboardInterrupt(f"Inspect cancelled: {log.location}")
+            error.cleanup_confirmed = True  # eval returned after native teardown.
+            raise error
+    if not logs:
+        raise RuntimeError("Inspect returned no logs without matching cancellation evidence")
+    return logs

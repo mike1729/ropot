@@ -1,6 +1,7 @@
 from copy import deepcopy
 import importlib
 import os
+import tempfile
 from types import SimpleNamespace as NS
 import unittest
 from unittest import mock
@@ -82,8 +83,9 @@ class BatchVerificationTests(unittest.TestCase):
 
     def test_runner_dispatches_declared_concurrency_and_metadata(self):
         with mock.patch.object(v.runner, "execution_contract", return_value={**CONTRACT, "max_samples": 1}), \
-             mock.patch.object(v.runner, "inspect_eval", return_value=[]) as execute:
-            v.runner.run([v.request(task(), "a"*64, b"print(input())")], "unused",
+             mock.patch.object(v.runner, "inspect_eval", return_value=[NS(status="success")]) as execute, \
+             tempfile.TemporaryDirectory() as directory:
+            v.runner.run([v.request(task(), "a"*64, b"print(input())")], directory,
                          check_answers=True, max_samples=1, concurrent_inference=True)
         self.assertEqual(execute.call_args.kwargs["max_samples"], 1)
         self.assertEqual(execute.call_args.kwargs["max_sandboxes"], 4)

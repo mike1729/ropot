@@ -199,12 +199,17 @@ class InspectDockerTests(unittest.TestCase):
         from inspect_ai.log import read_eval_log
         directory = self.log_directory("cancelled-")
         marker = Path(directory) / "ready"
+        propagated = Path(directory) / "propagated"
         helper = ("import importlib\nfrom pathlib import Path\n"
                   "r=importlib.import_module('src.data-pipeline.stage03.inspect_runner')\noriginal=r.run_case\n"
+                  "v=importlib.import_module('src.data-pipeline.stage03.verification')\n"
                   "async def ready(*args):\n"
                   f" Path({str(marker)!r}).write_text((await r.sandbox().connection()).container)\n"
                   " return await original(*args)\nr.run_case=ready\n"
-                  f"r.run([{{'program':b'while True: pass','cases':[{{'index':0,'input':''}}]}}],{directory!r})\n")
+                  "try:\n"
+                  f" v.verify_many([({{'cases':[{{'index':0,'input':'','answer':'0','visible':True}}]}},'a'*64,b'while True: pass')],{directory!r})\n"
+                  "except KeyboardInterrupt:\n"
+                  f" Path({str(propagated)!r}).write_text('caller-visible')\n")
         process = subprocess.Popen([sys.executable, "-c", helper], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             deadline = time.monotonic() + 30
@@ -213,6 +218,7 @@ class InspectDockerTests(unittest.TestCase):
             self.assertTrue(marker.exists(), "sample did not start")
             process.send_signal(signal.SIGINT)
             process.communicate(timeout=30)
+            self.assertTrue(propagated.exists(), "verification did not propagate cancellation")
             self.assert_removed([marker.read_text()])
             logs = list(Path(directory).glob("*.eval"))
             self.assertEqual(len(logs), 1)

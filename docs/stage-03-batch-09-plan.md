@@ -99,3 +99,68 @@ categories and whether the next experiment should change a prompt or budget.
 Stop with one concrete recommendation under the
 [Stage 03 progression](stage-03-plan.md#experiment-progression). Benign passes
 alone establish neither attack yield nor fully matched development-panel feasibility.
+
+## Preparation and validation — 2026-10-26
+
+The [caller](../experiments/batch09_development.py) exposes `measure(new_directory)`
+in the pinned MLX Python and `run(gate_directory)` in repository Python. Measurement
+loads tokenizers only. The baseline caller checks a passing, unchanged-source
+two-model gate, continues numbered experiment order, stops before the second
+source on technical failure and saves the Batch 8 summary even on interruption.
+An existing `-batch09-` experiment directory prevents another dispatch, even if
+interruption left no summary. The derived summary may be overwritten.
+
+For a fresh offline sizing record, run from the repository root:
+
+```sh
+/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python -c \
+  'from experiments.batch09_development import measure; measure("data/03_generation_checks/batch09-sizing-review")'
+```
+
+The retained [sizing and check record](../data/03_generation_checks/batch-09-preparation-20261026/validation.json)
+uses the coordinator's initial/repair helpers and actual MLX tokenizer wrapper:
+
+| Source | Initial prompt range | Stress repair input | Input plus 1,024 output |
+| --- | ---: | ---: | ---: |
+| Actor | 259–745 | 5,686 | 6,710 |
+| Synthetic | 245–727 | 5,672 | 6,696 |
+
+Both examples use 1,024 fabricated reply tokens and 4,096 rendered feedback bytes.
+Both configured contexts are 262,144 tokens. Stress inputs are below the historical
+6,882–7,196-token repair measurements; the empirical assumption above still applies.
+MLX import required Metal access, but no weights or inference were used.
+
+All 14 focused tests pass. The repository suite passes 281 tests with eleven
+optional skips and live-test flags disabled. The revised gate accepts failed
+repairs and length/format failures outside its coverage pair while checking saved
+feedback, association and accounting. A read-only replay of retained 7b JSON finds
+one coverage pair for actor and two for synthetic; this does not qualify current
+sources or change historical statuses. Coordinator/adapter bytes match `d6c311e`.
+The final evidence contains three JSON/text files totaling 207,119 bytes.
+No live gate, Docker verification or study dispatch ran during that preparation.
+
+## Execution and review fixes — 2026-10-26
+
+The user authorized execution without committing. The repair gate passed and both
+development experiments completed; see the [results](stage-03-batch-09-results.md).
+The execution record preserves the exact caller/gate source copies and hashes;
+sources stayed unchanged during execution. Pipeline modules still match `d6c311e`.
+
+Subsequent review added reply-to-program byte checks and run-owned source binding
+to the gate assertions, with a swapped-program regression test. A read-only
+[association audit](../data/03_generation_checks/batch-09-review-20261026/association-audit.json)
+passes on the saved live gate and all 16 verified study programs. The original
+qualification remains intact; this audit makes no new model calls and does not
+qualify the edited test source for another live run.
+
+The caller now uses two literal option dictionaries and refuses existing Batch 9
+directories, covering hard interruption without relying on summary existence.
+Offline sizing matches the runtime's merged config and tokenizer options, checks
+input plus output, and retains counts/stress messages without duplicated prompts
+or token arrays. The [compact sizing record](../data/03_generation_checks/batch-09-review-20261026/tokenizer/sizing.json)
+is 25,072 bytes with unchanged counts. All 17 focused tests and the repository's
+284 tests pass, with eleven optional skips and live flags disabled.
+
+Retain `batch-09-sizing-s7rst3r9` (205,523 bytes) as superseded sizing and
+`batch-09-sizing-74goxt14` (empty) as the failed import before Metal access;
+their paths and hashes are recorded in the association audit.

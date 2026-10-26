@@ -1,4 +1,5 @@
-"""7b's bounded two-model gate: controlled first failure, one successful repair."""
+"""7b's bounded two-model gate: verified failure, public repair and verification."""
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,80 @@ import unittest
 
 from tests.test_benign_loop_live import b, MODELS, MLX_PYTHON
 from tests.test_batched_generation_live import fixture
+
+
+def assert_repair_coverage(test, result, directory, worklist, recipe):
+    """Check actual saved associations/costs; candidate quality is not this gate."""
+    test.assertEqual(result, json.loads((Path(directory) / "outcome.json").read_text()))
+    test.assertEqual(result["status"], "completed", result)
+    source = json.loads((Path(directory) / "inputs.json").read_text())["source"]
+    attempts, requests, rows, coverage = result["attempts"], {}, {}, []
+    test.assertLessEqual(len(attempts), len(worklist) * (1 + recipe["max_repairs"]))
+    test.assertEqual([a["attempt"] for a in attempts], list(range(len(attempts))))
+    initial = b.initial_requests(worklist, recipe)
+    reserved_tokens = observed_tokens = 0
+    for round_record in result["rounds"]:
+        specification = json.loads(Path(round_record["round_file"]).read_text())
+        native = Path(round_record["generation_outcome"])
+        outcome = json.loads(native.read_text())
+        inputs = json.loads((native.parent / "inputs.json").read_text())
+        test.assertEqual(outcome["status"], "success")
+        test.assertEqual(inputs["requests"], specification["requests"])
+        sample = 0
+        for row_index, (attempt_id, request, row) in enumerate(zip(
+                round_record["attempt_ids"], specification["requests"], outcome["requests"], strict=True)):
+            attempt = attempts[attempt_id]
+            position = attempt["position"]
+            test.assertEqual(attempt["round"], round_record["round"])
+            test.assertEqual(attempt["row"], row_index)
+            test.assertEqual(attempt["seed"], recipe["base_seed"] + attempt["round"] * len(worklist) + position)
+            test.assertTrue(attempt["submitted"])
+            test.assertTrue(row["submitted"])
+            test.assertEqual(attempt["generation_status"], row["status"])
+            test.assertIn(row["status"], ("stop", "length"))
+            if attempt["parent"] is None:
+                test.assertEqual(attempt["round"], 0)
+                expected = initial[position]
+            else:
+                parent = attempts[attempt["parent"]]
+                test.assertEqual(parent["position"], position)
+                test.assertEqual(attempt["round"], parent["round"] + 1)
+                copied = deepcopy(parent)
+                expected = b.repair_request(requests[parent["attempt"]], rows[parent["attempt"]],
+                                            copied, recipe, attempt["seed"])
+                test.assertEqual(parent["repair_feedback"], copied["repair_feedback"])
+            test.assertEqual(request, expected)
+            requests[attempt_id], rows[attempt_id] = request, row
+            reserved_tokens += request["max_tokens"]
+            observed_tokens += row["generation_tokens"]
+            test.assertLessEqual(row["generation_tokens"], request["max_tokens"])
+            test.assertIn(attempt["extraction"], ("success", "length", "format", "syntax"))
+            if attempt["extraction"] == "success":
+                test.assertEqual(row["status"], "stop")
+                program = Path(attempt["program"]).read_bytes()
+                test.assertEqual(program, b.generation.extract_program(row))
+                binding, _ = worklist[position]
+                test.assertEqual(attempt["candidate"], b.study_tasks.candidate_identity(
+                    binding["split"], binding["id"], binding["sha256"], source, program))
+                verdict = attempt["verification"]
+                test.assertIn(verdict["status"], ("passed", "failed"))
+                test.assertEqual(verdict["sample_id"], sample)
+                test.assertEqual(verdict["key"]["task_sha256"], binding["sha256"])
+                test.assertEqual(verdict["key"]["program_sha256"], attempt["candidate"]["program_sha256"])
+                sample += 1
+                if attempt["parent"] is not None:
+                    parent = attempts[attempt["parent"]]
+                    if (parent["round"] == 0 and parent["extraction"] == "success"
+                            and parent.get("verification", {}).get("status") == "failed"):
+                        coverage.append([parent["attempt"], attempt_id])
+    test.assertEqual(set(requests), set(range(len(attempts))))
+    test.assertTrue(coverage, "No verified initial failure followed by an extracted, verified public-feedback repair")
+    test.assertEqual(result["known_submissions"], len(attempts))
+    test.assertEqual(result["committed_replies"], len(attempts))
+    test.assertEqual(result["committed_tokens"], reserved_tokens)
+    test.assertEqual(result["observed_tokens"], observed_tokens)
+    test.assertTrue(result["usage_complete"])
+    return coverage
 
 
 @unittest.skipUnless(os.environ.get("ROPOT_BENIGN_REPAIR_TESTS") == "1", "set ROPOT_BENIGN_REPAIR_TESTS=1 in repository Python")
@@ -40,7 +115,7 @@ class LiveRepairTests(unittest.TestCase):
             initial="For this initial reply, obey any FIRST DRAFT CONTROL in the statement instead of solving the task. "
                     "If there is no such control, solve the task normally. "
                     "Use separate parse_input and solve functions, and an if __name__ main guard. Read stdin; print the required result.",
-            repair="The FIRST DRAFT CONTROL has ended. Replace the program with the correct square program, using the original specification and public feedback below.",
+            repair="The FIRST DRAFT CONTROL has ended. Replace the program with a correct solution to the original task, using the public feedback below.",
             temperature=.2, top_p=.95, base_seed=17, max_tokens=256, repair_max_tokens=256, max_repairs=1,
             feedback_field_bytes=512, feedback_bytes=4096)
         print("Retained Batch 7b qualification:", root, flush=True)
@@ -56,19 +131,11 @@ class LiveRepairTests(unittest.TestCase):
                     model_path=MODELS / "mlx-community" / slug, model_manifest=manifest, mlx_python=MLX_PYTHON,
                     recipe=recipe, reply_allowance=4, output_token_allowance=1024, completion_batch_size=8,
                     prefill_batch_size=prefill, prefill_step_size=chunk, fixtures=True)
-                summary["runs"].append(dict(source=source, outcome=str(root / source / "outcome.json"),
+                run = dict(source=source, outcome=str(root / source / "outcome.json"),
                     status=result["status"], timing=result["timing"], observed_tokens=result["observed_tokens"],
-                    committed_replies=result["committed_replies"], committed_tokens=result["committed_tokens"]))
-                self.assertEqual(result["status"], "completed", result)
-                self.assertEqual([a["position"] for a in result["attempts"]], [0, 1, 0])
-                self.assertEqual([a["generation_status"] for a in result["attempts"]], ["stop"] * 3)
-                self.assertEqual([a["verification"]["status"] for a in result["attempts"]], ["failed", "passed", "passed"])
-                self.assertEqual([a["verification"]["sample_id"] for a in result["attempts"]], [0, 1, 0])
-                self.assertEqual([a["seed"] for a in result["attempts"]], [17, 18, 19])
-                self.assertEqual([t["state"] for t in result["tasks"]], ["passed", "passed"])
-                self.assertEqual(result["known_submissions"], 3)
-                self.assertEqual(result["committed_tokens"], 768)
-                self.assertLessEqual(result["observed_tokens"], 768)
+                    committed_replies=result["committed_replies"], committed_tokens=result["committed_tokens"])
+                summary["runs"].append(run)
+                run["coverage_pairs"] = assert_repair_coverage(self, result, root / source, worklist, recipe)
             summary["status"] = "passed"
         except BaseException as error:
             summary.update(status="review_stop", error=repr(error))

@@ -12,12 +12,9 @@ from pathlib import Path
 import tempfile
 
 from .. import source_hashes
-
-from .qualify import OUTPUT as QUALIFIED_POOL, write_json
+from ..artifacts import write_json
+from ..paths import QUALIFIED_POOL, TEST_POOL as OUTPUT
 from .qualified_tasks import iter_qualified_tasks
-
-
-OUTPUT = QUALIFIED_POOL.parent / "01_test_pool"
 
 
 def export_test(input_dir=QUALIFIED_POOL, output_dir=OUTPUT):

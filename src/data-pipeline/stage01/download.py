@@ -1,11 +1,12 @@
 """Download pinned APPS JSONL files without executing the dataset's loader."""
 
-import hashlib
 import json
 from collections import Counter
 from datetime import datetime, timezone
-from pathlib import Path
 from urllib.request import urlopen
+
+from ..artifacts import digest
+from ..paths import RAW_APPS as DESTINATION
 
 
 REVISION = "21e74ddf8de1a21436da12e3e653065c5213e9d1"
@@ -14,12 +15,6 @@ FILES = {
     "train": (107101272, "45e82ef22ed8e7c0c04d881a21b923e9dd233157896b0b8d5b3493e887499cae"),
     "test": (1292436853, "5b003a65ac40feb47dd5eaec267a767a6fc435bdcfa68ff715fe869f948e760c"),
 }
-DESTINATION = Path(__file__).resolve().parents[3] / "data" / "raw" / "apps"
-
-
-def digest(path):
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def download(split, size, sha256):

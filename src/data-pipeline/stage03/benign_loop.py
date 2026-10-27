@@ -140,6 +140,7 @@ def prepare(worklist, output_dir, recipe, source, model_path, model_manifest, ml
     module_root = Path(__file__).parents[1]
     sources = [Path(__file__), Path(generation.__file__), Path(study_tasks.__file__),
                module_root / "stage03/verification.py", module_root / "stage03/inspect_runner.py",
+               module_root / "artifacts.py", module_root / "paths.py", module_root / "stage02/published_cohort.py",
                module_root / "stage01/screen.py", module_root / "stage02/cohort.py", Path(repair_feedback.__file__)]
     generation.save(directory / "inputs.json", dict(worklist=snapshots, source=source, fixtures=fixtures,
         cohort_sha256=cohort_sha256, recipe=recipe, reply_allowance=reply_allowance,

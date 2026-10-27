@@ -18,6 +18,9 @@ The implementation follows the pipeline stages:
 
 The root package provides the CLI and source provenance hashing. New manifests
 record source hashes by package-relative path (for example, `stage01/qualify.py`).
+Shared artifact hashing and JSON writing live in `artifacts.py`; default data
+locations live in `paths.py`. Cohort readers use these directly, keeping dataset
+loading independent of allocation, publication and execution modules.
 
 Uses only Python's standard library. Downloads both original splits (about 1.4 GB)
 to `data/raw/apps/`, verifies pinned byte sizes and SHA-256 checksums, and writes

@@ -22,13 +22,11 @@ import tempfile
 from urllib.parse import urlsplit
 
 from .. import source_hashes
-
-from .download import digest
-from .qualify import OUTPUT as QUALIFIED_POOL, write_json
+from ..artifacts import digest, write_json
+from ..paths import POOL_ANALYSIS as OUTPUT, QUALIFIED_POOL
 from .qualified_tasks import iter_qualified_tasks
 
 
-OUTPUT = QUALIFIED_POOL.parent / "01_pool_analysis"
 DEFAULT_TOKENIZER = Path("/Users/michal/Workspace/models/mlx-community/Qwen3.5-9B-8bit/tokenizer.json")
 METRICS = (
     "statement_tokens", "reference_tokens_min", "reference_tokens_median", "reference_tokens_max",

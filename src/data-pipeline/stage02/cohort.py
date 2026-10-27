@@ -6,12 +6,12 @@ neither function executes programs or counts new tokens.
 """
 
 import csv
-import hashlib
 import io
 import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from ..artifacts import sha256
 from .known_use import COVERAGE, RECORDS, RESTRICTED_USES, load_known_use, row_sha256
 from ..stage01.qualified_tasks import iter_qualified_tasks
 
@@ -26,10 +26,6 @@ QUOTAS = {"evaluation": (8, 24), "calibration": (4, 12),
 RESERVE_CYCLE = ("construction",) * 7 + ("correction_replay",) * 3 + ("calibration",) * 2 + ("evaluation",) * 4
 PHASES = ("shared_honest_pretraining", "twin_continuation")
 BLOCKS = ("initial", "reserve", "deferred")
-
-
-def sha256(raw):
-    return hashlib.sha256(raw).hexdigest()
 
 
 def load_inputs(input_dir, analysis_dir, known_use_records=RECORDS, known_use_coverage=COVERAGE):

@@ -14,15 +14,13 @@ from pathlib import Path
 import tempfile
 
 from .. import source_hashes
+from ..artifacts import write_json
+from ..paths import COHORT as OUTPUT, POOL_ANALYSIS as ANALYSIS_OUTPUT, TEST_POOL as TEST_OUTPUT
 
 from . import cohort
-from ..stage01.analyze import OUTPUT as ANALYSIS_OUTPUT
-from ..stage01.export_test import OUTPUT as TEST_OUTPUT
 from .known_use import COVERAGE, RECORDS, RESTRICTED_USES
-from ..stage01.qualify import write_json
 
 
-OUTPUT = TEST_OUTPUT.parent / "02_cohort"
 MAX_CASES = 20
 CASE_SELECTION = "ropot-cases-v1"
 TASK_FIELDS = ("split", "id", "difficulty", "path", "sha256", "owner", "block", "phase",

@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-from .cohort import sha256
-from .publish_cohort import OUTPUT
+from ..artifacts import sha256
+from ..paths import COHORT as OUTPUT
 
 
 def load_cohort(cohort_dir=OUTPUT, task_dir=None, *, expected_sha256, owners):

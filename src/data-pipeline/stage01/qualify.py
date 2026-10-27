@@ -14,6 +14,8 @@ import sys
 import tempfile
 
 from .. import source_hashes
+from ..artifacts import write_json
+from ..paths import QUALIFIED_POOL as OUTPUT
 
 from .download import BASE, DESTINATION, FILES, REVISION, digest
 from .local_runner import LocalRunner, MAX_CONCURRENT_CASES
@@ -22,7 +24,6 @@ from .statement_examples import map_statement_examples_to_cases
 
 
 EXPECTED_ROWS = 5000
-OUTPUT = DESTINATION.parents[1] / "01_qualified_pool"
 
 
 class FailedReferences(Rejected):
@@ -124,15 +125,6 @@ def qualify_task(row, split, runner):
                     "outputs": [measure(c["output"]) for c in task["cases"]],
                     "solutions": [measure(source) for source in task["solutions"]]},
     }
-
-
-def write_json(path, value):
-    """Write indented, ASCII-escaped JSON with a final newline to an existing parent.
-
-    Replace the file if present. Serialization and filesystem errors propagate;
-    callers control staging and publication of the containing directory.
-    """
-    path.write_text(json.dumps(value, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
 
 
 def qualify(input_dir=DESTINATION, output_dir=OUTPUT, workers=MAX_CONCURRENT_CASES):

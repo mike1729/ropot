@@ -11,8 +11,8 @@ import json
 from pathlib import Path
 import re
 
-from ..stage02.cohort import sha256
-from ..stage02.publish_cohort import OUTPUT
+from ..artifacts import sha256
+from ..paths import COHORT as OUTPUT
 from ..stage02.published_cohort import load_cohort as load_published_cohort
 
 

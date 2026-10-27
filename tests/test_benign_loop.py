@@ -111,6 +111,10 @@ class LoopTests(LoopFixture):
         self.assertEqual([s["binding"] for s in inputs["worklist"]], [b for b, _ in original])
         self.assertEqual(inputs["mlx_python"], str(self.root / "venv/bin/python"))
         self.assertIn(str(Path(b.__file__)), inputs["source_sha256"])
+        module_root = Path(b.__file__).parents[1]
+        for name in ("artifacts.py", "paths.py", "stage02/published_cohort.py"):
+            path = module_root / name
+            self.assertEqual(inputs["source_sha256"][str(path)], b.generation.file_hash(path))
         for snapshot, (_, task) in zip(inputs["worklist"], original):
             self.assertEqual(json.loads(Path(snapshot["snapshot"]).read_text()), task)
             self.assertEqual(snapshot["snapshot_sha256"], b.generation.file_hash(snapshot["snapshot"]))

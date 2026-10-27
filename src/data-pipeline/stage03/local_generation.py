@@ -8,7 +8,7 @@ and Python interruption cannot stop native loading or a stalled GPU call.
 
 from contextlib import closing
 from dataclasses import asdict
-from hashlib import sha256
+from hashlib import file_digest, sha256
 import importlib
 from importlib.metadata import version
 import json
@@ -19,7 +19,8 @@ from time import monotonic
 
 
 def file_hash(path):
-    return sha256(Path(path).read_bytes()).hexdigest()
+    with Path(path).open("rb") as stream:
+        return file_digest(stream, "sha256").hexdigest()
 
 
 def save(path, value):

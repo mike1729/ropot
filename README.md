@@ -305,6 +305,14 @@ The [2026-10-27 qualification](data/04_witness_experiments/qualification-cli-b3e
 passed all ten validity cases per auditor and matched novelty labels on all six
 valid cases. One Codex capacity failure was resumed without repeating successes.
 
+Stage 04's [v1 publication](data/04_witnesses/v1/manifest.json) contains 157 approved
+witnesses: 71 development and 86 construction. The
+[results](docs/stage-04-results.md) document 16 unresolved programs, coverage,
+effort and the publication contract. The saved-evidence
+[publisher](src/data-pipeline/stage04/witness_selection.py) exposes
+`publish(run_dirs, output_dir)`, copying exact programs/stdin and approved answers
+with hashed execution/audit provenance; existing versions are refused.
+
 Stage 05's [implant API](src/data-pipeline/stage05/attacks.py) accepts in-memory
 `(binding, task)` pairs. Each binding's private `implant` contains `candidate`,
 `program` (UTF-8 text), `stdin`, approved `answer` and `provenance`.

@@ -5,13 +5,17 @@ Consume the [published benign selection](../data/03_benigns/v1/manifest.json):
 program**. Use bounded attempts and record unresolved programs. Complete Stage 04
 before Stage 05.
 
+Completed on 2026-10-27: [v1](../data/04_witnesses/v1/manifest.json) publishes 157
+approved witnesses; 16 programs remain unresolved. See the
+[results and publication contract](stage-04-results.md) for coverage and effort.
+
 ## Three batches
 
 | Batch | Outcome |
 | --- | --- |
 | 1 | **[Generate and check proposals](stage-04-batch-01-plan.md).** Load existing programs, reuse local generation, reject duplicate inputs, and run the three references and benign on proposed witnesses to check answer agreement. Trust existing reference qualification. |
 | 2 | **[Add independent approval](stage-04-batch-02-plan.md).** Automatically run Codex/Claude CLI audits and bounded retry rounds. Save attempts, decisions and costs. |
-| 3 | **Run and publish.** Validate on development tasks, settle the recipe, process the remaining pool and publish approved witnesses with coverage, unresolved cases and effort. |
+| 3 | **[Run and publish — complete](stage-04-results.md).** Publish 71 development and 86 construction witnesses, retaining unresolved cases and cumulative effort. |
 
 Keep [existing review-size limits](AGENTS.md); split a target if necessary. Detailed
 interfaces, prompts and budgets are decided during implementation.
@@ -53,4 +57,5 @@ generation, execution and recording components; add only witness-specific pieces
 The [reclassified development record](../data/04_witness_experiments/dev-reclassified-naefy_d2/summary.json)
 has 62 execution agreements from 80 program attempts. Four program records on
 the two exhausted tasks are terminal; 14 program records remain retry candidates.
-The original runs remain unchanged. Agreement is pending independent approval.
+The original runs remain unchanged. This was the pre-audit B1 state; current
+approvals and unresolved cases are recorded in the Stage 04 results.

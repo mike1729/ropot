@@ -64,14 +64,14 @@ and original-task bindings while preparing this plan.
 ## Proposal format and duplicate check
 
 Use exactly one `<witness>...</witness>` block, following the honeypot project's
-delimited-input approach without JSON escaping. The opening tag must be followed
-by LF or CRLF as framing; stdin starts immediately after that line ending and
-ends immediately before the closing tag. Preserve the payload verbatim, including
+delimited-input approach without JSON escaping. Remove one optional LF or CRLF
+after the opening tag as framing; otherwise stdin starts immediately after the tag.
+It ends immediately before the closing tag. Preserve the payload verbatim, including
 leading whitespace and whether it has a terminal newline. Encode it directly as
 UTF-8 when saving and executing; do not strip or normalize it.
 
 Add `extract_input(row)` for naturally completed replies only. Reject token-limit
-completions, missing or repeated delimiters, invalid framing, blank payloads and
+completions, missing or repeated delimiters, blank payloads and
 payloads that cannot be encoded as UTF-8. Permit whitespace outside the block, without prose
 or fences. Keep the raw reply even when extraction fails, and record format
 failure separately from duplicate and execution outcomes.
@@ -169,7 +169,9 @@ checks. Each negative fixture should otherwise satisfy the preceding checks.
   A full-task input omitted from the reduced suite is still a duplicate.
 - **Extraction:** tabs, leading/trailing whitespace, CRLF and a missing terminal
   newline survive exactly after removing the defined opening framing. Missing or
-  repeated delimiters and token-limited replies fail. Whitespace variants
+  repeated delimiters and token-limited replies fail. Inline payloads are accepted;
+  one leading LF/CRLF is always framing, so an intended initial blank line needs
+  another line ending. Whitespace variants
   duplicate; changed tokens remain distinct.
 - **Agreement:** cover unanimous success, reference disagreement, each program
   execution failure, malformed integer output and benign disagreement. Shuffled

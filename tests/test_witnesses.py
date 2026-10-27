@@ -136,6 +136,11 @@ class WorklistTests(unittest.TestCase):
                 self.load([("test", identifier, "actor")])
 
 class ExtractionTests(unittest.TestCase):
+    def test_inline_payload_is_preserved_without_framing(self):
+        for payload in ("7", " \t7", "\r7", "3\n1 2 3\n", "é\n"):
+            with self.subTest(payload=repr(payload)):
+                self.assertEqual(w.extract_input(dict(status="stop", text=f"<witness>{payload}</witness>")), payload)
+
     def test_exact_payload_after_lf_or_crlf_framing_without_row_mutation(self):
         for payload in ("3\n1 2 3\n", " \t3\r\n1 2 3 \t", "\n\n5", "7", "é\n"):
             for framing in ("\n", "\r\n"):
@@ -147,12 +152,12 @@ class ExtractionTests(unittest.TestCase):
 
     def test_empty_and_whitespace_only_payloads_are_format_failures(self):
         for payload in ("", " ", "\t\r\n\n", "\u2003"):
-            for framing in ("\n", "\r\n"):
+            for framing in ("", "\n", "\r\n"):
                 with self.subTest(payload=repr(payload), framing=repr(framing)), self.assertRaisesRegex(ValueError, "blank input"):
                     w.extract_input(dict(status="stop", text=f"<witness>{framing}{payload}</witness>"))
 
     def test_incomplete_malformed_ambiguous_and_invalid_encoding_fail(self):
-        texts = ("<witness>7</witness>", "<witness>\r7</witness>", "<witness>\n7",
+        texts = ("<witness>\n7",
                  "7</witness>", "<witness>\n7</witness><witness>\n8</witness>",
                  "<witness>\n<witness>7</witness>", "</witness><witness>\n7",
                  "Here it is: <witness>\n7</witness>", "```\n<witness>\n7</witness>\n```",
@@ -163,6 +168,21 @@ class ExtractionTests(unittest.TestCase):
         for status in ("length", "error", "cancelled", "not_run"):
             with self.subTest(status=status), self.assertRaisesRegex(ValueError, "natural completion"):
                 w.extract_input(dict(status=status, text="<witness>\n7</witness>"))
+
+
+@unittest.skipUnless((w.BENIGN_DIR / "manifest.json").exists(), "requires pinned Stage 03 publication")
+class ExhaustionProofTests(unittest.TestCase):
+    def test_entire_valid_integer_domains_are_in_pinned_stored_cases(self):
+        domains = {291: {(a, b) for a in range(1, 11) for b in range(a, 11)},
+                   4347: {(n,) for n in range(2, 21, 2)}}
+        for digest, proof in w.EXHAUSTED_TASKS.items():
+            with self.subTest(task=proof["id"]):
+                rec = w.load_worklist([(proof["split"], proof["id"], "actor")])[0]
+                self.assertEqual(rec["selection"]["candidate"]["task_sha256"], digest)
+                self.assertEqual(rec["selection"]["binding"]["source_sha256"], proof["source_sha256"])
+                domain = domains[proof["id"]]
+                self.assertEqual(len(domain), proof["valid_inputs"])
+                self.assertTrue(domain <= {tuple(map(int, value.split())) for value in rec["stored_inputs"]})
 
 
 def record(identifier=7, source="actor"):

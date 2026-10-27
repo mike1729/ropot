@@ -257,6 +257,17 @@ class ProposalTests(unittest.TestCase):
             self.run_round()
         self.child.assert_not_called()
 
+    def test_exhausted_task_identity_fails_before_output_or_dispatch(self):
+        for digest, proof in p.witnesses.EXHAUSTED_TASKS.items():
+            candidate = self.worklist[0]["selection"]["candidate"]
+            candidate.update(id=proof["id"], task_sha256=digest)
+            with self.subTest(task=proof["id"]), self.assertRaisesRegex(ValueError, "Input domain exhausted"):
+                self.run_round()
+        self.child.assert_not_called()
+        self.assertFalse((self.root / "run").exists())
+        candidate["task_sha256"] = "a" * 64
+        self.assertEqual(self.run_round()["status"], "completed")
+
     def test_source_model_family_mismatches_fail_before_output_or_dispatch(self):
         for source, model_type in (("actor", "mistral3"), ("synthetic", "qwen3_5")):
             for item in self.worklist:

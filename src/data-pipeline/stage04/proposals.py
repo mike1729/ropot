@@ -54,6 +54,8 @@ def _prepare(worklist, output_dir, model_path, model_manifest, mlx_python, recip
     source = worklist[0]["selection"]["candidate"]["source"]
     if any(r["selection"]["candidate"]["source"] != source for r in worklist):
         raise ValueError("Require one source per run")
+    if any(r["selection"]["candidate"]["task_sha256"] in witnesses.EXHAUSTED_TASKS for r in worklist):
+        raise ValueError("Input domain exhausted; omit closed tasks from acquisition")
     draws = requests(worklist, recipe)
     directory = Path(output_dir).absolute()
     model_path, model_manifest, mlx_python = [str(Path(p).absolute()) for p in (model_path, model_manifest, mlx_python)]

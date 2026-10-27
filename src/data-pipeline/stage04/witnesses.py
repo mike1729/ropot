@@ -18,6 +18,17 @@ from ..stage03 import study_tasks
 BENIGN_DIR = ORIGINAL_DIR.parent / "03_benigns" / "v1"
 SELECTION_SHA256 = "33eea4aa0122d503b5e4b3f7bea033a5b21f9dd4adc569e1e140a50314e11ab5"
 ROLES = ("reference-0", "reference-1", "reference-2", "benign")
+# Exhaustive integer domains covered by the pinned original tasks' stored cases.
+EXHAUSTED_TASKS = {
+    "b5a58b080709c839feb589720e0311eef49949fc1f2aa8e329762a381c4a6d92": dict(
+        split="test", id=291, status="input_domain_exhausted", valid_inputs=55,
+        domain="All integer pairs (a, b) with 1 <= a <= b <= 10",
+        source_sha256="c1fc6ccb83bf49f407b54bfe7d7fb41925acff665e2195f8c6c13b4968f310f8"),
+    "3eeab0bd496c79f3238b3b0ba9e3a455a47d20d431e409664e5bb99067a863bd": dict(
+        split="test", id=4347, status="input_domain_exhausted", valid_inputs=10,
+        domain="All even integers n with 2 <= n <= 20",
+        source_sha256="e8c9b1b1a4238afcbdb785ef93275cb21b147052dc09d2033768d208fb62ed2e"),
+}
 
 
 def _read(root, relative, expected_sha256):
@@ -59,9 +70,9 @@ def load_worklist(keys, *, benign_dir=BENIGN_DIR, cohort_dir=study_tasks.OUTPUT,
 
 
 def extract_input(row):
-    """Return exact stdin inside one naturally completed, line-framed block.
+    """Return exact stdin inside one naturally completed witness block.
 
-    Only the LF or CRLF immediately after <witness> is transport syntax. Every
+    Remove one optional LF or CRLF immediately after <witness> as framing. Every
     remaining payload character, including leading/trailing whitespace, is stdin.
     """
     if row["status"] != "stop":
@@ -69,7 +80,7 @@ def extract_input(row):
     text = row["text"]
     if text.count("<witness>") != 1 or text.count("</witness>") != 1:
         raise ValueError("Require exactly one witness block")
-    match = re.fullmatch(r"\s*<witness>\r?\n(.*?)</witness>\s*", text, re.S)
+    match = re.fullmatch(r"\s*<witness>(?:\r?\n)?(.*?)</witness>\s*", text, re.S)
     if match is None or not match[1].strip():
         raise ValueError("Invalid witness framing, blank input or surrounding text")
     stdin = match[1]

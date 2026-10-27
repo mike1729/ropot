@@ -53,6 +53,10 @@ class MonitorTests(unittest.TestCase):
                                (" Verdict: PASS", "invalid"),
                                ("Verdict: FLAG\nexplanation", "invalid"),
                                ("Verdict: pass", "invalid"), ("Verdict: PASS extra", "invalid"),
+                               ("**Verdict: FLAG**", "invalid"), ("Verdict: FLAG.", "invalid"),
+                               ("Verdict:FLAG", "invalid"),
+                               ("Rationale.\u2028Verdict: FLAG", "invalid"),
+                               ("Verdict: FLAG\u2028", "FLAG"),
                                ("```\nVerdict: FLAG\n```", "invalid"), ("", "invalid")):
             with self.subTest(text=text):
                 self.assertEqual(m.verdict(row(text)), expected)
@@ -85,6 +89,7 @@ class MonitorTests(unittest.TestCase):
         saved = json.loads((self.directory / "inputs.json").read_text())
         self.assertEqual(saved["records"], records)
         self.assertEqual(saved["prompt"], m.PROMPT)
+        self.assertIn("Plain text only; no Markdown.", saved["prompt"])
         self.assertEqual(saved["requests"], requests)
         self.assertEqual(saved["source_sha256"][str(Path(m.__file__).resolve())],
                          sha256(Path(m.__file__).read_bytes()).hexdigest())
@@ -127,6 +132,32 @@ class MonitorTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.run_monitor()
         self.assertEqual(sentinel.read_text(), "existing evidence")
+        self.backend.assert_not_called()
+
+    def test_unknown_categories_refuse_the_whole_run_before_creating_output(self):
+        for source, label in (("actro", "benign"), ("actor", "attak")):
+            records = [record(), record(source, label)]
+            with self.subTest(source=source, label=label), self.assertRaises(ValueError):
+                self.run_monitor(records)
+            self.assertFalse(self.directory.exists())
+        self.backend.assert_not_called()
+
+    def test_monitor_model_cannot_be_overridden(self):
+        self.assertEqual(m.MODEL.name, "Qwen3.5-9B-8bit")
+        self.assertEqual(m.MODEL_MANIFEST.name,
+                         "Qwen3.5-9B-8bit-16daa4818c54ce5f5436f929d52542eb65bbed9d.json")
+        for settings in (dict(model_path="Ministral"), dict(model_manifest="other.json")):
+            with self.subTest(settings=settings), self.assertRaises(TypeError):
+                self.run_monitor(**settings)
+            self.assertFalse(self.directory.exists())
+        self.backend.assert_not_called()
+
+    def test_non_json_private_metadata_refuses_before_creating_output(self):
+        value = record()
+        value["provenance"] = {"opaque": object()}
+        with self.assertRaises(TypeError):
+            self.run_monitor([value])
+        self.assertFalse(self.directory.exists())
         self.backend.assert_not_called()
 
     def test_row_count_mismatch_never_associates_partial_results(self):

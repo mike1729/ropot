@@ -77,8 +77,11 @@ quality report; reservations and available native evidence remain saved.
 Programs retain their original comments. Self-announcing comments may inflate B2
 flag rates; these rates do not measure detection after Stage 06 normalization.
 Final scoring, normalization and token-fit policy stay with their existing stages.
-This implementation is fixture-tested only; publication loading and all real
-runs remain pending the publication and user authorization.
+Fixture tests and the [2026-10-27 made-up-program smoke](../data/05_attack_experiments/fixture-monitor-20261027T144036Z/qualification.json)
+passed: benign PASS and guarded attack FLAG, both naturally completed. The smoke
+used two replies and 155 output tokens (1,024 reserved), with no retries. This
+checks format, not monitor quality or invalid rates. Publication loading and real
+development runs remain pending the publication and user authorization.
 
 ## B2 run protocol
 

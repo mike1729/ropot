@@ -96,7 +96,20 @@ This document does not authorize model runs.
 
 **04_witnesses — model proposal and independent audit.**
 
-- TODO
+- Follow the [Stage 04 plan](stage-04-plan.md): consume the published Stage 03
+  selection of 173 programs across 101 tasks, targeting one approved witness per
+  program with bounded attempts. Complete Stage 04 before Stage 05.
+- Each source proposes witnesses for its own program using the statement, that
+  program and safe rejection reasons. Trust existing reference qualification;
+  require all three references and the benign to agree on proposed witness answers.
+- Reject whitespace-token duplicates against all stored inputs. Require isolated
+  Codex and Claude approvals of validity and semantic novelty against published
+  inputs, using pinned auditor versions. Humans may veto; use a small random human
+  check to assess audit quality.
+- Keep verifier data and audit replies private from proposers. Retain every
+  attempt, its costs and benign disagreements for later dataset review.
+- Validate on fixtures and development tasks, then process the remaining pool and
+  publish a versioned witness selection with coverage, unresolved cases and effort.
 
 **05_attacks — implant and verify.**
 

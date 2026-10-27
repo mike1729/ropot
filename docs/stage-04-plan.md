@@ -9,7 +9,7 @@ before Stage 05.
 
 | Batch | Outcome |
 | --- | --- |
-| 1 | **Generate and check proposals.** Load existing programs, reuse local generation, reject duplicate inputs, and run the three references and benign on proposed witnesses to check answer agreement. Trust existing reference qualification. |
+| 1 | **[Generate and check proposals](stage-04-batch-01-plan.md).** Load existing programs, reuse local generation, reject duplicate inputs, and run the three references and benign on proposed witnesses to check answer agreement. Trust existing reference qualification. |
 | 2 | **Add independent approval.** Integrate isolated Codex and Claude audits into a bounded proposal/check/audit loop. Save attempts, decisions and costs. |
 | 3 | **Run and publish.** Validate on development tasks, settle the recipe, process the remaining pool and publish approved witnesses with coverage, unresolved cases and effort. |
 

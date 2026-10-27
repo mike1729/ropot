@@ -315,7 +315,10 @@ Run its made-up-task smoke with:
 ROPOT_ATTACK_TESTS=1 .venv/bin/python -m unittest tests.test_attacks_live -v
 ```
 
-Publication loading and development monitoring belong to B2.
+The provisional [B2 monitor](src/data-pipeline/stage05/monitor.py) scores in-memory
+records through the existing MLX Python; see its [contract](docs/stage-05-plan.md#provisional-monitor-runner).
+Publication loading and real runs await Stage 04's development publication and
+explicit user authorization.
 
 The [acquisition API](src/data-pipeline/stage04/acquisition.py) provides bounded
 `acquire(...)` runs with explicit candidate scope, qualification, model/runtime

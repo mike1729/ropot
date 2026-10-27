@@ -4,6 +4,7 @@ Call summarize(root) on immediate NNNN-lowercase-hyphenated experiment directori
 Save its JSON-serializable result outside root. See docs/stage-03-batch-08-plan.md.
 """
 from collections import Counter
+from hashlib import sha256
 import json
 from pathlib import Path
 import re
@@ -18,17 +19,18 @@ NAME = re.compile(r"([0-9]{4})-[a-z0-9]+(?:-[a-z0-9]+)*")
 
 def read_record(path, problems):
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        raw = path.read_bytes()
+        value = json.loads(raw.decode("utf-8"))
         if not isinstance(value, dict):
             raise ValueError("Expected a JSON object")
         json.dumps(value, allow_nan=False)
-        return value, False
+        return value, False, sha256(raw).hexdigest()
     except FileNotFoundError:
         problems.append(dict(file=path.name, error="absent"))
-        return None, True
+        return None, True, None
     except (OSError, ValueError, RecursionError) as error:
         problems.append(dict(file=path.name, error=str(error)))
-        return None, False
+        return None, False, None
 
 
 def aggregate(values, exact):
@@ -52,8 +54,8 @@ def summarize(root):
     experiments, cells, provenance, cohorts = [], {}, set(), set()
     for directory in directories:
         problems = []
-        inputs, _ = read_record(directory / "inputs.json", problems)
-        outcome, absent = read_record(directory / "outcome.json", problems)
+        inputs, _, inputs_sha256 = read_record(directory / "inputs.json", problems)
+        outcome, absent, outcome_sha256 = read_record(directory / "outcome.json", problems)
         if absent and (directory / "round-0000.json").exists():
             problems.append(dict(file="outcome.json", error="Absent despite saved round-0000.json; effort unknown"))
             absent = False
@@ -97,6 +99,8 @@ def summarize(root):
         record = {k: inputs.get(k) for k in ("source", "fixtures", "cohort_sha256", "recipe",
                   "model_path", "model_manifest", "model_manifest_sha256")}
         record.update(experiment=directory.name, status="not_run" if absent else data["status"] if outcome_ok else "unresolved",
+            inputs_sha256=inputs_sha256, outcome_sha256=outcome_sha256,
+            attempt_count=len(data["attempts"]) if outcome_ok else None,
             terminal=terminal, worklist_size=len(worklist) if input_ok else None, counters=counters, timing=timing,
             usage_complete=True if absent else data.get("usage_complete"),
             observations="final" if terminal or absent else "snapshot/lower_bound",

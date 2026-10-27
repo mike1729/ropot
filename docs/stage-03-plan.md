@@ -5,8 +5,11 @@ from the actor and synthetic generator. Use it to improve prompts and scaffoldin
 measure yield and cost, and supply candidates for witness and attack experiments.
 
 
-Stage 03 remains exploratory. Prompts, scaffolding, sampling, extraction, repair
-strategies and budgets can evolve throughout the stage. 
+Stage 03 is complete, with `data/03_benigns/v1/manifest.json` published for Stage 04.
+[Batch 10](stage-03-batch-10-plan.md) closes the additional experiments,
+versioned selection and archival work; see the
+[experiment summary](stage-03-results.md) for measured results and limitations.
+The design below records the stage's original experimental scope.
 
 ## Starting point
 
@@ -52,6 +55,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 | 7b | Add bounded repair rounds and feedback rendering to 7a, then qualify the full loop on fabricated tasks; see the [Batch 7 plan](stage-03-batch-07-plan.md). Require explicit repair limits, retain every attempt and keep technical retries off. Add no generation wall-time limits; verification retains its per-case timeout. Stop for review before overlap or acquisition. |
 | 8 | Scan numbered experiment directories and summarize the coordinator's saved worklists, verdicts, statuses and cumulative effort for Batch 9; see the [Batch 8 plan](stage-03-batch-08-plan.md). Trust recorded JSON without re-verifying execution or changing the coordinator. Report damaged runs without dropping their unknown cost. Selection/publication waits for its consuming stage; recovery/continuation remains deferred. |
 | 9 | Size complete prompts offline and prepare a small caller, leaving pipeline code unchanged; see the [Batch 9 plan](stage-03-batch-09-plan.md). Review and commit the caller and proposed Batch 7b gate-test revision before dispatch. After repair qualification, run one bounded baseline on the same eight development tasks per source and summarize it with Batch 8. Stop with results and a next-experiment recommendation; further recipes and construction wait. |
+| 10 | Close Stage 03 after the additional experiments: summarize measured outcomes, publish the versioned benign selection for Stage 04 and archive one-off code and plans; see the [Batch 10 closeout](stage-03-batch-10-plan.md) and [experiment summary](stage-03-results.md). |
 
 Batch 6 supplies the reusable prerequisites; the coalesced verifier already exists.
 Keep the first development baseline sequential. Add generation/verification
@@ -194,9 +198,10 @@ the recipe only for that confirmation block; experimentation remains open.
 Development smoke candidates can join the later panel if they meet its eventual
 selection criteria; report their experimental history.
 
-Preserve the remaining development IDs for the pilot's training comparisons and
-track feasibility of its requirement for at least 20 fully matched development
-tasks. Check the selected model's training/probe compatibility before investing in
+All 50 development IDs have now been used by the Batch 9 runs; record their
+experimental history for the pilot's training comparisons. They cannot serve as
+fresh confirmation tasks. Track feasibility of the pilot's requirement for at
+least 20 fully matched development tasks. Check the selected model's training/probe compatibility before investing in
 the construction probe. Use witness, attack and final-fit results from Stages 04–06
 to assess usable-task yield; benign yield alone cannot establish that feasibility.
 

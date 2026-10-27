@@ -262,6 +262,14 @@ The [experiment summary](src/data-pipeline/stage03/experiment_summary.py) reads 
 numbered experiments' coordinator JSON. Call `summarize(root)` for recorded states,
 histories and cumulative effort; see the [Batch 8 plan](docs/stage-03-batch-08-plan.md).
 
+[Stage 03 results](docs/stage-03-results.md) close Batch 10, including additional
+confirmation and rescue experiments. The saved-evidence
+[publisher](src/data-pipeline/stage03/benign_selection.py) exposes
+`publish("data/03_benign_experiments", "v1")`: it copies the first verified pass
+per task/source into a new version and returns its manifest for Stage 04.
+Existing versions are refused. Historical callers live in the
+[archive](archive/stage03/README.md).
+
 The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
 MLX settings, scheduling and extraction gains, capacity limits, and the archive
 branch containing the one-off benchmark tools and detailed reports. The current

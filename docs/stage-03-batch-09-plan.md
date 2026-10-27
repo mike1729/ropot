@@ -12,7 +12,7 @@ review and 400-line count.
 
 Use one review batch on `main`, within 400 additions plus deletions excluding
 tests, including documentation, under [the repository rules](AGENTS.md).
-Prepare the small caller at `experiments/batch09_development.py`, sizing record
+Prepare the small caller at `archive/stage03/experiments/batch09_development.py`, sizing record
 and proposed gate-test revision below. Stop for review before dispatch; commit
 the reviewed caller and test revision before live dispatch. Run the repository
 suite after the test revision; report tests and generated evidence separately.
@@ -102,7 +102,7 @@ alone establish neither attack yield nor fully matched development-panel feasibi
 
 ## Preparation and validation — 2026-10-26
 
-The [caller](../experiments/batch09_development.py) exposes `measure(new_directory)`
+The [caller](../archive/stage03/experiments/batch09_development.py) exposes `measure(new_directory)`
 in the pinned MLX Python and `run(gate_directory)` in repository Python. Measurement
 loads tokenizers only. The baseline caller checks a passing, unchanged-source
 two-model gate, continues numbered experiment order, stops before the second

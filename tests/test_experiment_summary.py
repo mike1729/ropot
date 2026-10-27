@@ -33,12 +33,12 @@ class ExperimentSummaryTests(initial.LoopFixture):
         (directory / name).write_text(json.dumps(value))
 
     def summary(self):
-        original = Path.read_text
+        original = Path.read_bytes
         def only_coordinator_json(path, *args, **kwargs):
             self.assertIn(path.name, ("inputs.json", "outcome.json"))
             self.assertEqual(path.parent.parent, self.experiments)
             return original(path, *args, **kwargs)
-        with mock.patch.object(Path, "read_text", only_coordinator_json), \
+        with mock.patch.object(Path, "read_bytes", only_coordinator_json), \
              mock.patch.object(subprocess, "run", side_effect=AssertionError("dispatch forbidden")):
             result = s.summarize(self.experiments)
         json.dumps(result, allow_nan=False)
@@ -61,6 +61,9 @@ class ExperimentSummaryTests(initial.LoopFixture):
             self.assertEqual(experiment["worklist_size"], 2)
             self.assertEqual(experiment["recipe"], self.recipe)
             self.assertEqual(experiment["model_manifest_sha256"], initial.b.generation.file_hash(self.manifest))
+            for name in ("inputs", "outcome"):
+                self.assertEqual(experiment[name + "_sha256"],
+                                 initial.b.generation.file_hash(self.experiments / experiment["experiment"] / (name + ".json")))
         totals = result["totals"]
         for key, expected in (("committed_replies", 4), ("committed_tokens", 64),
                               ("known_submissions", 4), ("observed_tokens", 8)):
@@ -188,12 +191,12 @@ class ExperimentSummaryTests(initial.LoopFixture):
     def test_unreadable_outcome_is_unknown_and_does_not_hide_healthy_work(self):
         self.make("0001-good")
         broken = self.make("0002-unreadable")
-        original = Path.read_text
+        original = Path.read_bytes
         def unreadable(path, *args, **kwargs):
             if path == broken / "outcome.json":
                 raise PermissionError("fixture permission failure")
             return original(path, *args, **kwargs)
-        with mock.patch.object(Path, "read_text", unreadable):
+        with mock.patch.object(Path, "read_bytes", unreadable):
             result = s.summarize(self.experiments)
         metric = result["totals"]["committed_tokens"]
         self.assertIsNone(metric["recorded_total"])

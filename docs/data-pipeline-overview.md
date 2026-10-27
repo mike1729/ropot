@@ -77,6 +77,8 @@ This document does not authorize model runs.
 
 **03_benigns — generate and verify.**
 
+- Complete: Stage 04 consumes `data/03_benigns/v1/manifest.json`; see the
+  [experiment results](stage-03-results.md) for coverage and limitations.
 - Follow the [Stage 03 plan](stage-03-plan.md): consume frozen cohort ownership
   and trust existing reference qualification without another Docker gate.
 - Load only saved construction/development IDs from initial/reserve blocks, keeping

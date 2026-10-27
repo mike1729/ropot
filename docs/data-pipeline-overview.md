@@ -104,8 +104,8 @@ This document does not authorize model runs.
   require all three references and the benign to agree on proposed witness answers.
 - Reject whitespace-token duplicates against all stored inputs. Require isolated
   Codex and Claude approvals of validity and semantic novelty against published
-  inputs, using pinned auditor versions. Humans may veto; use a small random human
-  check to assess audit quality.
+  inputs, using pinned auditor versions and automatic CLI dispatch. Humans may
+  veto; report auditor disagreement without treating agreement as correctness.
 - Keep verifier data and audit replies private from proposers. Retain every
   attempt, its costs and benign disagreements for later dataset review.
 - Validate on fixtures and development tasks, then process the remaining pool and

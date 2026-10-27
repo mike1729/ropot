@@ -1,8 +1,8 @@
-# Stage 04, Batch 2: audit files and explicit retry rounds
+# Stage 04, Batch 2: automatic CLI audits and bounded retries
 
-Reuse Batch 1's one-round generator/checker. Add audit files, a decision reader
-and an explicit next-round function. Start from `8215122`: optional witness
-framing and exhausted-task refusal already exist. The reclassified development
+Reuse Batch 1's one-round generator/checker. Add automatic Codex/Claude CLI
+audits and a bounded loop using the existing logins. Start from `8215122`: optional
+witness framing and exhausted-task refusal already exist. The reclassified development
 record has 62 agreements, four exhausted selections and 14 replacement candidates.
 Agreement still requires independent approval.
 
@@ -10,57 +10,65 @@ Use one novelty rule: **a new concrete instance**, neither a published input nor
 a trivial reordering, relabeling, equivalent representation or other symmetry.
 Keep three submitted or possibly submitted proposals per program, including B1.
 
-## Part 1: audit files and qualification
+## Part 1: automatic CLI audits and qualification
 
-Add a small `stage04.audits` module with `export(...)` and `decide(...)`. A shared
-renderer accepts statement, exact stdin, reduced published inputs and the fixed
-rubric. Acquisition callers export only execution agreements; qualification
+Add a small `stage04.audits` module with `run(...)`, `dispatch(...)` and `decide(...)`.
+A shared renderer accepts statement, exact stdin, reduced published inputs and the fixed
+rubric. Acquisition callers require execution agreement; qualification
 fixtures use the renderer directly.
 
 - Export packets under random IDs, showing stdin verbatim and JSON-escaped.
-  Keep private ID-to-program/attempt bindings outside the dispatch folder.
+  Keep private ID-to-program/attempt bindings out of prompts.
 - Exclude task identity, source, round, programs, verification evidence, gold
   labels and other auditor replies from packets.
-- The operator dispatches Codex and Claude independently and saves raw JSON
-  replies. Save exact prompts and one dispatch record per auditor/batch containing
-  pinned model version, settings, dispatch method and isolation confirmation.
-  Missing usage is unknown, never zero.
-- `decide` rereads saved replies and optional human veto/unavailable records.
-  Both auditors must approve validity and novelty. Any rejection, uncertainty or
-  veto settles the attempt as not approved; other replies become optional.
-- Missing/malformed replies remain pending. Unavailable audits leave the program
-  unresolved rather than generating another input to address auditor availability.
-  Preserve malformed evidence and obtain a fresh reply for correction.
-- Never overwrite saved evidence. Reading the files again cannot double-count
-  decisions. No import lifecycle or persistent audit state is needed.
+- Dispatch fresh noninteractive sessions in empty temporary directories outside
+  the repo. Both use a neutral base prompt, no tools, no history and JSON schemas.
+  Claude uses safe mode and strict MCP configuration; Codex ignores config/rules,
+  disables project documents, shell tools, apps/plugins and multi-agent tools.
+- Save exact prompts/commands, CLI versions, requested models, effort, raw replies,
+  exit status, elapsed time and available usage. Unknown usage stays unknown.
+  Choose low effort for the initial screen; qualification checks this setting.
+- Reserve each invocation against a saved allowance. Reruns skip successes.
+  Two unusable replies per packet/auditor make it audit-unavailable. Technical
+  errors, usage limits, timeouts and interrupts stop the invocation, consume only
+  the overall allowance, and leave it pending; no technical retries within a run.
+- `decide` rereads saved replies and optional human vetoes. Both auditors must
+  approve validity and novelty. Rejection, uncertainty or veto rejects the input.
+  Unavailable audits leave the program unresolved; other missing audits are pending.
+- Never overwrite saved evidence. No imports, handoffs or attestations are needed.
+  CLI limits cap invocations, not hidden provider requests or tokens. The returned
+  Codex model is unavailable; record its requested ID. Fabricated probes passed
+  for both CLIs, including a global-instruction canary; CLI isolation has limits.
 
 Qualification uses ten human-reviewed cases: for each of distinctness,
 connectivity and guaranteed solution existence, one published valid input, one
 new valid input and one subtle invalid input; add the existing real task-1179
 bound violation. Use fabricated problems for the three families. Gold labels
-and reasons stay private and require human review before dispatch. Invalid
+and reasons stay private and are checked in the ordinary Part 1 review. Invalid
 fixtures need not pass execution agreement.
 
-Use the same prompt for both auditors: twenty sessions. Every validity judgment
-must be correct; uncertainty fails. Report novelty separately for valid cases.
+Use the same packet for both auditors: twenty automatic CLI calls. Every validity
+judgment must be correct; uncertainty fails. Report novelty separately for valid cases.
 Preserve failed screens and prompt-fix reruns as tuning evidence. This is a
-sanity screen, not an accuracy estimate; B3's random human check measures quality
-on real tasks. Qualification exercises real export/dispatch/decision reading;
+sanity screen, not an accuracy estimate. Require the complete frozen fixture set
+and one CLI version and implementation digest per auditor before passing;
 there is no additional live workflow pilot.
 
-## Part 2: explicit retry rounds
+## Part 2: one automatic acquisition command per source
 
 Keep `proposals.run()` as the executor, with optional per-program earlier turns,
 previous inputs and seeds. Preserve the existing API defaults.
 
-`next_round(...)` derives eligible programs from saved generation/audit records:
+`acquire(...)` derives eligible programs from saved records and loops generation,
+checking and audits. Rerunning resumes from those files:
 
 - Identify programs by full candidate identity, not local attempt numbers or
   seeds: these repeat between B1 smoke and remaining runs.
 - Count submitted and possibly submitted attempts across all referenced rounds.
   Preserve known-unstarted outcomes and reservation accounting separately.
 - Stop after approval, domain exhaustion or three attempts. Select rejected
-  programs with attempts left; pending programs do not block other programs.
+  programs with attempts left. Technical audit failures require another audit,
+  not a replacement input; stop with evidence preserved.
 - Append only the program's own prior replies and fixed feedback. Reject
   whitespace-token repeats against its earlier inputs and all original stored
   inputs before execution.
@@ -76,18 +84,18 @@ previous inputs and seeds. Preserve the existing API defaults.
 | Validity not approved | `The input was not approved as valid. Propose a different input.` |
 | Duplicate, repeat, novelty rejection or veto | `Propose a different input.` |
 
-Each invocation uses a fresh directory and records its selected programs and
+Each fresh round uses a new directory and records its selected programs and
 earlier round references/hashes before generation. The latest immutable round
 record supplies the complete history; reference pinned B1 outcomes directly.
 Technical failures stop with evidence preserved. A later invocation references
-the failed round and counts uncertain submissions; no automatic recovery.
+the failed round and counts uncertain submissions. Do not regenerate B1 agreements.
 
 Assume one operator using the latest complete history. Add no coordinator,
-registry, locks, call journal, code-change guards or resume protocol.
+registry, locks or general recovery framework.
 
 ## Review and validation
 
-Target about 200–350 changed production/documentation lines in two parts, each
+Two review parts: CLI audits/qualification, then acquisition/retries, each
 within 400 additions plus deletions, excluding tests. Report tests and
 hand-authored qualification data separately. Work on main and stop after each
 part for review; commit reviewed work when requested.
@@ -98,6 +106,8 @@ counting, B1 identity collisions, asynchronous eligibility, stable seeds, repeat
 rejection before execution and three-attempt accounting across failed rounds.
 
 B3 performs development acquisition and publication, retaining all B1 effort,
-including exhausted selections, and freezes human sampling before acquisition.
+including exhausted selections. Report validity/novelty disagreement, without
+treating agreement as correctness. Human sampling is optional; no full-pool run
+is authorized by this plan.
 Late vetoes revoke approval and leave the program unresolved. Benign-disagreement
 reviews reuse the qualified prompt and ignore novelty for Stage 06 adjudication.

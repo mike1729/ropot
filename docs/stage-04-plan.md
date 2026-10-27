@@ -10,7 +10,7 @@ before Stage 05.
 | Batch | Outcome |
 | --- | --- |
 | 1 | **[Generate and check proposals](stage-04-batch-01-plan.md).** Load existing programs, reuse local generation, reject duplicate inputs, and run the three references and benign on proposed witnesses to check answer agreement. Trust existing reference qualification. |
-| 2 | **[Add independent approval](stage-04-batch-02-plan.md).** Use manual Codex/Claude audit files and explicit bounded retry rounds. Save attempts, decisions and costs. |
+| 2 | **[Add independent approval](stage-04-batch-02-plan.md).** Automatically run Codex/Claude CLI audits and bounded retry rounds. Save attempts, decisions and costs. |
 | 3 | **Run and publish.** Validate on development tasks, settle the recipe, process the remaining pool and publish approved witnesses with coverage, unresolved cases and effort. |
 
 Keep [existing review-size limits](AGENTS.md); split a target if necessary. Detailed
@@ -33,8 +33,8 @@ interfaces, prompts and budgets are decided during implementation.
   cases cover all 55 valid integer pairs and all 10 valid even integers,
   respectively. Acquisition refuses these task identities before dispatch.
   Repeated duplicates on other tasks are a reason to inspect, not proof of exhaustion.
-- Humans may veto. Use a small random human check of approved witnesses to assess
-  audit quality, with the sampling rule fixed before acquisition.
+- Humans may veto. Report auditor agreement/disagreement separately for validity
+  and novelty; agreement is not an accuracy estimate. No human sampling is required.
 
 ## Validation
 

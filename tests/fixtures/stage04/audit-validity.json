@@ -1,6 +1,105 @@
 {
   "cases": [
     {
+      "case_id": "fabricated-distinct-published",
+      "statement": "Read n (1 <= n <= 6), followed by exactly n integers in [-9,9]. All n integers are guaranteed distinct. Print their sum.",
+      "stdin": "3\n1 2 4\n",
+      "published_inputs": [
+        "3\n1 2 4\n"
+      ],
+      "expected_valid": true,
+      "expected_novel": false,
+      "reason": "This published input satisfies every stated constraint."
+    },
+    {
+      "case_id": "fabricated-distinct-new",
+      "statement": "Read n (1 <= n <= 6), followed by exactly n integers in [-9,9]. All n integers are guaranteed distinct. Print their sum.",
+      "stdin": "3\n1 2 5\n",
+      "published_inputs": [
+        "3\n1 2 4\n"
+      ],
+      "expected_valid": true,
+      "expected_novel": true,
+      "reason": "This new valid instance changes values or structure, beyond a trivial symmetry."
+    },
+    {
+      "case_id": "fabricated-distinct-invalid",
+      "statement": "Read n (1 <= n <= 6), followed by exactly n integers in [-9,9]. All n integers are guaranteed distinct. Print their sum.",
+      "stdin": "6\n1 -3 7 4 -2 1\n",
+      "published_inputs": [
+        "3\n1 2 4\n"
+      ],
+      "expected_valid": false,
+      "expected_novel": null,
+      "reason": "The first and last values are both 1, violating distinctness."
+    },
+    {
+      "case_id": "fabricated-connected-published",
+      "statement": "Read n and m (2 <= n <= 5, 1 <= m <= n*(n-1)/2), then m lines u v w. Vertices are numbered 1 through n; 1 <= w <= 9. The undirected graph has no self-loops or repeated edges and is guaranteed connected. Print the sum of its edge weights.",
+      "stdin": "3 2\n1 2 3\n2 3 4\n",
+      "published_inputs": [
+        "3 2\n1 2 3\n2 3 4\n"
+      ],
+      "expected_valid": true,
+      "expected_novel": false,
+      "reason": "This published input satisfies every stated constraint."
+    },
+    {
+      "case_id": "fabricated-connected-new",
+      "statement": "Read n and m (2 <= n <= 5, 1 <= m <= n*(n-1)/2), then m lines u v w. Vertices are numbered 1 through n; 1 <= w <= 9. The undirected graph has no self-loops or repeated edges and is guaranteed connected. Print the sum of its edge weights.",
+      "stdin": "3 3\n1 2 3\n2 3 4\n1 3 5\n",
+      "published_inputs": [
+        "3 2\n1 2 3\n2 3 4\n"
+      ],
+      "expected_valid": true,
+      "expected_novel": true,
+      "reason": "This new valid instance changes values or structure, beyond a trivial symmetry."
+    },
+    {
+      "case_id": "fabricated-connected-invalid",
+      "statement": "Read n and m (2 <= n <= 5, 1 <= m <= n*(n-1)/2), then m lines u v w. Vertices are numbered 1 through n; 1 <= w <= 9. The undirected graph has no self-loops or repeated edges and is guaranteed connected. Print the sum of its edge weights.",
+      "stdin": "4 3\n1 2 3\n2 3 4\n1 3 5\n",
+      "published_inputs": [
+        "3 2\n1 2 3\n2 3 4\n"
+      ],
+      "expected_valid": false,
+      "expected_novel": null,
+      "reason": "The triangle on vertices 1,2,3 leaves vertex 4 isolated, despite m=n-1."
+    },
+    {
+      "case_id": "fabricated-solution-published",
+      "statement": "Read n (2 <= n <= 6), followed by exactly n integers in [-9,9]. At least one pair of different indices is guaranteed to have values adding to zero. Print the number of unordered pairs of different indices whose values add to zero.",
+      "stdin": "3\n-2 2 5\n",
+      "published_inputs": [
+        "3\n-2 2 5\n"
+      ],
+      "expected_valid": true,
+      "expected_novel": false,
+      "reason": "This published input satisfies every stated constraint."
+    },
+    {
+      "case_id": "fabricated-solution-new",
+      "statement": "Read n (2 <= n <= 6), followed by exactly n integers in [-9,9]. At least one pair of different indices is guaranteed to have values adding to zero. Print the number of unordered pairs of different indices whose values add to zero.",
+      "stdin": "4\n-2 2 5 -5\n",
+      "published_inputs": [
+        "3\n-2 2 5\n"
+      ],
+      "expected_valid": true,
+      "expected_novel": true,
+      "reason": "This new valid instance changes values or structure, beyond a trivial symmetry."
+    },
+    {
+      "case_id": "fabricated-solution-invalid",
+      "statement": "Read n (2 <= n <= 6), followed by exactly n integers in [-9,9]. At least one pair of different indices is guaranteed to have values adding to zero. Print the number of unordered pairs of different indices whose values add to zero.",
+      "stdin": "3\n-3 2 5\n",
+      "published_inputs": [
+        "3\n-2 2 5\n"
+      ],
+      "expected_valid": false,
+      "expected_novel": null,
+      "reason": "The near-miss values -3 and 2 do not sum to zero; no other pair does either."
+    },
+    {
       "case_id": "dev-1179-k-exceeds-triangular-bound",
       "kind": "validity",
       "split": "test",
@@ -39,5 +138,6 @@
       },
       "execution_note": "All four programs completed; one emitted no integer, and the others disagreed. Completion does not establish validity."
     }
-  ]
+  ],
+  "review_status": "awaiting_human_review"
 }

@@ -294,3 +294,7 @@ tokens; pass `recipe` to override it. Witness instructions follow the statement
 and program in the user message, with a neutral system message.
 It uses one generation child, then checks extracted inputs and records every
 attempt without retries. Call `run(..., fixtures=True)` for fabricated tasks.
+
+Stage 04 uses automatic Codex/Claude CLI audits through existing logins.
+`stage04.audits.qualify(output_dir)` runs qualification; `dispatch(output_dir)` reruns a stopped batch.
+See the [Batch 2 plan](docs/stage-04-batch-02-plan.md); full live qualification is unrun.

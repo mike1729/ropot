@@ -3,6 +3,9 @@
 Published **157 approved program–witness pairs** from the 173 pinned Stage 03
 programs, covering 95 of their 101 tasks. Development and construction are complete
 under the three-proposal cap. Sixteen programs remain unresolved.
+Subsequent adjudication confirmed one faulty benign (synthetic task 4015), leaving
+**156 usable pairs**. Downstream attack acquisition and final export must exclude
+that candidate; the immutable v1 publication retains its original 157 records.
 
 The local publication is [data/04_witnesses/v1/manifest.json](../data/04_witnesses/v1/manifest.json),
 with SHA-256 `82e6fe22ef46a7a8c848b6a2ac5a7b1c1c70d6bf483b08067025a7ee30bf9506`.
@@ -68,10 +71,36 @@ models, low effort and 180-second timeout. Requested models were `gpt-6.1-sol`
 and `claude-sonnet-5-5`; observed CLI versions stayed at `codex-cli 0.164.0` and
 `2.1.309 (Claude Code)`. No version drift or technical acquisition failure occurred.
 
-Synthetic task 4015 has two retained benign disagreements on other proposed
-inputs. Their validity has not been independently adjudicated. Its separately
-approved witness remains selected with `unadjudicated_benign_disagreement` in
-`flags`; the report links both findings for later review.
+### Task 4015 adjudication
+
+Four additional automatic CLI calls used the unchanged qualified prompt, models,
+low effort, executables and 180-second timeout. Both auditors approved validity
+on both disputed inputs; novelty was ignored for this decision. All four calls
+succeeded without retries, CLI version drift or flag differences from qualification
+(temporary directory and output paths excluded from the comparison).
+
+| Input | Ratio m/n | Reference outputs | Benign output |
+| --- | --- | --- | --- |
+| `100 30000` | 300 = 2² × 3 × 5² | `-1`, `-1`, `-1` | `3` |
+| `15 1350` | 90 = 2 × 3² × 5 | `-1`, `-1`, `-1` | `3` |
+
+Both satisfy `1 <= n <= m <= 500000000`. Multiplication by 2 and 3 cannot introduce
+a factor of 5 into the ratio, establishing that both correct answers are `-1`.
+The saved execution evidence therefore demonstrates a faulty benign independently
+of the auditors' agreement. Exclude the candidate with split `test`, ID `4015`,
+source `synthetic`, task SHA-256
+`369b6632cc3f04e0b1deb23c11c8dfa151d87b7a3d78826d483fa28ef0d95b5b`
+and program SHA-256
+`fb0855475f464a8b95cb030f68331426432ec435bd743352c618b070d6e682d5`.
+Its separately approved witness does not repair this benign defect.
+
+The [adjudication summary](../data/04_witness_experiments/adjudication-4015-20261027/summary.json)
+pins the caller, prompts, four call records, original evidence bindings and
+[raw results](../data/04_witness_experiments/adjudication-4015-20261027/results.json).
+Summary SHA-256: `aee6772e570803c0593f62448f2e3bddf7ffbc885a82c4825cb36740363dfa52`.
+The v1 manifest/report and their historical `unadjudicated_benign_disagreement`
+flag remain unchanged; this adjudication supersedes that flag. No Stage 05 code,
+configuration or artifacts were modified, so consumers must apply this exclusion.
 
 ## Publication contract and checks
 
@@ -94,6 +123,16 @@ The publication contains 157 program files and 157 exact-input files, plus
 bytes; inputs use 2,244 bytes. Native evidence remains at its original paths;
 `evidence_sha256` pins it, including audit records, native logs and qualification.
 The manifest also records publisher/reader source hashes and acquisition outcomes.
+The publisher was committed unchanged in `91418a1`, with SHA-256
+`51964f39804b86baf11c9ed64df12da561de0e7ba55f1c7d7801c35874b30caf`,
+matching v1. Publisher changes require a new publication version.
+
+Known v1 limitations: external evidence paths are absolute and require the original
+workspace layout; copied program/input paths are relative. Its source hashes omit
+the imported `artifacts.py`; supplemental adjudication provenance records its
+current hash, `592bc430dd400c3082a747cb6bcb17b8ee9340a452c9089edef184bd5315376f`,
+which does not retrospectively prove its publication-time bytes. A late veto is
+reported as `eligible` rather than explicitly revoked; no vetoes occurred in v1.
 
 Seven publisher tests cover exact bytes, current vetoes, scope/fixture refusal,
 audit setup, contradictory execution evidence, overwrite refusal and failed-copy

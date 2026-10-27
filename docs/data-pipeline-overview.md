@@ -96,6 +96,9 @@ This document does not authorize model runs.
 
 **04_witnesses — model proposal and independent audit.**
 
+- Complete: Stage 05 consumes `data/04_witnesses/v1/manifest.json`, excluding the
+  confirmed faulty synthetic task 4015 pair; see the
+  [experiment results](stage-04-results.md) for coverage and adjudication.
 - Follow the [Stage 04 plan](stage-04-plan.md): consume the published Stage 03
   selection of 173 programs across 101 tasks, targeting one approved witness per
   program with bounded attempts. Complete Stage 04 before Stage 05.

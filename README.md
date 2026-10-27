@@ -14,6 +14,7 @@ The implementation follows the pipeline stages:
 - `stage01`: download, screen, qualify, analyze and export the test pool.
 - `stage02`: track known use, allocate cohorts and publish frozen groups.
 - `stage03`: load study tasks and verify programs through Inspect.
+- `stage04`: load selected benigns and check proposed witness inputs.
 
 The root package provides the CLI and source provenance hashing. New manifests
 record source hashes by package-relative path (for example, `stage01/qualify.py`).
@@ -278,3 +279,10 @@ generation adapter provides native batching and Python extraction. The
 at decode 8 and 32 for both models, with all 80 generated programs verified.
 Actual witness/backdoor yield follows the
 [remaining plan](docs/inference-benchmark-plan.md).
+
+Stage 04's [supplied-input API](src/data-pipeline/stage04/witnesses.py) loads
+selected programs with `load_worklist(keys)` and extracts exact stdin with
+`extract_input(row)`. `check_many(proposals, log_dir)` rejects stored-input
+duplicates, then checks three references and the benign in one Inspect/Docker
+evaluation per round. Results are private; agreement needs independent approval.
+See the [Batch 1 plan](docs/stage-04-batch-01-plan.md) for contracts and validation.

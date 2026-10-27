@@ -40,20 +40,22 @@ an explicit ordered list of `(split, id, source)` selection keys and returns pla
 records containing the selection, reduced task, full stored inputs and exact
 program bytes. Refuse duplicate or unselected keys. Load only requested tasks.
 
-- Check the selection manifest pin and its cohort digest. Reuse
-  `stage03.study_tasks.load_cohort/load_task`; require the selection binding to
-  match the saved cohort binding. This retains construction/development access
-  restrictions and the existing reduced-task digest checks.
-- Resolve each selected program inside the benign publication directory. Check
-  its bytes against `program_sha256` and its saved candidate identity, using
-  `study_tasks.candidate_identity`.
+- Check the selection manifest pin and reuse
+  `stage03.study_tasks.load_cohort/load_task` for the pinned cohort, restricted
+  membership and reduced-task digest checks. Trust the bindings, candidate
+  identities and qualification metadata validated when these publications froze.
+- Read each selected program and check its bytes against `program_sha256`.
 - Read the corresponding full task from `data/01_test_pool/<binding.path>` with
-  path containment and `binding.source_sha256` verification. Use every input in
-  its `cases` for duplicate checks. The digest is already bound by the pinned
+  `binding.source_sha256` verification. Use every input in its `cases` for
+  duplicate checks. The digest is already bound by the pinned
   cohort; do not scan or requalify the original pool.
 - Obtain the three sources from the reduced task's
   `solutions[passing_reference_indices[i]]`, in saved order. Trust their existing
   qualification; run them only on the proposed input.
+
+Program/full-task paths come from pinned metadata; their digests bind the bytes
+read, including through symlinks. Record the selection digest once per run in
+Batch 1b rather than repeating it in every loaded record.
 
 The reduced suite alone is insufficient: 76 selected programs have stored inputs
 outside that suite. Read-only inspection verified all 173 program, reduced-task
@@ -69,8 +71,8 @@ leading whitespace and whether it has a terminal newline. Encode it directly as
 UTF-8 when saving and executing; do not strip or normalize it.
 
 Add `extract_input(row)` for naturally completed replies only. Reject token-limit
-completions, missing or repeated delimiters, invalid framing and payloads that
-cannot be encoded as UTF-8. Permit whitespace outside the block, without prose
+completions, missing or repeated delimiters, invalid framing, blank payloads and
+payloads that cannot be encoded as UTF-8. Permit whitespace outside the block, without prose
 or fences. Keep the raw reply even when extraction fails, and record format
 failure separately from duplicate and execution outcomes.
 
@@ -96,12 +98,13 @@ Do not use `verification.verify_many`: it expects an already known answer and
 implements Stage 03's published-suite checks. No execution-framework change or
 dependency upgrade is needed for this batch.
 
-Map native sample `4*j + k` to nonduplicate proposal j and role k, checking task,
-program and exact-input digests against the request metadata. Require a successful evaluation,
-all 4N expected samples and no sample errors before deriving agreement verdicts.
+Map native sample `4*j + k` to nonduplicate proposal j and role k. Trust IDs,
+request metadata and capture statuses produced by the fresh runner call; no
+saved-log replay is provided. Require a successful evaluation and no sample
+errors before deriving agreement verdicts. Missing samples/captures raise.
 Return one result per supplied proposal in input order, including duplicates.
-Missing or mismatched evidence is an execution error; an errored evaluation
-retains completed captures without establishing agreement verdicts.
+An errored evaluation retains completed captures without establishing agreement
+verdicts. Native logs retain execution metadata; Batch 1b records source digests.
 
 1. Each reference must finish successfully and emit one canonical integer answer,
    using the existing `stage01.screen.integer_answer` rule.
@@ -162,15 +165,15 @@ Use fabricated tasks and mocked generation/native results for deterministic
 checks. Each negative fixture should otherwise satisfy the preceding checks.
 
 - **Loading:** selected actor/synthetic identities and ordering work; changed
-  manifest/program/task bytes, escaping paths and foreign selections fail.
+  manifest/program/task bytes and foreign selections fail.
   A full-task input omitted from the reduced suite is still a duplicate.
 - **Extraction:** tabs, leading/trailing whitespace, CRLF and a missing terminal
   newline survive exactly after removing the defined opening framing. Missing or
   repeated delimiters and token-limited replies fail. Whitespace variants
   duplicate; changed tokens remain distinct.
 - **Agreement:** cover unanimous success, reference disagreement, each program
-  execution failure, malformed integer output and benign disagreement. Changed
-  sample association or incomplete native evidence cannot establish agreement.
+  execution failure, malformed integer output and benign disagreement. Shuffled
+  sample ordering preserves association; missing samples/captures stop the check.
   Multiple proposals use one native call with 4N entries and correctly mapped
   results; an all-duplicate round makes no native call.
 - **Proposal isolation:** inspect the exact messages with sentinel secrets in

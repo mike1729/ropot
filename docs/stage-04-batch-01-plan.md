@@ -202,3 +202,27 @@ Auditor integration/qualification, semantic novelty and validity decisions,
 human sampling policy, development-task experiments, full-pool acquisition and
 approved-witness publication remain in Batches 2–3. Do not use provisional
 agreements as Stage 05 inputs.
+
+## B1b API and test entry points
+
+`stage04.proposals.run(worklist, output_dir, ...)` consumes unchanged records from
+`witnesses.load_worklist`; source is inferred and mixed sources are refused.
+Pass explicit model/manifest/MLX-Python paths, reply/output-token allowances and
+the adapter's three batching settings. Recipe fields are `base_seed`,
+`temperature`, `top_p` and `max_tokens`; the witness instruction is fixed in code.
+Preflight validates batching and requires model type `qwen3_5` for actor records
+or `mistral3` for synthetic records before creating output or dispatching a child.
+
+Inputs retain private task/program snapshots, publication/model/source digests
+and the exact round specification. Native generation retains raw replies and
+runtime evidence. Atomic outcomes distinguish format failures, token limits,
+unchecked/interrupted submissions and checker decisions. Technical failures
+return `status=error`; interruptions propagate after saving available evidence.
+
+Run deterministic tests with `.venv/bin/python -m unittest tests.test_proposals`.
+The opt-in smoke is
+`ROPOT_WITNESS_TESTS=1 .venv/bin/python -m unittest tests.test_proposals_live -v`.
+It retains a new fixture directory under `data/04_generation_checks`, checks
+three supplied proposals (including a wrong benign), and reserves four model
+replies / 4,096 output tokens. Its prompts, seeds and model-specific settings
+are fixed in the test before dispatch. It remains unrun until review.

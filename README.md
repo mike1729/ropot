@@ -286,3 +286,8 @@ selected programs with `load_worklist(keys)` and extracts exact stdin with
 duplicates, then checks three references and the benign in one Inspect/Docker
 evaluation per round. Results are private; agreement needs independent approval.
 See the [Batch 1 plan](docs/stage-04-batch-01-plan.md) for contracts and validation.
+
+The [proposal round](src/data-pipeline/stage04/proposals.py) accepts one source's
+loaded records and explicit model/runtime paths, recipe, batching and allowances.
+It uses one generation child, then checks extracted inputs and records every
+attempt without retries. Call `run(..., fixtures=True)` for fabricated tasks.

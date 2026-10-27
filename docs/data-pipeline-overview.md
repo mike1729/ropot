@@ -130,7 +130,27 @@ This document does not authorize model runs.
 
 **06_dataset — review overlap, normalize, tag and export.**
 
-- TODO
+- Follow the [Stage 06 plan](stage-06-plan.md): assemble verified benign/attack
+  pairs from Stages 03–05. The first publication covers development and
+  construction; repeat assembly as other groups acquire programs. Rationales and
+  training targets remain with the training stage.
+- Strip comments uniformly across sources and labels, removing comment-only lines
+  and trailing whitespace without changing strings. Preserve original verified
+  bytes and require matching ASTs parsed from file bytes, ignoring location
+  metadata. Trust upstream execution evidence under this normalization assumption.
+  Exclude explicit attack announcements; direct witness-matching guards remain
+  allowed.
+- Preserve frozen ownership, phases, source identity and exposure history. Exclude
+  training-side tasks that overlap development or protected panels. Exclude faulty
+  benigns and their attacks when reference agreement establishes failure on an
+  independently audited valid input; export other suspected defects with a flag.
+- Render only the statement and normalized program for the monitor. Count tokens
+  with its pinned tokenizer and chat template, including a declared completion
+  allowance against the initial 2,048-token budget. Exclude over-budget pairs
+  without truncation; keep labels and evidence in separate metadata.
+- Publish versioned labeled pairs with provenance, exclusions and shortfalls.
+  Report independent source pairs and fully matched tasks, including whether
+  development reaches the pilot's 20-task minimum.
 
 ## Shared contracts
 

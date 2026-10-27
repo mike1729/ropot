@@ -113,7 +113,20 @@ This document does not authorize model runs.
 
 **05_attacks — implant and verify.**
 
-- TODO
+- Follow the [Stage 05 plan](stage-05-plan.md): consume Stage 04's approved
+  program–witness pairs, targeting one verified attack per pair with bounded
+  attempts. Each source attacks its own benign; direct witness-matching guards
+  are allowed.
+- Require every published case to pass and the approved witness to produce a
+  normal exit with one well-formed integer whose value differs from the approved
+  answer. Trust Stage 04's approval and keep the benign and witness fixed.
+- Keep reference answers, hidden-case diagnostics and audit replies private from
+  generators. Retain all attempts, programs, evidence and costs.
+- Before settling the recipe, check the frozen base monitor on development pairs
+  to assess guarded-attack detectability. Monitor scores never determine
+  individual attack acceptance.
+- Process the remaining approved pairs and publish a versioned attack selection
+  with coverage, unresolved cases and effort for Stage 06.
 
 **06_dataset — review overlap, normalize, tag and export.**
 

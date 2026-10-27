@@ -107,10 +107,20 @@ def validate(worklist, recipe, source, reply_allowance, output_token_allowance, 
         raise ValueError("Duplicate worklist identities")
 
 
-def initial_requests(worklist, recipe):
-    """Build statement-only initial messages in worklist order."""
-    return [dict(messages=[dict(role="system", content=recipe["system"]),
-                          dict(role="user", content=task["question"] + "\n\n" + recipe["initial"])],
+def initial_requests(worklist, recipe, initial_messages=None):
+    """Build initial requests, optionally using aligned system/user messages."""
+    if initial_messages is None:
+        initial_messages = [[dict(role="system", content=recipe["system"]),
+                             dict(role="user", content=task["question"] + "\n\n" + recipe["initial"])]
+                            for _, task in worklist]
+    if (not isinstance(initial_messages, list) or len(initial_messages) != len(worklist)
+            or any(not isinstance(messages, list) or len(messages) != 2 or any(
+                not isinstance(message, dict) or set(message) != {"role", "content"}
+                or message["role"] != role or not isinstance(message["content"], str)
+                for message, role in zip(messages, ("system", "user"))) for messages in initial_messages)):
+        raise ValueError("Require aligned system/user messages")
+    initial_messages = json.loads(json.dumps(initial_messages, allow_nan=False))
+    return [dict(messages=initial_messages[i],
                  seed=recipe["base_seed"] + i, temperature=recipe["temperature"], top_p=recipe["top_p"],
                  max_tokens=recipe["max_tokens"]) for i, (_, task) in enumerate(worklist)]
 
@@ -226,7 +236,7 @@ def extract_round(directory, worklist, rows, attempts, progress, source, persist
     return extracted
 
 
-def verify_round(directory, current, extracted, progress, persist):
+def verify_round(directory, current, extracted, progress, persist, candidate_checker=None):
     progress["phase"] = "verification"
     persist()
     if extracted:
@@ -234,8 +244,14 @@ def verify_round(directory, current, extracted, progress, persist):
         from . import verification
         began = monotonic()
         try:
-            verdicts = verification.verify_many([candidate for _, candidate in extracted], directory / f"verification-{index:04d}",
-                                                 max_samples=4, concurrent_inference=False)
+            checker = verification.verify_many if candidate_checker is None else candidate_checker
+            verdicts = checker([candidate for _, candidate in extracted], directory / f"verification-{index:04d}",
+                               max_samples=4, concurrent_inference=False)
+            if len(verdicts) != len(extracted) or any(
+                    verdict["key"]["task_sha256"] != candidate[1]
+                    or verdict["key"]["program_sha256"] != attempt["candidate"]["program_sha256"]
+                    for (attempt, candidate), verdict in zip(extracted, verdicts)):
+                raise ValueError("Checker verdicts differ from candidate order/identity")
         finally:
             current["timing"]["verification"] = monotonic() - began
         generation.save(directory / f"verification-{index:04d}.json", verdicts)
@@ -249,21 +265,23 @@ def verify_round(directory, current, extracted, progress, persist):
             raise RuntimeError("Verification infrastructure error")
 
 
-def execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source):
+def execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
+                  candidate_checker=None):
     """Generate, extract and verify one round; return its native reply rows."""
     current = prepare_round(directory, specification, progress, requests, attempts)
     outcome = generate_round(current, attempts, progress, persist, mlx_python, requests)
     rows = outcome["requests"]
     extracted = extract_round(directory, worklist, rows, attempts, progress, source, persist)
-    verify_round(directory, current, extracted, progress, persist)
+    verify_round(directory, current, extracted, progress, persist, candidate_checker)
     return rows
 
 
 def repair_request(request, row, parent, recipe, seed):
     """Append the preceding reply and permitted feedback to the full history."""
     if parent["extraction"] == "success":
-        rendered = repair_feedback.render(parent["verification"]["feedback"],
-            recipe["feedback_field_bytes"], recipe["feedback_bytes"])
+        feedback = parent["verification"]["feedback"]
+        rendered = (dict(text=feedback["message"]) if set(feedback) == {"message"}
+                    else repair_feedback.render(feedback, recipe["feedback_field_bytes"], recipe["feedback_bytes"]))
     else:
         rendered = dict(text=f"Local failure: {parent['extraction']}. Return a complete replacement program.")
     parent["repair_feedback"] = rendered
@@ -323,7 +341,7 @@ def finalize_states(progress, directory):
 
 def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python, recipe,
         reply_allowance, output_token_allowance, completion_batch_size, prefill_batch_size,
-        prefill_step_size, fixtures=False, cohort_sha256=None):
+        prefill_step_size, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None):
     """Generate, extract and verify one initial round, then repair eligible failures.
 
     Call from the repository Python with a finite, ordered worklist of
@@ -361,6 +379,10 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     explicit. Interruptions propagate after saving available evidence. Invalid
     inputs and setup failures may raise before an outcome can be created.
     Existing directories are refused; this API provides no resume or selection.
+    Optional initial_messages replace the aligned system/user messages only.
+    candidate_checker replaces published verification with the same ordered
+    candidate/verdict contract; it must provide a public feedback projection or
+    one fixed message. Both default to the ordinary benign behavior.
     """
     started = monotonic()
     worklist = json.loads(json.dumps(list(worklist), allow_nan=False))
@@ -369,14 +391,17 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     batching = dict(completion_batch_size=completion_batch_size,
                     prefill_batch_size=prefill_batch_size, prefill_step_size=prefill_step_size)
     validate(worklist, recipe, source, reply_allowance, output_token_allowance, batching, fixtures, cohort_sha256)
-    requests = initial_requests(worklist, recipe)
+    if candidate_checker is not None and not callable(candidate_checker):
+        raise ValueError("Require a callable candidate checker")
+    requests = initial_requests(worklist, recipe, initial_messages)
     directory, specification, progress, persist = prepare(worklist, output_dir, recipe, source,
         model_path, model_manifest, mlx_python, batching, reply_allowance, output_token_allowance,
         fixtures, cohort_sha256, started)
     try:
         """Execute the initial round: generate first responses, extract and verify."""
         attempts = progress["attempts"][:]
-        rows = execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source)
+        rows = execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
+                             candidate_checker)
 
         """Repair eligible failures until exhausted or budgeted."""
         while True:
@@ -384,7 +409,8 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
                 len(worklist), reply_allowance, output_token_allowance, persist)
             if not attempts:
                 break
-            rows = execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source)
+            rows = execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
+                                 candidate_checker)
         progress.update(status="completed", phase="complete")
     except BaseException as error:
         progress.update(status="error" if isinstance(error, Exception) else "cancelled", error=repr(error))

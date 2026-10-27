@@ -302,6 +302,21 @@ The [2026-10-27 qualification](data/04_witness_experiments/qualification-cli-b3e
 passed all ten validity cases per auditor and matched novelty labels on all six
 valid cases. One Codex capacity failure was resumed without repeating successes.
 
+Stage 05's [implant API](src/data-pipeline/stage05/attacks.py) accepts in-memory
+`(binding, task)` pairs. Each binding's private `implant` contains `candidate`,
+`program` (UTF-8 text), `stdin`, approved `answer` and `provenance`.
+`run(worklist, output_dir, source=..., model_path=..., **settings)` forwards the
+ordinary benign-loop runtime, batching and allowance settings, with an optional
+recipe and at most three attempts per pair. It checks the published suite before
+the witness; only a valid different integer is accepted. See the [B1 plan](docs/stage-05-batch-01-plan.md).
+Run its made-up-task smoke with:
+
+```sh
+ROPOT_ATTACK_TESTS=1 .venv/bin/python -m unittest tests.test_attacks_live -v
+```
+
+Publication loading and development monitoring belong to B2.
+
 The [acquisition API](src/data-pipeline/stage04/acquisition.py) provides bounded
 `acquire(...)` runs with explicit candidate scope, qualification, model/runtime
 settings and total reply/token/audit allowances. Seed B1 history with `b1_dir`;

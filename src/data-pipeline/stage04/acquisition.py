@@ -1,4 +1,5 @@
 """Bounded source acquisition; private evidence. See docs/stage-04-batch-02-plan.md."""
+from collections import Counter
 import json
 from pathlib import Path
 
@@ -121,26 +122,37 @@ def _binding(row):
 
 
 def _audit_state(batches, settings):
-    decisions, pending = {}, []
+    """Read fresh decisions and one call snapshot for retries and run accounting.
+
+    The qualified decision reader retains its own evidence checks. Pending
+    entries carry each saved batch's unused ceiling; missing records still use slots.
+    """
+    decisions, pending, calls = {}, [], []
     for batch in batches:
         saved = _read(batch / "inputs.json")
         if (saved["source_sha256"] != settings["source_sha256"] or saved["timeout"] != settings["timeout"]
                 or any(any(saved["auditors"][a][k] != settings["auditors"][a][k]
                            for k in ("model", "effort")) for a in audits.AUDITORS)):
             raise ValueError("Saved audit batch differs from qualified setup")
+        rows = audits.decide(batch)
+        batch_calls = [(path, _read(path / "record.json") if (path / "record.json").exists() else {})
+                       for path in _calls(batch)]
+        calls.extend(batch_calls)
+        invalid = Counter((path.parent.parent.name, path.parent.name) for path, record in batch_calls
+                          if record.get("status") == "invalid_reply")
         needs_dispatch = False
-        for row in audits.decide(batch):
-            states = [audits._saved(batch / "calls" / row["packet_id"] / a) for a in audits.AUDITORS]
-            needs_dispatch |= any(not success and invalid < 2 for paths, success, invalid in states)
-            row["unavailable"] = any(not success and invalid >= 2 for paths, success, invalid in states)
+        for row in rows:
+            states = [(row["audits"][a], invalid[row["packet_id"], a]) for a in audits.AUDITORS]
+            needs_dispatch |= any(not success and count < 2 for success, count in states)
+            row["unavailable"] = any(not success and count >= 2 for success, count in states)
             binding = row["binding"]
             key = (binding["round"], binding["attempt"])
             if key in decisions:
                 raise ValueError("Multiple audit packets for one proposal")
             decisions[key] = row
         if needs_dispatch:
-            pending.append(batch)
-    return decisions, pending
+            pending.append((batch, saved["call_allowance"] - len(batch_calls)))
+    return decisions, pending, calls
 
 
 def _programs(scope, rows, decisions):
@@ -219,7 +231,8 @@ def acquire(output_dir, *, source, qualification_dir, reply_allowance, output_to
     if not runs:
         first["b1_files"] = files
     batches = _batches(runs)
-    _audit_state(batches, qualified)
+    _, _, initial_calls = _audit_state(batches, qualified)
+    baseline_call_count = len(initial_calls)
     directory = Path(output_dir).absolute()
     directory.mkdir(parents=True, exist_ok=False)
     inputs = dict(source=source, qualification_dir=str(Path(qualification_dir).absolute()),
@@ -235,7 +248,6 @@ def acquire(output_dir, *, source, qualification_dir, reply_allowance, output_to
     if not runs:
         inputs.update(first, scope=scope)
     proposals.generation.save(directory / "inputs.json", inputs)
-    baseline = {str(b): len(_calls(b)) for b in batches}
     progress = dict(status="running", inputs_sha256=_hash(directory / "inputs.json"), rounds=[], files=files)
     current = (directory, inputs, progress)
 
@@ -246,7 +258,7 @@ def acquire(output_dir, *, source, qualification_dir, reply_allowance, output_to
         for batch in batches:
             for path in [batch / "inputs.json", *batch.glob("*.txt")]:
                 files[str(path)] = _hash(path)
-        decisions, pending = _audit_state(batches, qualified)
+        decisions, pending, calls = _audit_state(batches, qualified)
         programs = _programs(selected, rows, decisions)
         progress["programs"] = [{k: v for k, v in p.items() if k not in ("turns", "previous_inputs")} for p in programs]
         progress["files"] = files
@@ -257,9 +269,7 @@ def acquire(output_dir, *, source, qualification_dir, reply_allowance, output_to
             known_submissions=None if any(c["known_submissions"] is None for c in costs)
             else sum(c["known_submissions"] for c in costs), uncertain_submissions=sum(r.get("submitted") is None for r in rows),
             usage_complete=all(c["usage_complete"] for c in costs))
-        calls = [(call, _read(call / "record.json") if (call / "record.json").exists() else {})
-                 for b in batches for call in _calls(b)]
-        progress["audits"] = dict(new_calls=sum(len(_calls(b)) - baseline.get(str(b), 0) for b in batches),
+        progress["audits"] = dict(new_calls=len(calls) - baseline_call_count,
             total_calls=len(calls), unknown_usage_calls=sum(c.get("usage") is None for _, c in calls),
             calls=[dict(path=str(p), usage=c.get("usage"), version=c.get("version")) for p, c in calls],
             version_differences=[dict(path=str(p), expected=versions[p.parent.name], actual=c["version"])
@@ -275,8 +285,8 @@ def acquire(output_dir, *, source, qualification_dir, reply_allowance, output_to
             persist()
             remaining = audit_call_allowance - progress["audits"]["new_calls"]
             if pending:
-                batch = pending[0]
-                if remaining < _read(batch / "inputs.json")["call_allowance"] - len(_calls(batch)):
+                batch, unused_ceiling = pending[0]
+                if remaining < unused_ceiling:
                     raise RuntimeError("Audit allowance cannot cover saved batch's unused ceiling")
                 audits.dispatch(batch)
                 continue

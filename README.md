@@ -329,5 +329,7 @@ settings and total reply/token/audit allowances. Seed B1 history with `b1_dir`;
 resume using `previous_run` and a fresh directory, omitting scope and B1 arguments.
 Audits reuse qualified settings/digests and report CLI version drift. Batches cap
 calls at four per packet and the remaining run allowance; resume needs their unused
-ceiling. Generation costs cover whole referenced rounds, counting outside-scope
+ceiling. Each collection shares a fresh call-record snapshot across retry eligibility,
+allowances, usage and version accounting; the qualified audit API derives decisions.
+Generation costs cover whole referenced rounds, counting outside-scope
 attempts separately. See [Part 2 contracts and validation](docs/stage-04-batch-02-plan.md#part-2-automatic-acquisition-per-source).

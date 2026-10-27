@@ -1,4 +1,5 @@
 """Acquisition with pinned fabricated publications, native stubs and real fake CLIs."""
+from collections import Counter
 from copy import deepcopy
 import importlib
 import json
@@ -295,6 +296,88 @@ class AcquisitionTests(unittest.TestCase):
         self.assertEqual(third['programs'][0]['state'], 'audit_unavailable')
         self.assertEqual(third['programs'][0]['attempts'], 1)
         self.assertEqual(len(self.generated), 1)
+
+    def test_audit_snapshot_reads_each_record_once_after_qualified_decisions(self):
+        self.acquire()
+        batch = next((self.root / 'run').glob('round-*/audits/inputs.json')).parent
+        settings, _ = c._qualification(self.qualified)
+        paths = sorted(batch.glob('calls/*/*/call-*'))
+        reads = dict(text=Counter(), bytes=Counter())
+        globs = Counter()
+        original_text, original_bytes, original_glob = Path.read_text, Path.read_bytes, Path.glob
+
+        def read_text(path, *args, **kwargs):
+            if path.name == 'record.json':
+                reads['text'][path] += 1
+            return original_text(path, *args, **kwargs)
+
+        def read_bytes(path, *args, **kwargs):
+            if path.name == 'record.json':
+                reads['bytes'][path] += 1
+            return original_bytes(path, *args, **kwargs)
+
+        def glob(path, pattern, *args, **kwargs):
+            if path == batch:
+                globs[pattern] += 1
+            return original_glob(path, pattern, *args, **kwargs)
+
+        with mock.patch.object(Path, 'read_text', new=read_text), \
+                mock.patch.object(Path, 'read_bytes', new=read_bytes), \
+                mock.patch.object(Path, 'glob', new=glob):
+            _, pending, calls = c._audit_state([batch], settings)
+        expected = Counter({path / 'record.json': 1 for path in paths})
+        self.assertEqual(reads, dict(text=expected, bytes=expected))
+        self.assertEqual(globs, {'calls/*/*/call-*': 1})
+        self.assertEqual([path for path, _ in calls], paths)
+        self.assertEqual(pending, [])
+
+    def test_missing_audit_record_still_consumes_saved_ceiling_and_unknown_usage(self):
+        self.cli.behavior(codex=dict(capacity=True))
+        self.acquire(scope=self.scope(ids=(0,)), audit_call_allowance=2)
+        call, = self.calls()
+        (call / 'record.json').unlink()
+        batch = call.parents[3]
+        settings, _ = c._qualification(self.qualified)
+        _, pending, calls = c._audit_state([batch], settings)
+        self.assertEqual(pending, [(batch, 1)])
+        self.assertEqual(calls, [(call, {})])
+        with mock.patch.object(a, 'dispatch') as dispatch:
+            resumed = self.acquire('resumed', previous_run=self.root / 'run', audit_call_allowance=0)
+        dispatch.assert_not_called()
+        self.assertEqual(resumed['status'], 'error')
+        self.assertIn('unused ceiling', resumed['error'])
+        self.assertEqual({k: resumed['audits'][k] for k in ('new_calls', 'total_calls', 'unknown_usage_calls')},
+                         dict(new_calls=0, total_calls=1, unknown_usage_calls=1))
+        self.assertEqual(len(self.generated), 1)
+
+    def test_audit_snapshots_reread_invalid_records_successes_and_vetoes(self):
+        self.acquire(scope=self.scope(ids=(0,)))
+        call = next(path for path in self.calls() if path.parent.name == 'codex')
+        batch = call.parents[3]
+        settings, _ = c._qualification(self.qualified)
+        successful = c._read(call / 'record.json')
+        invalid = dict(successful, status='invalid_reply')
+        p.generation.save(call / 'record.json', invalid)
+        decisions, pending, _ = c._audit_state([batch], settings)
+        row, = decisions.values()
+        self.assertEqual((row['status'], row['unavailable'], pending), ('pending', False, [(batch, 2)]))
+
+        retry = call.with_name('call-1')
+        retry.mkdir()
+        p.generation.save(retry / 'record.json', invalid)
+        decisions, pending, _ = c._audit_state([batch], settings)
+        row, = decisions.values()
+        self.assertEqual((row['status'], row['unavailable'], pending), ('unresolved', True, []))
+
+        p.generation.save(call / 'record.json', successful)
+        decisions, pending, _ = c._audit_state([batch], settings)
+        row, = decisions.values()
+        self.assertEqual((row['status'], row['unavailable'], pending), ('approved', False, []))
+
+        p.generation.save(batch / 'vetoes.json', {row['packet_id']: 'Late review'})
+        decisions, pending, _ = c._audit_state([batch], settings)
+        row, = decisions.values()
+        self.assertEqual((row['status'], row['reason'], pending), ('not_approved', 'veto', []))
 
     def test_qualification_digest_and_model_or_effort_mismatch_prevent_dispatch(self):
         qualified = c._qualification

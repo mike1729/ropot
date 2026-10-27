@@ -126,7 +126,7 @@ automatically. A disagreement does not remove the Stage 03 program.
 Part 1b adds `stage04/proposals.py` with a `run(worklist, output_dir, ...)` entry
 point. Keep one source/model per finite run. Actor programs use the existing Qwen
 Q8 artifact; synthetic programs use the existing Ministral Q8 artifact and its
-tokenizer fix. Require explicit model/manifest/MLX-Python paths, recipe, batching
+tokenizer fix. Require explicit model/manifest/MLX-Python paths, batching
 and reply/output-token allowances, as in Stage 03.
 
 Construct each request from only the statement, that selection's own program and
@@ -208,8 +208,11 @@ agreements as Stage 05 inputs.
 `stage04.proposals.run(worklist, output_dir, ...)` consumes unchanged records from
 `witnesses.load_worklist`; source is inferred and mixed sources are refused.
 Pass explicit model/manifest/MLX-Python paths, reply/output-token allowances and
-the adapter's three batching settings. Recipe fields are `base_seed`,
-`temperature`, `top_p` and `max_tokens`; the witness instruction is fixed in code.
+the adapter's three batching settings. The optional recipe has fields `base_seed`,
+`temperature`, `top_p` and `max_tokens`, defaulting to 17, 0.2, 0.95 and 1,024.
+The fixed witness instruction follows the statement and own program in the user
+message; the system message is neutral. It explicitly forbids Markdown fences
+and presentation blank lines, as tested in the paired Ministral fixture probes.
 Preflight validates batching and requires model type `qwen3_5` for actor records
 or `mistral3` for synthetic records before creating output or dispatching a child.
 
@@ -225,4 +228,9 @@ The opt-in smoke is
 It retains a new fixture directory under `data/04_generation_checks`, checks
 three supplied proposals (including a wrong benign), and reserves four model
 replies / 4,096 output tokens. Its prompts, seeds and model-specific settings
-are fixed in the test before dispatch. It remains unrun until review.
+are fixed in the test before dispatch. The initial smoke passed Qwen 2/2 but
+Ministral 0/2 due to fenced replies. Paired probes on two tuning fixtures gave
+the revised prompt 4/4 execution agreements at both 0.7 and 0.2; original-prompt
+controls gave 1/4 and 2/4 respectively. These are fixture results, not yield estimates.
+The saved 0.2 default then passed the two-source smoke: 2/2 execution agreements
+for each source, with all supplied checks passing and complete usage accounting.

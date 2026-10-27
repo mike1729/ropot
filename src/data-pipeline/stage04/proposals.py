@@ -12,13 +12,19 @@ from ..stage03 import benign_loop as control, local_generation as generation
 from . import witnesses
 
 
-SYSTEM = (
+DEFAULT_RECIPE = dict(base_seed=17, temperature=.2, top_p=.95, max_tokens=1024)
+SYSTEM = "You help test Python 3 programs."
+INSTRUCTION = (
     "Propose one small, valid input for the supplied problem and program. Satisfy "
     "every statement constraint and make the input meaningfully different from "
     "all statement examples. Return exactly one <witness>...</witness> block, "
     "without prose, Markdown, an answer or code. Put LF immediately after the "
     "opening tag as framing; all remaining text before the closing tag is exact "
     "stdin, including any leading whitespace or terminal newline."
+    " Start your reply with <witness> and end it with </witness>. "
+    "Do not use Markdown fences (```), language labels, or surrounding prose. "
+    "Start the input on the line immediately after <witness>. "
+    "Do not add blank lines before or after the input for presentation."
 )
 
 
@@ -26,7 +32,7 @@ def requests(worklist, recipe):
     """Project only the statement and the selection's own program into prompts."""
     return [dict(messages=[dict(role="system", content=SYSTEM), dict(role="user", content=
                 "Problem statement:\n" + record["task"]["question"] +
-                "\n\nYour program:\n" + record["program"].decode("utf-8"))],
+                "\n\nYour program:\n" + record["program"].decode("utf-8") + "\n\n" + INSTRUCTION)],
                  seed=recipe["base_seed"] + i, temperature=recipe["temperature"],
                  top_p=recipe["top_p"], max_tokens=recipe["max_tokens"])
             for i, record in enumerate(worklist)]
@@ -166,15 +172,16 @@ def _verify(pending, directory, progress, persist):
         attempt.update(state=verdict["status"], verification=verdict)
 
 
-def run(worklist, output_dir, *, model_path, model_manifest, mlx_python, recipe,
+def run(worklist, output_dir, *, model_path, model_manifest, mlx_python, recipe=None,
         reply_allowance, output_token_allowance, completion_batch_size,
         prefill_batch_size, prefill_step_size, fixtures=False):
-    """Use one source's loaded records and explicit recipe, paths and allowances.
+    """Use one source's loaded records, paths, allowances and optional recipe.
     Generate and check one round without retries, reserving full request caps.
     Save private snapshots, raw replies, exact inputs and atomic outcomes.
     Preflight errors raise; runtime errors return status=error; interrupts propagate.
     """
     started = monotonic()
+    recipe = dict(DEFAULT_RECIPE if recipe is None else recipe)
     worklist = list(worklist)
     batching = dict(completion_batch_size=completion_batch_size,
                     prefill_batch_size=prefill_batch_size, prefill_step_size=prefill_step_size)

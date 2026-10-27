@@ -39,7 +39,7 @@ class LiveProposalTests(unittest.TestCase):
         parent.mkdir(parents=True, exist_ok=True)
         root = Path(tempfile.mkdtemp(prefix="batch-01b-", dir=parent))
         models = Path("/Users/michal/Workspace/models")
-        recipe = dict(base_seed=17, temperature=.7, top_p=.95, max_tokens=1024)
+        recipe = dict(p.DEFAULT_RECIPE)
         paths = [Path(p.__file__), Path(p.witnesses.__file__), Path(p.control.__file__), Path(p.generation.__file__),
                  Path(__file__), Path(p.__file__).parents[1] / "stage03/inspect_runner.py",
                  Path(p.__file__).parents[1] / "stage01/screen.py"]

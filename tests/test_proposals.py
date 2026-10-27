@@ -41,14 +41,15 @@ class ProposalTests(unittest.TestCase):
 
     def generate(self, command, state, persist):
         self.assertEqual(command[1:3], ["-m", "src.data-pipeline.stage03.local_generation"])
+        spec = json.loads(Path(command[-1]).read_text())
         before = self.saved()
         self.assertEqual(before["phase"], "dispatching")
-        self.assertEqual((before["committed_replies"], before["committed_tokens"]), (2, 128))
+        self.assertEqual((before["committed_replies"], before["committed_tokens"]),
+                         (2, sum(r["max_tokens"] for r in spec["requests"])))
         self.assertIsNone(before["known_submissions"])
         self.assertTrue(all(a["submitted"] is None for a in before["attempts"]))
         state["child"] = dict(pid=123, pgid=123, returncode=0)
         persist()
-        spec = json.loads(Path(command[-1]).read_text())
         native = Path(spec["output_dir"])
         native.mkdir()
         p.generation.save(native / "inputs.json", dict(requests=spec["requests"]))
@@ -124,9 +125,18 @@ class ProposalTests(unittest.TestCase):
         self.assertEqual([r["seed"] for r in requests], [17, 18])
         for row, record in zip(requests, self.worklist):
             self.assertEqual(row["messages"], [dict(role="system", content=p.SYSTEM), dict(role="user", content=
-                "Problem statement:\n" + record["task"]["question"] + "\n\nYour program:\n" + record["program"].decode())])
+                "Problem statement:\n" + record["task"]["question"] + "\n\nYour program:\n" + record["program"].decode()
+                + "\n\n" + p.INSTRUCTION)])
             self.assertNotIn("PRIVATE", json.dumps(row))
             self.assertEqual((row["max_tokens"], row["temperature"], row["top_p"]), (64, .7, .95))
+
+    def test_omitted_recipe_uses_saved_defaults(self):
+        result = self.run_round(recipe=None, output_token_allowance=2048)
+        specification = json.loads((self.root / "run/round.json").read_text())
+        self.assertEqual([(r["seed"], r["temperature"], r["top_p"], r["max_tokens"])
+                          for r in specification["requests"]], [(17, .2, .95, 1024), (18, .2, .95, 1024)])
+        self.assertEqual(result["committed_tokens"], 2048)
+        self.assertEqual(json.loads((self.root / "run/inputs.json").read_text())["recipe"], p.DEFAULT_RECIPE)
 
     def test_length_format_and_encoding_failures_keep_raw_replies_without_redraw(self):
         self.statuses, self.texts = ["length", "stop"], ["<witness>\n7</witness>", "not a block"]

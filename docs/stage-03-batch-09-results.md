@@ -1,7 +1,7 @@
 # Batch 9 development smoke — 2026-10-26
 
 Both experiments completed on the same eight frozen development tasks with the
-[planned recipe](stage-03-batch-09-plan.md). The user authorized working-tree
+[planned recipe](done/stage-03-batch-09-plan.md). The user authorized working-tree
 execution without a commit. Source snapshots and hashes are retained in the
 [execution record](../data/03_generation_checks/batch-09-execution-20261026/execution.json),
 which confirms sources stayed unchanged during the run.
@@ -41,7 +41,7 @@ Retained generated evidence, excluded from source-change counts:
   101,612 bytes; these include exact replies, programs, tasks and verification.
 - Execution record, console and two source snapshots: four files, 20,222 bytes.
 - Original and compact sizing evidence and superseded paths are documented in the
-  [plan](stage-03-batch-09-plan.md#execution-and-review-fixes--2026-10-26).
+  [plan](done/stage-03-batch-09-plan.md#execution-and-review-fixes--2026-10-26).
 
 The failure inspection motivated the direct format probes below. Benign passes
 alone do not establish attack yield or final matched-panel feasibility.

@@ -110,7 +110,7 @@ after the checks pass; keep calibration/evaluation outcomes unopened.
 
 **Local synthetic generation (Ministral):** use official FP8 weights with vLLM on an FP8-compatible NVIDIA GPU; plan around 24 GB VRAM for batching and validate runtime memory. On Apple Silicon, use the [official GGUF](https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-GGUF) with llama.cpp, selecting Q5_K_M or Q8_0 to fit available RAM. This is inference capacity, not a monitor-training estimate. Save outputs and unload generators before monitor training; no concurrent second GPU is required.
 
-During [Stage 03 experimentation](stage-03-plan.md), runtime, prompt, scaffolding
+During [Stage 03 experimentation](done/stage-03-plan.md), runtime, prompt, scaffolding
 and sampler choices remain adjustable and are recorded per experiment. The local
 Ministral MLX conversion is also an experimental option. Retain generated outputs
 as evidence; keep generation response caching off when measuring new draws.

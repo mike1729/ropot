@@ -3,22 +3,22 @@
 The local Q8 systems benchmarks are complete, including the declared resource
 stop. Their [consolidated findings and archive](inference-benchmark-results.md)
 replace the detailed benchmark plans and reports on main. Continue with the
-[Stage 03 workflow](stage-03-plan.md); implement only what its next batch consumes.
+[Stage 03 workflow](done/stage-03-plan.md); implement only what its next batch consumes.
 
 ## Carry measured settings into the workflow
 
 Use MLX Q8, one generating model at a time, and the measured per-model/context
-settings as starting points. [Batch 6](stage-03-batch-06-plan.md) adds a bounded
+settings as starting points. [Batch 6](done/stage-03-batch-06-plan.md) adds a bounded
 native batched path and reusable extractor beside the serial entry point, with
 short fixture qualification passed for its final implementation at decode 8 and
 32 for both models. Earlier runs remain supplemental historical evidence.
 Archived benchmark timings used different admission
 and do not measure this adapter. Keep the benchmark orchestrator archived.
-[Batch 7a](stage-03-batch-07-plan.md) first composes one sequential generation and
+[Batch 7a](done/stage-03-batch-07-plan.md) first composes one sequential generation and
 verification round with explicit output budgets and cancellation; 7b adds bounded
 repair and full-loop qualification, with review between the two parts.
-[Batch 8](stage-03-batch-08-plan.md) summarizes saved experiments;
-[Batch 9](stage-03-batch-09-plan.md) sizes prompts offline and runs one bounded
+[Batch 8](done/stage-03-batch-08-plan.md) summarizes saved experiments;
+[Batch 9](done/stage-03-batch-09-plan.md) sizes prompts offline and runs one bounded
 development baseline without changing the adapter. Review before dispatch and
 again before further recipes or construction.
 Measure overlap only if workflow timings justify a separate change; selection

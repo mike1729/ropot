@@ -1,7 +1,7 @@
 # Stage 01 implementation plan: local APPS qualification
 
 This file records implementation details for `01_qualified_pool`. Keep the
-[pipeline overview](data-pipeline-overview.md) high-level. This plan incorporates
+[pipeline overview](../data-pipeline-overview.md) high-level. This plan incorporates
 the decisions reviewed on 2026-10-23, including local execution instead of Docker.
 
 ## Steps at a glance
@@ -30,7 +30,7 @@ The full run qualified 1,450 tasks: 2 train and 1,448 test (335 introductory,
 1,113 interview in test). It recorded 23 reference rejections and 128,506 case
 attempts in the audit total, taking 648 seconds. Downstream analysis and allocation
 use only test tasks; retain the train evidence unchanged. The next report is
-`01_pool_analysis`; see the [analysis module](../src/data-pipeline/stage01/analyze.py).
+`01_pool_analysis`; see the [analysis module](../../src/data-pipeline/stage01/analyze.py).
 
 Analysis and test export were republished from an immutable archive of commit
 `ababa96`, with identical measurements and task bytes. The run record is
@@ -222,4 +222,4 @@ Continue on `main` in four coherent review batches: (1) static screening, alread
 implemented; (2) English example mapping; (3) local subprocess runner; (4) CLI,
 orchestration, export and usage documentation. Count additions plus deletions and
 keep each batch within 500 changed lines. Stop for review between batches as
-required by [the repository instructions](AGENTS.md).
+required by [the repository instructions](../AGENTS.md).

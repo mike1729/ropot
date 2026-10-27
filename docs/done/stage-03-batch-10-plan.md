@@ -1,7 +1,7 @@
 # Batch 10: Stage 03 closeout
 
 Close Stage 03 after the additional generation and repair experiments.
-The [experiment summary](stage-03-results.md) records their outcomes, costs,
+The [experiment summary](../stage-03-results.md) records their outcomes, costs,
 limitations and the Stage 04 handoff.
 
 ## Minimal retained workflow
@@ -14,7 +14,7 @@ limitations and the Stage 04 handoff.
 
 Keep existing APIs and scientific evidence; add no more experiment arms.
 One-off callers, their tests and the detailed experiment plans are retained in
-[the archive](../archive/stage03/README.md).
+[the archive](../../archive/stage03/README.md).
 
 ## Completion and handoff
 

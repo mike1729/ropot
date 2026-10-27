@@ -68,7 +68,7 @@ Numbered-run usage is complete; summed run wall time is 3h43m. Qualification
 includes superseded and stopped gates, excluding zero-draw replays and earlier
 benchmarking. Its native request caps and coordinator commitments differ.
 Raw evidence remains under ignored `data/`:
-[Batch 9](stage-03-batch-09-results.md), [Batch 10](stage-03-batch-10-plan.md),
+[Batch 9](stage-03-batch-09-results.md), [Batch 10](done/stage-03-batch-10-plan.md),
 [11a results](../data/03_generation_checks/batch11-confirmation/results.json) and
 [Batch 12 results](../data/03_generation_checks/batch12-rerun/results.json).
 

@@ -171,5 +171,35 @@ class WitnessSelectionTests(unittest.TestCase):
         self.assertFalse(self.target.exists())
         self.assertEqual(list(self.target.parent.iterdir()),[])
 
+    def test_revision_excludes_exact_candidate_and_preserves_previous_publication(self):
+        previous=self.publish();before=previous.read_bytes()
+        evidence=self.root/'adjudication-evidence.json';self.save(evidence,dict(validity='approve'))
+        summary=self.root/'adjudication.json'
+        self.save(summary,dict(status='confirmed_faulty_benign',candidate=self.records['synthetic']['selection']['candidate'],
+            affected_manifest=str(previous),manifest_sha256=c._hash(previous),
+            evidence_sha256={str(evidence):c._hash(evidence)}))
+        target=self.target.parent/'v2'
+        data=c._read(s.publish(self.runs,target,exclusions=[summary]))
+        report=c._read(target/'report.json')
+        self.assertEqual([x['source'] for x in data['selections']],['actor'])
+        self.assertEqual(data['excluded'][0]['candidate']['source'],'synthetic')
+        self.assertEqual(report['coverage']['all']['excluded'],1)
+        self.assertEqual(report['coverage']['all']['unresolved'],0)
+        self.assertEqual(report['coverage']['all']['both_source_task_ids'],[])
+        self.assertFalse((target/'programs/synthetic-test-7.py').exists())
+        self.assertEqual(previous.read_bytes(),before)
+        self.assertIn(str(Path(s.artifacts.__file__).absolute()),data['source_sha256'])
+        c._check(data['evidence_sha256'])
+
+        for change in ('evidence','candidate','duplicate','publication'):
+            saved=c._read(summary)
+            if change=='evidence':saved['evidence_sha256'][str(evidence)]='0'*64
+            if change=='candidate':saved['candidate']=dict(saved['candidate'],id=999)
+            if change=='publication':saved['manifest_sha256']='0'*64
+            altered=self.root/f'{change}.json';self.save(altered,saved)
+            with self.subTest(change=change),self.assertRaises(ValueError):
+                s.publish(self.runs,self.target.parent/change,
+                          exclusions=[altered,altered] if change=='duplicate' else [altered])
+
 
 if __name__=='__main__':unittest.main()

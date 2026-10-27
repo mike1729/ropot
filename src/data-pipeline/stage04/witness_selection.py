@@ -5,6 +5,7 @@ import shutil
 import tempfile
 
 from ..artifacts import sha256, write_json
+from .. import artifacts
 from ..stage01.screen import integer_answer
 from . import acquisition as c, audits, witnesses
 
@@ -16,14 +17,16 @@ def _require(condition, message):
         raise ValueError(message)
 
 
-def _coverage(selections, accepted):
+def _coverage(selections, accepted, excluded=()):
     result = {}
     for owner in ("development", "construction", "all"):
         pool = [s for s in selections if owner == "all" or s["binding"]["owner"] == owner]
         approved = [s for s in pool if c._identity(s["candidate"]) in accepted]
         by_source = {source: {(s["candidate"]["split"], s["candidate"]["id"]) for s in approved
                               if s["candidate"]["source"] == source} for source in ("actor", "synthetic")}
-        result[owner] = dict(programs=len(pool), approved=len(approved), unresolved=len(pool)-len(approved),
+        excluded_count = sum(c._identity(s["candidate"]) in excluded for s in pool)
+        result[owner] = dict(programs=len(pool), approved=len(approved), excluded=excluded_count,
+            unresolved=len(pool)-len(approved)-excluded_count,
             tasks=len({(s["candidate"]["split"], s["candidate"]["id"]) for s in pool}),
             tasks_with_witness=len(set().union(*by_source.values())),
             both_source_task_ids=[dict(split=split, id=i) for split, i in sorted(set.intersection(*by_source.values()))],
@@ -32,7 +35,7 @@ def _coverage(selections, accepted):
     return result
 
 
-def publish(run_dirs, output_dir):
+def publish(run_dirs, output_dir, *, exclusions=()):
     """Copy exact programs/inputs and atomically publish manifest.json/report.json.
 
     Require full coverage of the pinned benign selection by disjoint, completed,
@@ -40,6 +43,8 @@ def publish(run_dirs, output_dir):
     evidence, checking its bindings and four answers without replaying .eval logs.
     Refuse existing outputs, including symlinks. One publisher; inputs stay stable.
     Native evidence remains at its original paths with pinned digests.
+    Exclusions are saved confirmed-faulty-benign adjudication summary paths;
+    pin their evidence and affected publication, retaining explicit excluded rows.
     """
     target = Path(output_dir).absolute()
     if target.exists() or target.is_symlink():
@@ -173,12 +178,35 @@ def publish(run_dirs, output_dir):
             pin(path / "inputs.json"); pin(path / "outcome.json")
         run_records.append(dict(directory=str(directory), outcome_sha256=c._hash(directory / "outcome.json")))
     _require(wanted == selected.keys(), "Runs must cover every pinned benign exactly once")
+    excluded = {}
+    for path in exclusions:
+        adjudication = c._read(pin(path))
+        _require(adjudication["status"] == "confirmed_faulty_benign", "Require confirmed benign defect")
+        identity = c._identity(adjudication["candidate"])
+        _require(identity in approved and identity not in excluded, "Exclusion must name a unique approved candidate")
+        c._check(adjudication["evidence_sha256"])
+        for evidence in adjudication["evidence_sha256"]:
+            pin(evidence)
+        previous = pin(adjudication["affected_manifest"])
+        _require(pins[previous] == adjudication["manifest_sha256"], "Changed affected publication")
+        _require(any(s["candidate"] == adjudication["candidate"] for s in c._read(previous)["selections"]),
+                 "Excluded candidate missing from affected publication")
+        excluded[identity] = dict(candidate=adjudication["candidate"], state="excluded_faulty_benign",
+            adjudication=str(Path(path).absolute()), adjudication_sha256=c._hash(path),
+            previous_manifest=previous, previous_manifest_sha256=pins[previous])
+        del approved[identity]
+    for finding in findings:
+        identity = c._identity(finding["proposal"]["candidate"])
+        if identity in excluded:
+            finding.update(status="confirmed_faulty_benign", adjudication=excluded[identity]["adjudication"])
     manifest = dict(schema_version=1, rule=RULE, cohort_sha256=witnesses.study_tasks.COHORT_SHA256,
         benign_selection=dict(path=str(benign_manifest.absolute()), sha256=witnesses.SELECTION_SHA256),
         runs=run_records, selections=[approved[c._identity(s["candidate"])][0] for s in selections if c._identity(s["candidate"]) in approved],
-        unresolved=unresolved, evidence_sha256=pins,
-        source_sha256={str(Path(p).absolute()): c._hash(p) for p in (__file__, c.__file__, audits.__file__, witnesses.__file__)})
-    report = dict(coverage=_coverage(selections, approved), unresolved=unresolved,
+        unresolved=unresolved, excluded=list(excluded.values()), evidence_sha256=pins,
+        source_sha256={str(Path(p).absolute()): c._hash(p) for p in
+                       (__file__, artifacts.__file__, c.__file__, audits.__file__, witnesses.__file__)})
+    report = dict(coverage=_coverage(selections, approved, excluded), unresolved=unresolved,
+        excluded=list(excluded.values()),
         generation={k: sum(r[k] for r in costs.values()) for k in ("committed_replies", "committed_tokens", "observed_tokens")},
         attempts=sum(sum(a.get("submitted") is not False for a in r["attempts"]) for r in costs.values()),
         generation_usage_complete=all(r["usage_complete"] for r in costs.values()),

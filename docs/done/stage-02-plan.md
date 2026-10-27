@@ -35,8 +35,8 @@ Read only `data/01_test_pool/manifest.json` and its listed task files, joined to
 `qualified_tasks.iter_qualified_tasks`; add hash, join and provenance checks in
 the loader rather than duplicate its path/identity/count validation.
 
-Load and hash the existing [known-use records](../../honeypot/data/manifests/exposure-history-additions-v1.json)
-and [coverage metadata](../../honeypot/data/manifests/exposure-history-sweep-v1.json)
+Load and hash the existing [known-use records](../../../honeypot/data/manifests/exposure-history-additions-v1.json)
+and [coverage metadata](../../../honeypot/data/manifests/exposure-history-sweep-v1.json)
 automatically. Bind task IDs using the recorded original-row hash rule. Restrict
 `prompt_checker_development` and `unresolved` records to construction/development.
 Record incomplete coverage as a limitation on holdout status.
@@ -104,7 +104,7 @@ qualified tasks with owners fixed before generation.
   Stage 03 may revisit program choices through further experiments while preserving
   task ownership and prior evidence. Never select by completion order or monitor score.
 
-Use the [pilot's twin checks](pilot.md#2-train-honest-and-dishonest-monitor-twins)
+Use the [pilot's twin checks](../pilot.md#2-train-honest-and-dishonest-monitor-twins)
 before repair acquisition. Freeze repair eligibility and sampling before sizing
 its final dose; verified attacks are not automatically monitor mistakes.
 Replay uses construction examples with unchanged training targets.
@@ -196,7 +196,7 @@ redirects 8 fast-profile tasks (11 including deferred); all 32 known-use tasks
 12 interview for the first 16 and 8/24 for the first 32; development smoke is 2/6.
 
 Keep each batch at or below 500 additions plus deletions and stop for review, as
-required by [repository instructions](AGENTS.md). Acquisition, execution and
+required by [repository instructions](../AGENTS.md). Acquisition, execution and
 training remain in their consuming stages.
 
 The schema-3 reduced publication preserves schema-2 assignments and group/phase

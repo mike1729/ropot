@@ -11,7 +11,7 @@ before starting Batch 9 implementation. Keep its changes outside this batch's
 review and 400-line count.
 
 Use one review batch on `main`, within 400 additions plus deletions excluding
-tests, including documentation, under [the repository rules](AGENTS.md).
+tests, including documentation, under [the repository rules](../AGENTS.md).
 Prepare the small caller at `archive/stage03/experiments/batch09_development.py`, sizing record
 and proposed gate-test revision below. Stop for review before dispatch; commit
 the reviewed caller and test revision before live dispatch. Run the repository
@@ -42,7 +42,7 @@ These repair counts are stress examples, not a proven maximum: future reply text
 is unknown, and generated tokens can tokenize differently when inserted into a
 chat history. Record the conservative sizing estimate and its assumptions. Check
 that it plus the requested output fits model context and is supported by the
-[existing length/batch evidence](inference-benchmark-results.md). The roughly-7k
+[existing length/batch evidence](../inference-benchmark-results.md). The roughly-7k
 repair measurements inform this decision; they do not guarantee memory safety
 for the new output allowance. If sizing does not support the settings, stop for
 review without dropping or substituting tasks.
@@ -102,7 +102,7 @@ alone establish neither attack yield nor fully matched development-panel feasibi
 
 ## Preparation and validation — 2026-10-26
 
-The [caller](../archive/stage03/experiments/batch09_development.py) exposes `measure(new_directory)`
+The [caller](../../archive/stage03/experiments/batch09_development.py) exposes `measure(new_directory)`
 in the pinned MLX Python and `run(gate_directory)` in repository Python. Measurement
 loads tokenizers only. The baseline caller checks a passing, unchanged-source
 two-model gate, continues numbered experiment order, stops before the second
@@ -117,7 +117,7 @@ For a fresh offline sizing record, run from the repository root:
   'from experiments.batch09_development import measure; measure("data/03_generation_checks/batch09-sizing-review")'
 ```
 
-The retained [sizing and check record](../data/03_generation_checks/batch-09-preparation-20261026/validation.json)
+The retained [sizing and check record](../../data/03_generation_checks/batch-09-preparation-20261026/validation.json)
 uses the coordinator's initial/repair helpers and actual MLX tokenizer wrapper:
 
 | Source | Initial prompt range | Stress repair input | Input plus 1,024 output |
@@ -142,13 +142,13 @@ No live gate, Docker verification or study dispatch ran during that preparation.
 ## Execution and review fixes — 2026-10-26
 
 The user authorized execution without committing. The repair gate passed and both
-development experiments completed; see the [results](stage-03-batch-09-results.md).
+development experiments completed; see the [results](../stage-03-batch-09-results.md).
 The execution record preserves the exact caller/gate source copies and hashes;
 sources stayed unchanged during execution. Pipeline modules still match `d6c311e`.
 
 Subsequent review added reply-to-program byte checks and run-owned source binding
 to the gate assertions, with a swapped-program regression test. A read-only
-[association audit](../data/03_generation_checks/batch-09-review-20261026/association-audit.json)
+[association audit](../../data/03_generation_checks/batch-09-review-20261026/association-audit.json)
 passes on the saved live gate and all 16 verified study programs. The original
 qualification remains intact; this audit makes no new model calls and does not
 qualify the edited test source for another live run.
@@ -157,7 +157,7 @@ The caller now uses two literal option dictionaries and refuses existing Batch 9
 directories, covering hard interruption without relying on summary existence.
 Offline sizing matches the runtime's merged config and tokenizer options, checks
 input plus output, and retains counts/stress messages without duplicated prompts
-or token arrays. The [compact sizing record](../data/03_generation_checks/batch-09-review-20261026/tokenizer/sizing.json)
+or token arrays. The [compact sizing record](../../data/03_generation_checks/batch-09-review-20261026/tokenizer/sizing.json)
 is 25,072 bytes with unchanged counts. All 17 focused tests and the repository's
 284 tests pass, with eleven optional skips and live flags disabled.
 

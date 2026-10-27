@@ -51,7 +51,7 @@ manifest with source hashes, runtime provenance, counts and exclusions by rename
 Qualification executes supplied code locally, without a sandbox or memory limit.
 Each task needs three distinct references passing every stored case under the
 five-second deadline. The output retains original data, example visibility,
-reference attempts and timings; see the [stage 01 plan](docs/stage-01-plan.md) for
+reference attempts and timings; see the [stage 01 plan](docs/done/stage-01-plan.md) for
 the full contract. This qualification is sufficient for downstream task admission.
 Tasks excluded after reference execution retain compact diagnostics under
 `reference_rejections/`, including failing-case stderr for dependency analysis.
@@ -106,7 +106,7 @@ Options: `--input-dir` (default `data/01_test_pool`), `--analysis-dir` (default
 `load_inputs(input_dir, analysis_dir)` validates the export/analysis join;
 `allocate(loaded["tasks"])` trusts those validated records and returns frozen
 ownership, construction phases, ordered group blocks, profile deferrals and quota
-shortfalls. See the [allocation plan](docs/stage-02-plan.md).
+shortfalls. See the [allocation plan](docs/done/stage-02-plan.md).
 The loader verifies `summary.json`'s `tasks_csv_sha256` against the CSV bytes.
 Archive an older analysis before refreshing the canonical `data/01_pool_analysis`;
 the ordinary analysis and cohort defaults then use the canonical paths.
@@ -133,7 +133,7 @@ Generation and retry ceilings remain pending acquisition decisions; publication
 does not establish accepted generated data.
 
 Stage 03 experiments read reviewed tasks through the standard-library
-[study task API](src/data-pipeline/stage03/study_tasks.py); see the [Stage 03 plan](docs/stage-03-plan.md):
+[study task API](src/data-pipeline/stage03/study_tasks.py); see the [Stage 03 plan](docs/done/stage-03-plan.md):
 
 ```python
 import importlib
@@ -167,7 +167,7 @@ ROPOT_INSPECT_TESTS=1 .venv/bin/python -m unittest discover -s tests -p 'test_in
 
 The [Inspect runner](src/data-pipeline/stage03/inspect_runner.py) runs fixture programs in
 fresh Linux sandboxes and retains native `.eval` logs. See the
-[execution contract](docs/stage-03-plan.md#inspect-execution-contract) for its API,
+[execution contract](docs/done/stage-03-plan.md#inspect-execution-contract) for its API,
 limits and differences from local execution. These fixtures run no models or
 cohort acquisition jobs. Batch 3 adds the [candidate verifier](src/data-pipeline/stage03/verification.py):
 `verify(task, binding["sha256"], program_bytes, log_dir)` and explicit
@@ -206,14 +206,14 @@ saves partial replies and retries failed reply writes. Malformed native calls
 retain scalar evidence without applying their events to rows.
 Hard termination can lose active partial replies and outcome metadata.
 `extract_program(row)` returns exact Python
-bytes only from natural completions. See the [Batch 6 plan](docs/stage-03-batch-06-plan.md)
+bytes only from natural completions. See the [Batch 6 plan](docs/done/stage-03-batch-06-plan.md)
 for settings, statuses, extraction rules and fixture qualification.
 For Ministral, pass `/Users/michal/Workspace/models/mlx-community/Ministral-3-8B-Instruct-2512-8bit`
 and its corresponding artifact manifest through the same API, with an explicit
 system message. The adapter applies its tokenizer regex fix and records the
 effective tokenizer and model sources. Both models use request-owned seeded samplers;
 earlier global-reseed replies remain historical evidence. The
-[Batch 5 plan](docs/stage-03-batch-05-plan.md) covers scope and limitations.
+[Batch 5 plan](docs/done/stage-03-batch-05-plan.md) covers scope and limitations.
 Run focused tests with `python3 -m unittest discover -s tests -p 'test_local_generation.py'`.
 For the actor and synthetic fixture smokes, run that command using
 `/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python`
@@ -256,7 +256,7 @@ To enable repairs, set recipe `max_repairs` above zero and supply `repair`
 (instruction), `repair_max_tokens`, `feedback_field_bytes` and `feedback_bytes`.
 Repairs preserve history and original-position seeds; only bounded public feedback
 enters their prompts. Global allowances reserve full request limits without refunds.
-Fixtures use complete bindings and `fixtures=True`. See the [Batch 7 plan](docs/stage-03-batch-07-plan.md)
+Fixtures use complete bindings and `fixtures=True`. See the [Batch 7 plan](docs/done/stage-03-batch-07-plan.md)
 for states, interruption and review boundaries. Run its four-reply smoke with
 `ROPOT_BENIGN_LOOP_TESTS=1 .venv/bin/python -m unittest tests.test_benign_loop_live -v`.
 The separate eight-reply repair gate uses `ROPOT_BENIGN_REPAIR_TESTS=1` and
@@ -264,7 +264,7 @@ The separate eight-reply repair gate uses `ROPOT_BENIGN_REPAIR_TESTS=1` and
 
 The [experiment summary](src/data-pipeline/stage03/experiment_summary.py) reads only
 numbered experiments' coordinator JSON. Call `summarize(root)` for recorded states,
-histories and cumulative effort; see the [Batch 8 plan](docs/stage-03-batch-08-plan.md).
+histories and cumulative effort; see the [Batch 8 plan](docs/done/stage-03-batch-08-plan.md).
 
 [Stage 03 results](docs/stage-03-results.md) close Batch 10, including additional
 confirmation and rescue experiments. The saved-evidence
@@ -278,7 +278,7 @@ The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measu
 MLX settings, scheduling and extraction gains, capacity limits, and the archive
 branch containing the one-off benchmark tools and detailed reports. The current
 generation adapter provides native batching and Python extraction. The
-[Batch 6 plan](docs/stage-03-batch-06-plan.md) records final fixture qualification
+[Batch 6 plan](docs/done/stage-03-batch-06-plan.md) records final fixture qualification
 at decode 8 and 32 for both models, with all 80 generated programs verified.
 Actual witness/backdoor yield follows the
 [remaining plan](docs/inference-benchmark-plan.md).
@@ -288,7 +288,7 @@ selected programs with `load_worklist(keys)` and extracts exact stdin with
 `extract_input(row)`. `check_many(proposals, log_dir)` rejects stored-input
 duplicates, then checks three references and the benign in one Inspect/Docker
 evaluation per round. Results are private; agreement needs independent approval.
-See the [Batch 1 plan](docs/stage-04-batch-01-plan.md) for contracts and validation.
+See the [Batch 1 plan](docs/done/stage-04-batch-01-plan.md) for contracts and validation.
 
 The [proposal round](src/data-pipeline/stage04/proposals.py) accepts one source's
 loaded records and explicit model/runtime paths, batching and allowances.
@@ -300,17 +300,18 @@ attempt without retries. Call `run(..., fixtures=True)` for fabricated tasks.
 
 Stage 04 uses automatic Codex/Claude CLI audits through existing logins.
 `stage04.audits.qualify(output_dir)` runs qualification; `dispatch(output_dir)` reruns a stopped batch.
-See the [Batch 2 plan](docs/stage-04-batch-02-plan.md).
+See the [Batch 2 plan](docs/done/stage-04-batch-02-plan.md).
 The [2026-10-27 qualification](data/04_witness_experiments/qualification-cli-b3ea36c-20261027-4d32ae7c/summary.json)
 passed all ten validity cases per auditor and matched novelty labels on all six
 valid cases. One Codex capacity failure was resumed without repeating successes.
 
-Stage 04's [v1 publication](data/04_witnesses/v1/manifest.json) contains 157 approved
-witnesses: 71 development and 86 construction. The
-[results](docs/stage-04-results.md) document 16 unresolved programs, coverage,
+Stage 04's [v2 publication](data/04_witnesses/v2/manifest.json) contains 156 approved
+witnesses: 71 development and 85 construction, excluding the faulty synthetic
+task 4015 benign. V1 is preserved. The
+[results](docs/stage-04-results.md) document one exclusion, 16 unresolved programs, coverage,
 effort and the publication contract. The saved-evidence
 [publisher](src/data-pipeline/stage04/witness_selection.py) exposes
-`publish(run_dirs, output_dir)`, copying exact programs/stdin and approved answers
+`publish(run_dirs, output_dir, exclusions=())`, copying exact programs/stdin and approved answers
 with hashed execution/audit provenance; existing versions are refused.
 
 Stage 05's [implant API](src/data-pipeline/stage05/attacks.py) accepts in-memory
@@ -340,4 +341,4 @@ calls at four per packet and the remaining run allowance; resume needs their unu
 ceiling. Each collection shares a fresh call-record snapshot across retry eligibility,
 allowances, usage and version accounting; the qualified audit API derives decisions.
 Generation costs cover whole referenced rounds, counting outside-scope
-attempts separately. See [Part 2 contracts and validation](docs/stage-04-batch-02-plan.md#part-2-automatic-acquisition-per-source).
+attempts separately. See [Part 2 contracts and validation](docs/done/stage-04-batch-02-plan.md#part-2-automatic-acquisition-per-source).

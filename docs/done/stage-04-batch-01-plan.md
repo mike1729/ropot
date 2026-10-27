@@ -11,7 +11,7 @@ execution or commits. Implement on `main` after review.
 
 ## Review boundaries
 
-Follow the [review rules](AGENTS.md). Split Batch 1 into these two usable parts,
+Follow the [review rules](../AGENTS.md). Split Batch 1 into these two usable parts,
 each within 400 additions plus deletions, excluding tests:
 
 | Part | Deliverable | Estimated production/documentation changes |

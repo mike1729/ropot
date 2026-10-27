@@ -1,31 +1,30 @@
 # Stage 04 results — 2026-10-27
 
-Published **157 approved program–witness pairs** from the 173 pinned Stage 03
+Published **156 approved program–witness pairs in v2** from the 173 pinned Stage 03
 programs, covering 95 of their 101 tasks. Development and construction are complete
-under the three-proposal cap. Sixteen programs remain unresolved.
-Subsequent adjudication confirmed one faulty benign (synthetic task 4015), leaving
-**156 usable pairs**. Downstream attack acquisition and final export must exclude
-that candidate; the immutable v1 publication retains its original 157 records.
+under the three-proposal cap. Sixteen programs remain unresolved; one faulty benign
+(synthetic task 4015) is explicitly excluded. Downstream stages consume v2, which
+omits that pair. The immutable v1 publication retains its original 157 records.
 
-The local publication is [data/04_witnesses/v1/manifest.json](../data/04_witnesses/v1/manifest.json),
-with SHA-256 `82e6fe22ef46a7a8c848b6a2ac5a7b1c1c70d6bf483b08067025a7ee30bf9506`.
-Its [report](../data/04_witnesses/v1/report.json) records coverage, unresolved
+The current local publication is [data/04_witnesses/v2/manifest.json](../data/04_witnesses/v2/manifest.json),
+with SHA-256 `4849ea0ac15cda076d4c0ca550b7e533ebe5824c03769a9bc06d5f6ebd261111`.
+Its [report](../data/04_witnesses/v2/report.json) records coverage, excluded and unresolved
 identities, qualification, disagreements and effort. Data artifacts remain ignored
 by Git; tracked publisher code and this results document describe the release.
 
 ## Coverage
 
-| Scope | Source | Programs | Approved | Unresolved | New replies | Audit calls |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Development | Actor | 44 | 39 | 5 | 17 | 90 |
-| Development | Synthetic | 36 | 32 | 4 | 11 | 70 |
-| Construction | Actor | 54 | 49 | 5 | 75 | 108 |
-| Construction | Synthetic | 39 | 37 | 2 | 48 | 80 |
-| **Total** | | **173** | **157** | **16** | **151** | **348** |
+| Scope | Source | Programs | Approved | Excluded | Unresolved | New replies | Audit calls |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Development | Actor | 44 | 39 | 0 | 5 | 17 | 90 |
+| Development | Synthetic | 36 | 32 | 0 | 4 | 11 | 70 |
+| Construction | Actor | 54 | 49 | 0 | 5 | 75 | 108 |
+| Construction | Synthetic | 39 | 36 | 1 | 2 | 48 | 80 |
+| **Total** | | **173** | **156** | **1** | **16** | **151** | **348** |
 
 Development has witnesses on 42 of its 46 selected tasks, including 29 tasks with
 approved witnesses for both sources. Construction covers 53 of 55 selected tasks,
-including 33 with both sources. In total, 62 tasks have both source witnesses.
+including 32 with both sources. In total, 61 tasks have both source witnesses.
 These task denominators are tasks with a published Stage 03 benign; tasks without
 a selected benign are outside Stage 04's 173-program target. Both-source witness
 coverage does not establish downstream attack or final export coverage.
@@ -99,16 +98,20 @@ pins the caller, prompts, four call records, original evidence bindings and
 [raw results](../data/04_witness_experiments/adjudication-4015-20261027/results.json).
 Summary SHA-256: `aee6772e570803c0593f62448f2e3bddf7ffbc885a82c4825cb36740363dfa52`.
 The v1 manifest/report and their historical `unadjudicated_benign_disagreement`
-flag remain unchanged; this adjudication supersedes that flag. No Stage 05 code,
-configuration or artifacts were modified, so consumers must apply this exclusion.
+flag remain unchanged; v2 records the adjudication and excludes that candidate.
+No Stage 05 code, configuration or artifacts were modified.
 
 ## Publication contract and checks
 
-[stage04.witness_selection.publish(run_dirs, output_dir)](../src/data-pipeline/stage04/witness_selection.py)
+[stage04.witness_selection.publish(run_dirs, output_dir, exclusions=())](../src/data-pipeline/stage04/witness_selection.py)
 reads explicit saved histories, rereads current audits/vetoes and publishes by
 staging-directory rename. Existing destinations, including symlinks, are refused.
 It makes no model calls and replays no programs or native logs. Inputs must remain
 stable during this single-publisher operation.
+Each exclusion names a confirmed-faulty-benign summary; the publisher checks its
+evidence hashes, pins its affected manifest, requires an exact approved candidate
+identity and records the excluded row separately from unresolved acquisitions.
+V2 reuses the same four run histories; publication adds no model or execution calls.
 
 Manifest schema 1 preserves Stage 03 selection order, candidate identity, binding,
 source and label. Each selection has a copied `program` path and hash, a copied
@@ -118,24 +121,30 @@ stripping or newline conversion. Program–input–answer bindings are private;
 answers, audit metadata and verifier evidence must stay out of proposer prompts.
 Ownership and construction phase remain in `binding`.
 
-The publication contains 157 program files and 157 exact-input files, plus
-`manifest.json` and `report.json`: 316 files, 1,215,234 bytes. Programs use 153,188
-bytes; inputs use 2,244 bytes. Native evidence remains at its original paths;
+V2 contains 156 program files and 156 exact-input files, plus
+`manifest.json` and `report.json`: 314 files, 1,215,994 bytes. Programs use 152,400
+bytes; inputs use 2,238 bytes. Native evidence remains at its original paths;
 `evidence_sha256` pins it, including audit records, native logs and qualification.
 The manifest also records publisher/reader source hashes and acquisition outcomes.
-The publisher was committed unchanged in `91418a1`, with SHA-256
+The original publisher was committed unchanged in `91418a1`, with SHA-256
 `51964f39804b86baf11c9ed64df12da561de0e7ba55f1c7d7801c35874b30caf`,
-matching v1. Publisher changes require a new publication version.
+matching preserved v1 (manifest SHA-256
+`82e6fe22ef46a7a8c848b6a2ac5a7b1c1c70d6bf483b08067025a7ee30bf9506`).
+V2 pins the revised publisher, the exclusion summary and the v1 manifest.
 
 Known v1 limitations: external evidence paths are absolute and require the original
 workspace layout; copied program/input paths are relative. Its source hashes omit
 the imported `artifacts.py`; supplemental adjudication provenance records its
 current hash, `592bc430dd400c3082a747cb6bcb17b8ee9340a452c9089edef184bd5315376f`,
-which does not retrospectively prove its publication-time bytes. A late veto is
+which does not retrospectively prove its publication-time bytes. V2 includes
+`artifacts.py` in its source hashes. Absolute external paths remain a limitation.
+A late veto is
 reported as `eligible` rather than explicitly revoked; no vetoes occurred in v1.
 
-Seven publisher tests cover exact bytes, current vetoes, scope/fixture refusal,
+Eight publisher tests cover exact bytes, current vetoes, scope/fixture refusal,
 audit setup, contradictory execution evidence, overwrite refusal and failed-copy
-cleanup. The focused Stage 04 suite passed all 98 tests. Post-publication checks
-reconcile all 157 copied program/input digests and answers, all source evidence,
-16 unresolved identities and coverage totals. Stage 05 was not modified.
+cleanup, plus exact-candidate exclusion, exclusion evidence integrity and previous
+publication preservation. The focused Stage 04 suite passed all 99 tests.
+Post-publication checks reconcile all 156 copied
+program/input digests and answers against v1, all source evidence, the exact
+exclusion, 16 unresolved identities and coverage totals. Stage 05 was not modified.

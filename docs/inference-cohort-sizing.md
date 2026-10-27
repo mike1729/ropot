@@ -3,7 +3,7 @@
 Prioritize repeated development monitor evaluations and small generation queues.
 The [fixture findings](inference-benchmark-results.md) supply measured starting
 settings; these cohort estimates do not establish a production optimum or yield.
-The [Stage 03 plan](stage-03-plan.md) retains activation and implementation scope.
+The [Stage 03 plan](done/stage-03-plan.md) retains activation and implementation scope.
 
 ## Frozen population and lengths
 

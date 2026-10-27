@@ -10,7 +10,7 @@ Trust saved coordinator counters and verdicts under their recorded contracts.
 Report unsupported formats per experiment. Read no native logs, replies or snapshots.
 The live repair gate remains before overlap or Batch 9 dispatch, not this reader.
 
-Implement on `main` in one review batch, following [the repository rules](AGENTS.md):
+Implement on `main` in one review batch, following [the repository rules](../AGENTS.md):
 at most 400 additions plus deletions excluding tests, including documentation.
 Aim for 100–150 production lines; stop for review.
 
@@ -69,7 +69,7 @@ wait for their consumer's contracts; recovery/resume waits for a concrete need.
 Never replay spent/uncertain requests or erase prior costs. Add no contract policies, re-derivation or drift guards.
 Park the old reconciler and its tests under `unused/batch08-reconciliation/`, outside
 the import tree and test discovery. Preserve their contents and retained
-[offline check](../data/03_generation_checks/batch-08a-32qz00jk/validation.json)
+[offline check](../../data/03_generation_checks/batch-08a-32qz00jk/validation.json)
 as historical work, not validation of this summary or a base to extend.
 
 ## Acceptance and review evidence
@@ -121,7 +121,7 @@ All 26 focused tests pass, using actual coordinator JSON emitted by mocked Batch
 fixtures. From the repository root, `.venv/bin/python -m unittest discover -s tests`
 runs **267 tests with eleven optional skips**. A fresh
 process confirms the reader neither imports Inspect/MLX nor invokes subprocesses.
-The [JSON-only fixture check](../data/03_generation_checks/batch-08-summary-odjpckeh/validation.json)
+The [JSON-only fixture check](../../data/03_generation_checks/batch-08-summary-odjpckeh/validation.json)
 copies only four coordinator JSON files from the retained two-model 7b run into an
 isolated numbered root. Its report preserves seven recorded replies, 1,792 committed
 tokens and 652 observed tokens. No original runs were renamed or modified.

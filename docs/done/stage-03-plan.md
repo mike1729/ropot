@@ -8,7 +8,7 @@ measure yield and cost, and supply candidates for witness and attack experiments
 Stage 03 is complete, with `data/03_benigns/v1/manifest.json` published for Stage 04.
 [Batch 10](stage-03-batch-10-plan.md) closes the additional experiments,
 versioned selection and archival work; see the
-[experiment summary](stage-03-results.md) for measured results and limitations.
+[experiment summary](../stage-03-results.md) for measured results and limitations.
 The design below records the stage's original experimental scope.
 
 ## Starting point
@@ -25,11 +25,11 @@ IDs without redefining groups or running allocation. Task reads retain digest ch
 Metadata validation belongs to Stage 02. The reader verifies the cohort hash and
 restricts membership; task reads check containment within the publication and file digests.
 Bindings are shared read-only metadata, without copying or repeated schema checks.
-The [cohort plan](stage-02-plan.md) governs activation; the [pilot](pilot.md)
+The [cohort plan](stage-02-plan.md) governs activation; the [pilot](../pilot.md)
 defines the later monitor experiment.
 
 Start runtime work from existing local model artifacts and established tooling.
-The completed [Q8 fixture comparison](inference-benchmark-results.md) supports MLX
+The completed [Q8 fixture comparison](../inference-benchmark-results.md) supports MLX
 provisionally for both generators. The direct synthetic adapter passed its
 [Batch 5 fixture smoke](stage-03-batch-05-plan.md#implementation-validation).
 Record actual weights, quantization, tokenizer, template and runtime for each experiment.
@@ -38,7 +38,7 @@ Record actual weights, quantization, tokenizer, template and runtime for each ex
 ## Implementation batches
 
 Work on `main` in coherent batches of at most 400 additions plus deletions excluding
-tests, following [the review rules](AGENTS.md), and stop for review between batches. The user explicitly
+tests, following [the review rules](../AGENTS.md), and stop for review between batches. The user explicitly
 approved exceeding that limit for Batch 6 as one review batch; its
 [detailed plan](stage-03-batch-06-plan.md) records the exception. Set each batch's
 concrete design and checks when starting it; the rows below describe its purpose.
@@ -55,7 +55,7 @@ concrete design and checks when starting it; the rows below describe its purpose
 | 7b | Add bounded repair rounds and feedback rendering to 7a, then qualify the full loop on fabricated tasks; see the [Batch 7 plan](stage-03-batch-07-plan.md). Require explicit repair limits, retain every attempt and keep technical retries off. Add no generation wall-time limits; verification retains its per-case timeout. Stop for review before overlap or acquisition. |
 | 8 | Scan numbered experiment directories and summarize the coordinator's saved worklists, verdicts, statuses and cumulative effort for Batch 9; see the [Batch 8 plan](stage-03-batch-08-plan.md). Trust recorded JSON without re-verifying execution or changing the coordinator. Report damaged runs without dropping their unknown cost. Selection/publication waits for its consuming stage; recovery/continuation remains deferred. |
 | 9 | Size complete prompts offline and prepare a small caller, leaving pipeline code unchanged; see the [Batch 9 plan](stage-03-batch-09-plan.md). Review and commit the caller and proposed Batch 7b gate-test revision before dispatch. After repair qualification, run one bounded baseline on the same eight development tasks per source and summarize it with Batch 8. Stop with results and a next-experiment recommendation; further recipes and construction wait. |
-| 10 | Close Stage 03 after the additional experiments: summarize measured outcomes, publish the versioned benign selection for Stage 04 and archive one-off code and plans; see the [Batch 10 closeout](stage-03-batch-10-plan.md) and [experiment summary](stage-03-results.md). |
+| 10 | Close Stage 03 after the additional experiments: summarize measured outcomes, publish the versioned benign selection for Stage 04 and archive one-off code and plans; see the [Batch 10 closeout](stage-03-batch-10-plan.md) and [experiment summary](../stage-03-results.md). |
 
 Batch 6 supplies the reusable prerequisites; the coalesced verifier already exists.
 Keep the first development baseline sequential. Add generation/verification
@@ -65,14 +65,14 @@ keep the archived benchmark orchestration out of the workflow.
 Use public [Inspect sandboxing](https://inspect.aisi.org.uk/sandboxing.html) and
 [logging/retry facilities](https://inspect.aisi.org.uk/eval-logs.html), with small
 adapters for experimental rules. Avoid building a general scheduler or inference server.
-The [Q8 fixture findings](inference-benchmark-results.md) supply measured starting
-settings. The [remaining inference plan](inference-benchmark-plan.md) assigns
+The [Q8 fixture findings](../inference-benchmark-results.md) supply measured starting
+settings. The [remaining inference plan](../inference-benchmark-plan.md) assigns
 batching, extraction and overlap to the consuming workflow; witness/attack yield
 work waits for the Stage 04–05 contracts.
 
 ### Workload sizing and scaffold choices
 
-The [cohort sizing analysis](inference-cohort-sizing.md) records frozen group
+The [cohort sizing analysis](../inference-cohort-sizing.md) records frozen group
 counts, input-length proxies and development timing assumptions. Development has
 50 IDs: eight generation-smoke tasks and 42 for training choices. Construction has
 758 eligible candidates, 379 per phase; correction/replay has 187, calibration 57

@@ -5,7 +5,7 @@ Establish warm serial generation for the local Qwen3.5-9B actor, following the
 
 Use **8-bit quantization** for this batch. Benchmarks and batching come later;
 check actual BF16 yield only after the full witness/backdoor pipeline works,
-as specified in the [overview](data-pipeline-overview.md).
+as specified in the [overview](../data-pipeline-overview.md).
 
 ## Implementation
 
@@ -62,5 +62,5 @@ and batched calls record elapsed time and use output-token limits; legacy
 `wall_time_seconds` fields are ignored. The deadline contract above describes
 Batch 4 and its historical evidence.
 
-[patches]: ../../honeypot/configs/runtime/mlx-request-seeds.json
-[controls]: ../data/03_generation_checks/actor-controls-1pyga9fv/summary.json
+[patches]: ../../../honeypot/configs/runtime/mlx-request-seeds.json
+[controls]: ../../data/03_generation_checks/actor-controls-1pyga9fv/summary.json

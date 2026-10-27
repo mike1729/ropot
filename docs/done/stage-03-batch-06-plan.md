@@ -1,7 +1,7 @@
 # Batch 6: native batched generation and Python extraction
 
 Add `generate_batched` beside the existing serial `generate` in the
-[generation module](../src/data-pipeline/stage03/local_generation.py), plus a
+[generation module](../../src/data-pipeline/stage03/local_generation.py), plus a
 reusable `extract_program`. Qualify both Q8 models on fabricated fixtures at
 decode sizes 8 and 32 before cohort use. Reuse the existing loading, provenance,
 recording and verification helpers; keep the archived benchmark orchestration out.
@@ -252,7 +252,7 @@ both mechanical and end-to-end fixture results; no throughput threshold is impli
 ## Implementation validation — 2026-10-26
 
 The final adapter from commit `c6737ea` passed live
-[qualification](../data/03_generation_checks/batch-06-6y_e_l0q/qualification.json)
+[qualification](../../data/03_generation_checks/batch-06-6y_e_l0q/qualification.json)
 in 92.240 seconds. Both Q8 models reached decode 8 and 32; all 80 coding replies
 stopped naturally, extracted and passed Docker verification. Seeded sampler
 independence, same-group replay and token exhaustion passed. Both interruption
@@ -286,14 +286,14 @@ rejection, all-token retention before reply writes, write-before-settlement,
 persistence failure/interruption, preservation of saved peers and independent cleanup.
 
 The first simplified version passed a fresh live
-[qualification](../data/03_generation_checks/batch-06-r2kwl3mo/qualification.json)
+[qualification](../../data/03_generation_checks/batch-06-r2kwl3mo/qualification.json)
 in 97.783 seconds: both models reached decode 8 and 32, all 80 coding replies
 passed Docker verification, and both interruption probes passed. The generation
 source hash was `1b882b0bb8d6f937f3e2231e5a79da455cc6d38cdfdd50c6ea92610a46d271e8`;
 the adapter, live test and verification helper stayed unchanged during that run.
 Later event-validation and reply-write changes are not qualified by this result.
 
-The original live [qualification](../data/03_generation_checks/batch-06-68le_a0k/qualification.json)
+The original live [qualification](../../data/03_generation_checks/batch-06-68le_a0k/qualification.json)
 passed in 99.027 seconds: both models reached decode 8 and 32, all 80 coding
 replies passed Docker verification, and sampler independence, same-group replay,
 token exhaustion and interruption controls passed. It used 92 submitted requests
@@ -301,14 +301,14 @@ and 7,164 output tokens under the earlier 96-row/23,556-token budget, including
 two timeout probes. Preserve those probes as historical evidence.
 
 The user then removed wall-time limits and timeout probes. That token-only
-controller [replayed the saved tokens](../data/03_generation_checks/batch-06-68le_a0k/final-controller-replay.json)
+controller [replayed the saved tokens](../../data/03_generation_checks/batch-06-68le_a0k/final-controller-replay.json)
 through real pinned tokenizers for the revised 90-row worklists, including the two
 interruptions: every raw reply/status matched and all 80 extracted programs were
 byte-identical to the verified artifacts. This loaded no model weights and drew
 no new replies; it does not represent a second live generation run.
 
 That cleanup path explicitly synchronized the native stream independently
-of `close()`. A [real Metal-stream control](../data/03_generation_checks/batch-06-68le_a0k/stream-cleanup-control-final.json)
+of `close()`. A [real Metal-stream control](../../data/03_generation_checks/batch-06-68le_a0k/stream-cleanup-control-final.json)
 passed success, close failure, interruption and cleanup-interruption cases using
 tiny array work and zero model inference. Allocator settings and restoration are
 recorded; generation-window time is native `wall_time`, with loading in
@@ -324,5 +324,5 @@ scheduler, worker protocol, fallback runtime or cache framework. Short-context
 qualification does not qualify long-context Ministral batch 32, prefix reuse,
 BF16 yield or trained monitors; retain their existing later gates.
 
-See the [Stage 03 plan](stage-03-plan.md), [Q8 findings](inference-benchmark-results.md)
-and [remaining inference plan](inference-benchmark-plan.md) for the surrounding work.
+See the [Stage 03 plan](stage-03-plan.md), [Q8 findings](../inference-benchmark-results.md)
+and [remaining inference plan](../inference-benchmark-plan.md) for the surrounding work.

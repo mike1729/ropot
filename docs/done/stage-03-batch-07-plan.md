@@ -12,7 +12,7 @@ its reviewed source/tests as a separate committed baseline. Consume its generati
 functions unchanged; 7b adds only their child CLI entry point. Keep Batch 6 work
 out of Batch 7's change counts. Implement on `main` in
 these two review batches, each within 400 additions plus deletions excluding
-tests, following [the review rules](AGENTS.md):
+tests, following [the review rules](../AGENTS.md):
 
 | Part | Implementation and acceptance boundary |
 | --- | --- |
@@ -341,15 +341,15 @@ The initial-round API is implemented with repairs disabled. The repository suite
 passes 207 tests with ten optional skips. Actual process-group tests cover graceful
 interruption, explicit second-interruption kill/reaping and nonzero exit.
 
-The four-reply [child integration smoke](../data/03_generation_checks/batch-07a-8tnfpods/qualification.json)
+The four-reply [child integration smoke](../../data/03_generation_checks/batch-07a-8tnfpods/qualification.json)
 passed in 17.262 seconds: both programs passed for each model, using 186 Qwen and
 165 Ministral output tokens (351 total under the 1,024-token allowance).
 The requested removal of cancellation identity hashing/task-version plumbing came
 after that smoke. The final simplified boundary passed the real Docker SIGINT
 and batch-verification checks with zero further model calls; see the
-[final check record](../data/03_generation_checks/batch-07a-8tnfpods/post-simplification-checks.json).
+[final check record](../../data/03_generation_checks/batch-07a-8tnfpods/post-simplification-checks.json).
 The subsequent phase-helper refactor passed a
-[saved-output processing replay](../data/03_generation_checks/batch-07a-8tnfpods-refactor-replay/replay.json):
+[saved-output processing replay](../../data/03_generation_checks/batch-07a-8tnfpods-refactor-replay/replay.json):
 all four exact programs, candidate identities, verdicts and allowance totals matched,
 with zero model calls or sandbox executions. Replay evidence comprises 29 files
 totaling 53,888 bytes; original native logs and qualification hashes remain intact.
@@ -357,7 +357,7 @@ The smoke retains 36 files totaling 78,108 bytes, including two binary native
 logs totaling 21,346 bytes, fixture snapshots and copies of the pinned manifests.
 
 Before the final, unchanged Batch 6 qualification, a superseded prompt-cap variant
-also passed its [finite worklist](../data/03_generation_checks/batch-06-_t4adhp6/qualification.json):
+also passed its [finite worklist](../../data/03_generation_checks/batch-06-_t4adhp6/qualification.json):
 88 submissions and 7,090 output tokens, retained separately in 294 files totaling
 700,309 bytes. The cap edits were removed; this is supplemental evidence only.
 Part 7b, overlap, selection/resume and cohort acquisition remain pending review.
@@ -378,7 +378,7 @@ imports. A recorded `Popen` `OSError` establishes non-submission while retaining
 reservations; interrupted launches without that evidence stay unknown. Tests cover
 both cases and repair-launch failure, with no further model calls.
 
-The [bounded live gate](../data/03_generation_checks/batch-07b-hsm_lima/qualification.json)
+The [bounded live gate](../../data/03_generation_checks/batch-07b-hsm_lima/qualification.json)
 stopped for review after Qwen's two initial replies: both programs passed, so the
 square's first-draft control failed to induce the required wrong answer. Saved
 native inputs match the round requests, including that control. The coordinator
@@ -394,7 +394,7 @@ overlap, selection/resume and cohort acquisition remain outside this batch.
 
 All six real Docker tests passed in 45.067 seconds, covering execution limits,
 verification/reuse, cancellation propagation and sandbox teardown without model
-calls. The [check record](../data/03_generation_checks/batch-07b-hx8hvdj5/validation-checks.json)
+calls. The [check record](../../data/03_generation_checks/batch-07b-hx8hvdj5/validation-checks.json)
 links their 11 retained files (127,945 bytes), including nine native logs totaling
 127,893 bytes. The ordinary suite also passed: 241 tests, eleven optional skips.
 

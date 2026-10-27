@@ -1,7 +1,7 @@
 # Batch 5 synthetic runtime implementation plan
 
 Run the local Ministral-3-8B-Instruct-2512 MLX 8-bit conversion through the
-existing [direct generation module](../src/data-pipeline/stage03/local_generation.py).
+existing [direct generation module](../../src/data-pipeline/stage03/local_generation.py).
 Preserve its finite warm serial run, plain records and public API:
 `generate(model_path, requests, output_dir, *, model_manifest)`.
 
@@ -97,14 +97,14 @@ complete that acceptance step.
 ## Implementation validation
 
 The 160-test repository suite passed with eight optional skips. The live
-[actor smoke](../data/03_generation_checks/direct-actor-72mxh00r/serial/outcome.json)
+[actor smoke](../../data/03_generation_checks/direct-actor-72mxh00r/serial/outcome.json)
 passed with request-owned sampling. The
-[synthetic smoke](../data/03_generation_checks/direct-synthetic-m_hj10v7/serial/outcome.json)
+[synthetic smoke](../../data/03_generation_checks/direct-synthetic-m_hj10v7/serial/outcome.json)
 used four requests and 67 output tokens; both tokenizer histories matched the
 official snapshot, A replay matched, and all three programs passed Docker
-[verification](../data/03_generation_checks/direct-synthetic-m_hj10v7/verification.json).
+[verification](../../data/03_generation_checks/direct-synthetic-m_hj10v7/verification.json).
 An initial verification-launcher symlink error was fixed; the remaining assertions
-and verification passed through [saved-reply recovery](../data/03_generation_checks/direct-synthetic-m_hj10v7/recovery.json),
+and verification passed through [saved-reply recovery](../../data/03_generation_checks/direct-synthetic-m_hj10v7/recovery.json),
 with zero additional inference requests. No cohort tasks were used.
 
 ## Later contract change — 2026-10-26
@@ -132,6 +132,6 @@ reuse and BF16 yield checks retain their later gates.
 Implement on `main` and stop for review after this batch. This planning change
 runs no models or generated programs and authorizes no acquisition run.
 
-[findings]: inference-benchmark-results.md
-[remaining]: inference-benchmark-plan.md
+[findings]: ../inference-benchmark-results.md
+[remaining]: ../inference-benchmark-plan.md
 [loader]: https://github.com/ml-explore/mlx-lm/blob/v0.32.2/mlx_lm/utils.py

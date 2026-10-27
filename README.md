@@ -297,4 +297,7 @@ attempt without retries. Call `run(..., fixtures=True)` for fabricated tasks.
 
 Stage 04 uses automatic Codex/Claude CLI audits through existing logins.
 `stage04.audits.qualify(output_dir)` runs qualification; `dispatch(output_dir)` reruns a stopped batch.
-See the [Batch 2 plan](docs/stage-04-batch-02-plan.md); full live qualification is unrun.
+See the [Batch 2 plan](docs/stage-04-batch-02-plan.md).
+The [2026-10-27 qualification](data/04_witness_experiments/qualification-cli-b3ea36c-20261027-4d32ae7c/summary.json)
+passed all ten validity cases per auditor and matched novelty labels on all six
+valid cases. One Codex capacity failure was resumed without repeating successes.

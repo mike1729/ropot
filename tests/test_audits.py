@@ -26,6 +26,9 @@ with open(LOG, 'a') as f:
    files=os.listdir('.'), global_agents=(pathlib.Path(os.environ.get('CODEX_HOME', '/nonexistent'))/'AGENTS.md').exists(),
    api_keys=any(os.environ.get(k) for k in ('OPENAI_API_KEY','ANTHROPIC_API_KEY','CODEX_API_KEY'))))+'\n')
 if options.get('sleep'): time.sleep(10)
+if options.get('capacity'):
+ print(json.dumps(dict(type='error',message='Selected model is at capacity.')) )
+ raise SystemExit(1)
 if options.get('exit'):
  print('Subscription usage limit', file=sys.stderr); raise SystemExit(1)
 valid = options.get('validity', 'approve')

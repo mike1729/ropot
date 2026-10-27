@@ -301,3 +301,12 @@ See the [Batch 2 plan](docs/stage-04-batch-02-plan.md).
 The [2026-10-27 qualification](data/04_witness_experiments/qualification-cli-b3ea36c-20261027-4d32ae7c/summary.json)
 passed all ten validity cases per auditor and matched novelty labels on all six
 valid cases. One Codex capacity failure was resumed without repeating successes.
+
+The [acquisition API](src/data-pipeline/stage04/acquisition.py) provides bounded
+`acquire(...)` runs with explicit candidate scope, qualification, model/runtime
+settings and total reply/token/audit allowances. Seed B1 history with `b1_dir`;
+resume using `previous_run` and a fresh directory, omitting scope and B1 arguments.
+Audits reuse qualified settings/digests and report CLI version drift. Batches cap
+calls at four per packet and the remaining run allowance; resume needs their unused
+ceiling. Generation costs cover whole referenced rounds, counting outside-scope
+attempts separately. See [Part 2 contracts and validation](docs/stage-04-batch-02-plan.md#part-2-automatic-acquisition-per-source).

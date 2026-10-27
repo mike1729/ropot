@@ -257,6 +257,38 @@ class ProposalTests(unittest.TestCase):
             self.run_round()
         self.child.assert_not_called()
 
+    def test_explicit_retry_turns_and_seeds_are_saved_without_mutating_worklist(self):
+        turns = [[dict(role="assistant", content="OWN_REPLY"),
+                  dict(role="user", content="Propose a different input.")], []]
+        before = deepcopy(turns)
+        result = self.run_round(earlier_turns=turns, seeds=[115, 99])
+        requests = json.loads((self.root / "run/round.json").read_text())["requests"]
+        self.assertEqual([r["seed"] for r in requests], [115, 99])
+        self.assertEqual([a["seed"] for a in result["attempts"]], [115, 99])
+        self.assertEqual(requests[0]["messages"][-2:], turns[0])
+        self.assertEqual(len(requests[1]["messages"]), 2)
+        self.assertEqual(turns, before)
+
+    def test_prior_and_full_stored_whitespace_repeats_never_reach_checking(self):
+        self.worklist[1]["stored_inputs"].append("8\r\n")
+        before = deepcopy(self.worklist)
+        result = self.run_round(previous_inputs=[["7\n"], []])
+        self.assertEqual([a["state"] for a in result["attempts"]], ["duplicate", "duplicate"])
+        self.assertEqual(self.checker.call_args.args[0], [])
+        self.assertEqual(Path(result["attempts"][0]["input"]).read_bytes(), b" \t7\r\n")
+        self.assertEqual(self.worklist, before)
+
+    def test_invalid_retry_options_fail_before_output_or_dispatch(self):
+        bad = (dict(seeds=[1]), dict(seeds=[1, 2**64]), dict(seeds=[True, 1]),
+               dict(earlier_turns=[[]]), dict(earlier_turns=[[None, None], []]),
+               dict(earlier_turns=[[dict(role="system", content="x"), dict(role="user", content="x")], []]),
+               dict(previous_inputs=[[]]), dict(previous_inputs=[[], [None]]))
+        for kwargs in bad:
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                self.run_round(**kwargs)
+        self.child.assert_not_called()
+        self.assertFalse((self.root / "run").exists())
+
     def test_exhausted_task_identity_fails_before_output_or_dispatch(self):
         for digest, proof in p.witnesses.EXHAUSTED_TASKS.items():
             candidate = self.worklist[0]["selection"]["candidate"]

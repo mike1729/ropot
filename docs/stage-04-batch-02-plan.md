@@ -31,8 +31,7 @@ fixtures use the renderer directly.
 - Reserve each invocation against a saved allowance. Reruns skip successes.
   Two unusable replies per packet/auditor make it audit-unavailable. Technical
   errors, usage limits, timeouts and interrupts stop the invocation, consume only
-  the overall allowance, and leave it pending. A Codex "at capacity" error gets
-  one automatic retry after three seconds, reserving another call; other errors stop.
+  the overall allowance, and leave it pending; no automatic technical retries.
 - `decide` rereads saved replies and optional human vetoes. Both auditors must
   approve validity and novelty. Rejection, uncertainty or veto rejects the input.
   Unavailable audits leave the program unresolved; other missing audits are pending.
@@ -116,8 +115,8 @@ Generation allowances cover all new rounds in this run: require the full selecte
 round's reply/token caps before dispatch and subtract reservations without refunds.
 Historical costs remain in cumulative reports without charging a new run again.
 Audit allowance is also one total per run: charge every new reserved call,
-including failures, uncertain calls, capacity retries and resumed calls. Give each
-new audit batch only the remaining total; `audits.run()` still requires at least
+including failures, uncertain and resumed calls. Cap each batch at four calls
+per packet or the remaining total, whichever is smaller; `audits.run()` requires
 two calls per packet. Resume a saved batch only when the remaining total covers
 its unused saved ceiling; otherwise stop before dispatch. Keep that ceiling
 unchanged, skip successful calls and never clone a batch to evade its limit.
@@ -133,8 +132,8 @@ allow a replacement while slots remain. Reread audits and vetoes on later runs;
 no veto timing distinction or decision snapshots. B3 owns revocation after
 publication.
 
-Technical generation/checking/audit failures stop with evidence preserved; retain
-Part 1's single Codex capacity retry. A later run resumes technical audit failures
+Technical generation/checking/audit failures stop with evidence preserved and no
+automatic technical retries. A later run resumes technical audit failures
 on the same input. Even if one auditor rejects before the other fails, do not
 generate a replacement on that failed dispatch. For failed generation/checking,
 a later run may generate anew if slots remain; do not resume the old verifier.
@@ -179,7 +178,7 @@ records, mocks and fake CLIs. Cover:
 - Passing qualification and exact setup reuse; digest/setup mismatches refuse
   dispatch, while CLI version drift is reported and allowed.
 - One audit total across multiple rounds and resumed calls, including capacity
-  retries; insufficient remaining allowance dispatches no corresponding batch.
+  failures; insufficient remaining allowance dispatches no corresponding batch.
 - B1 identity collisions and overlays count once; charged/uncertain versus known-
   unstarted attempts, reservations, fixed seeds and the three-proposal cap persist.
 - Mixed-state eligibility; approval/exhaustion/unavailable audits stop correctly;

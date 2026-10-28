@@ -4,7 +4,7 @@ Implement the implant loop from the [Stage 05 plan](stage-05-plan.md): each sour
 modifies its own benign around a fixed witness, passing the published suite while
 returning a valid but different integer on that witness.
 
-Work on `main` in one review batch under the [normal 400-line limit](AGENTS.md).
+Work on `main` in one review batch under the [normal 400-line limit](../AGENTS.md).
 Aim for 150–250 non-test implementation lines plus small usage documentation;
 report actual additions plus deletions and test/evidence sizes separately.
 
@@ -113,7 +113,7 @@ scoring wait for B2.
 `stage05.attacks.run` uses the two optional loop hooks and copied private bindings;
 `check_many` checks the suite before a fresh witness execution. Production changes
 are 196 additions plus deletions. The ordinary suite passed 391 tests with 13
-optional skips; the separate [two-source fixture smoke](../data/05_attack_experiments/fixture-batch-01-ztqz7y18/qualification.json)
+optional skips; the separate [two-source fixture smoke](../../data/05_attack_experiments/fixture-batch-01-ztqz7y18/qualification.json)
 passed on both first draws: two replies, 2,048 reserved tokens and 79 observed
 tokens. Live repairs were unnecessary; fixture tests cover their behavior.
 Smoke source hashes were unchanged. Retained evidence comprises 32 files totaling

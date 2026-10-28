@@ -12,7 +12,7 @@ remain with the training stage.
 | 1 | **Review and normalize.** Join programs and evidence, review overlap and defect findings, and produce comment-free monitor versions. Preserve originals and record exclusions. |
 | 2 | **Measure and publish.** Measure token fit and publish labeled pairs with provenance. Report independent pairs, fully matched tasks, flags and shortfalls—including whether development reaches 20 fully matched tasks. |
 
-Keep [existing review-size limits](AGENTS.md). Detailed formats and procedures are
+Keep [existing review-size limits](../AGENTS.md). Detailed formats and procedures are
 decided during implementation.
 
 ## Essential rules

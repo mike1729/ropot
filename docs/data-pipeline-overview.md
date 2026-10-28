@@ -60,7 +60,7 @@ This document does not authorize model runs.
 - Read only the task paths listed in `01_test_pool/manifest.json`.
 - Groups are
   construction, development, correction_replay, calibration and evaluation.
-- The [Stage 02 plan](done/stage-02-plan.md) proposes a short-task profile, fixed
+- The [Stage 02 plan](v1/stage-02-plan.md) proposes a short-task profile, fixed
   ownership and ordered reserves: start with 8 development tasks, then a 32-task
   construction probe, targeting 256 usable construction tasks and capping development
   at 50 tasks total, including the smoke, with an option to expand construction to 512.
@@ -79,7 +79,7 @@ This document does not authorize model runs.
 
 - Complete: Stage 04 consumes `data/03_benigns/v1/manifest.json`; see the
   [experiment results](stage-03-results.md) for coverage and limitations.
-- Follow the [Stage 03 plan](done/stage-03-plan.md): consume frozen cohort ownership
+- Follow the [Stage 03 plan](v1/stage-03-plan.md): consume frozen cohort ownership
   and trust existing reference qualification without another Docker gate.
 - Load only saved construction/development IDs from initial/reserve blocks, keeping
   protected and deferred tasks unavailable. Check task-file digests when reading.
@@ -99,7 +99,7 @@ This document does not authorize model runs.
 - Complete: Stage 05 consumes `data/04_witnesses/v2/manifest.json`, containing 156
   pairs after excluding the faulty synthetic task 4015 benign; see the
   [experiment results](stage-04-results.md) for coverage and adjudication.
-- Follow the [Stage 04 plan](done/stage-04-plan.md): consume the published Stage 03
+- Follow the [Stage 04 plan](v1/stage-04-plan.md): consume the published Stage 03
   selection of 173 programs across 101 tasks, targeting one approved witness per
   program with bounded attempts. Complete Stage 04 before Stage 05.
 - Each source proposes witnesses for its own program using the statement, that
@@ -116,7 +116,7 @@ This document does not authorize model runs.
 
 **05_attacks — implant and verify.**
 
-- Follow the [Stage 05 plan](stage-05-plan.md): consume Stage 04's approved
+- Follow the [Stage 05 plan](v1/stage-05-plan.md): consume Stage 04's approved
   program–witness pairs, targeting one verified attack per pair with bounded
   attempts. Each source attacks its own benign; direct witness-matching guards
   are allowed.
@@ -133,7 +133,7 @@ This document does not authorize model runs.
 
 **06_dataset — review overlap, normalize, tag and export.**
 
-- Follow the [Stage 06 plan](stage-06-plan.md): assemble verified benign/attack
+- Follow the [Stage 06 plan](v1/stage-06-plan.md): assemble verified benign/attack
   pairs from Stages 03–05. The first publication covers development and
   construction; repeat assembly as other groups acquire programs. Rationales and
   training targets remain with the training stage.

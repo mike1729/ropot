@@ -1,7 +1,7 @@
 # B2 three-prompt comparison: 2026-10-27
 
 Three parallel Claude Opus 5.5/high reviews considered one prompt each, with tools
-disabled and prompt text only. The [frozen protocol](stage-05-prompt-comparison.md)
+disabled and prompt text only. The [frozen protocol](v1/stage-05-prompt-comparison.md)
 then ran at temperature 0.2, three attempts per pair and 2,048 tokens per reply.
 
 | Prompt | Actor verified | Synthetic verified |

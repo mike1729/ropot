@@ -25,7 +25,7 @@ IDs without redefining groups or running allocation. Task reads retain digest ch
 Metadata validation belongs to Stage 02. The reader verifies the cohort hash and
 restricts membership; task reads check containment within the publication and file digests.
 Bindings are shared read-only metadata, without copying or repeated schema checks.
-The [cohort plan](stage-02-plan.md) governs activation; the [pilot](../pilot.md)
+The [cohort plan](stage-02-plan.md) governs activation; the [pilot](pilot.md)
 defines the later monitor experiment.
 
 Start runtime work from existing local model artifacts and established tooling.

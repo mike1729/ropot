@@ -1,7 +1,7 @@
 # Stage 01 implementation plan: local APPS qualification
 
 This file records implementation details for `01_qualified_pool`. Keep the
-[pipeline overview](../data-pipeline-overview.md) high-level. This plan incorporates
+[pipeline overview](data-pipeline-overview.md) high-level. This plan incorporates
 the decisions reviewed on 2026-10-23, including local execution instead of Docker.
 
 ## Steps at a glance

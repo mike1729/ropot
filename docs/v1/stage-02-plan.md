@@ -104,7 +104,7 @@ qualified tasks with owners fixed before generation.
   Stage 03 may revisit program choices through further experiments while preserving
   task ownership and prior evidence. Never select by completion order or monitor score.
 
-Use the [pilot's twin checks](../pilot.md#2-train-honest-and-dishonest-monitor-twins)
+Use the [pilot's twin checks](pilot.md#2-train-honest-and-dishonest-monitor-twins)
 before repair acquisition. Freeze repair eligibility and sampling before sizing
 its final dose; verified attacks are not automatically monitor mistakes.
 Replay uses construction examples with unchanged training targets.

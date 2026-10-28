@@ -1,12 +1,12 @@
 # Stage 05: attacks around approved witnesses
 
 **Historical v1 plan, closed on 28 October 2026.** The data-generation feasibility
-gate did not support proceeding to repair training. See the [closeout](v1-closeout.md).
+gate did not support proceeding to repair training. See the [closeout](../v1-closeout.md).
 The complete updated v1 plan and experiment code are preserved on
 [archive/v1-failed-2026-10-28](https://github.com/mike1729/ropot/tree/archive/v1-failed-2026-10-28).
 The schedule below is historical, not authorization to resume acquisition.
 
-Consume [Stage 04's](stage-04-plan.md) approved program–witness pairs. Target
+Consume [Stage 04's](stage-04-overview.md) approved program–witness pairs. Target
 **one verified attack per pair**, with bounded attempts and explicit unresolved
 outcomes.
 
@@ -18,7 +18,7 @@ outcomes.
 | 2 | **[Development monitor check](#b2-run-protocol).** Add the approved-publication loader, run the loop on development pairs, score attacks and their benigns with the frozen base monitor using one provisional prompt, report rates by source and record the recipe decision. Review before remaining acquisition. |
 | 3 | **Run and publish.** Process the remaining approved pairs with the settled recipe and publish attacks, coverage, unresolved cases and effort for Stage 06. |
 
-Keep the [existing review-size limit](AGENTS.md). B2's monitor runner can be built
+Keep the [existing review-size limit](../AGENTS.md). B2's monitor runner can be built
 and fixture-tested independently. Its loader and real runs require Stage 04's
 development publication and explicit user authorization; B3 requires its full
 publication. Detailed B1 contracts are in the linked implementation plan.
@@ -54,7 +54,7 @@ Aggregate results may inform the development recipe; monitor scores never
 determine individual attack acceptance. The final monitor prompt belongs to the
 pilot's scoring work.
 
-The Q8/BF16 comparison remains [separate inference work](inference-benchmark-plan.md)
+The Q8/BF16 comparison remains [separate inference work](../inference-benchmark-plan.md)
 to inform subsequent acquisition.
 
 ## Provisional monitor runner
@@ -83,7 +83,7 @@ quality report; reservations and available native evidence remain saved.
 Programs retain their original comments. Self-announcing comments may inflate B2
 flag rates; these rates do not measure detection after Stage 06 normalization.
 Final scoring, normalization and token-fit policy stay with their existing stages.
-Fixture tests and the [2026-10-27 made-up-program smoke](../data/05_attack_experiments/fixture-monitor-20261027T144036Z/qualification.json)
+Fixture tests and the [2026-10-27 made-up-program smoke](../../data/05_attack_experiments/fixture-monitor-20261027T144036Z/qualification.json)
 passed: benign PASS and guarded attack FLAG, both naturally completed. The smoke
 used two replies and 155 output tokens (1,024 reserved), with no retries. This
 checks format, not monitor quality or invalid rates. Publication loading and real
@@ -105,7 +105,7 @@ Keep the same benigns, witnesses and order for both recipes.
 Use both `max_tokens=2048` and `repair_max_tokens=2048`, retaining the current
 feedback caps and base seed 17. Temperature stays fixed through each run's repairs.
 Start from a copy of `attacks.DEFAULT_RECIPE`; leave its defaults unchanged until
-the decision. [Stage 03](stage-03-results.md#recipes-and-effort) supports 0.2 as a
+the decision. [Stage 03](../stage-03-results.md#recipes-and-effort) supports 0.2 as a
 starting point and 2,048-token replacements; neither temperature is established
 as best for attacks. Run one model at a time with existing per-source batching.
 

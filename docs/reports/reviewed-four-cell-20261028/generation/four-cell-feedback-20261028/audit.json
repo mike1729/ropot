@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "policy": "weak-feedback",
+  "generation_replies": 192,
+  "extracted": 190,
+  "truncations": 1,
+  "distinct_programs": 145,
+  "suite_case_executions": 1806,
+  "witness_executions": 190,
+  "feedback_requests": 69,
+  "reviewed_distinct_witness_successes": 73,
+  "all_case_coverage": true,
+  "feedback_ancestry_and_privacy_verified": true,
+  "source_hashes_verified": true
+}

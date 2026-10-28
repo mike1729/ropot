@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "policy": "qwen36",
+  "generation_replies": 192,
+  "extracted": 192,
+  "truncations": 0,
+  "distinct_programs": 115,
+  "suite_case_executions": 1390,
+  "witness_executions": 115,
+  "feedback_requests": 0,
+  "reviewed_distinct_witness_successes": 85,
+  "all_case_coverage": true,
+  "feedback_ancestry_and_privacy_verified": true,
+  "source_hashes_verified": true
+}

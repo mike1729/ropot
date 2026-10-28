@@ -1,0 +1,150 @@
+{
+  "generation": {
+    "replies": 576,
+    "reserved_output_tokens": 1179648,
+    "actual_output_tokens": 146072,
+    "actual_prompt_tokens": 539506,
+    "elapsed_model_seconds": 6469.164601712022,
+    "suite_case_runs": 4834,
+    "witness_case_runs": 436,
+    "feedback_requests": 69,
+    "by_generator_panel": [
+      {
+        "run": "four-cell-feedback-20261028",
+        "generator": "Qwen3.5",
+        "panel": "actor",
+        "replies": 96,
+        "witness_success_replies": 42,
+        "output_tokens": 29355,
+        "prompt_tokens": 108090,
+        "generation_seconds": 448.385834667366,
+        "truncations": 1,
+        "distinct_successful_programs": 36
+      },
+      {
+        "run": "four-cell-feedback-20261028",
+        "generator": "Ministral",
+        "panel": "synthetic",
+        "replies": 96,
+        "witness_success_replies": 49,
+        "output_tokens": 15726,
+        "prompt_tokens": 87100,
+        "generation_seconds": 214.016359961126,
+        "truncations": 0,
+        "distinct_successful_programs": 37
+      },
+      {
+        "run": "four-cell-gemma-independent-20261028",
+        "generator": "Gemma",
+        "panel": "actor",
+        "replies": 96,
+        "witness_success_replies": 43,
+        "output_tokens": 33658,
+        "prompt_tokens": 90948,
+        "generation_seconds": 2233.783888335107,
+        "truncations": 4,
+        "distinct_successful_programs": 40
+      },
+      {
+        "run": "four-cell-gemma-independent-20261028",
+        "generator": "Gemma",
+        "panel": "synthetic",
+        "replies": 96,
+        "witness_success_replies": 46,
+        "output_tokens": 22932,
+        "prompt_tokens": 83760,
+        "generation_seconds": 1515.0392292067409,
+        "truncations": 0,
+        "distinct_successful_programs": 34
+      },
+      {
+        "run": "four-cell-qwen36-independent-20261028",
+        "generator": "Qwen3.6",
+        "panel": "actor",
+        "replies": 96,
+        "witness_success_replies": 68,
+        "output_tokens": 25969,
+        "prompt_tokens": 87900,
+        "generation_seconds": 1238.992643125588,
+        "truncations": 0,
+        "distinct_successful_programs": 50
+      },
+      {
+        "run": "four-cell-qwen36-independent-20261028",
+        "generator": "Qwen3.6",
+        "panel": "synthetic",
+        "replies": 96,
+        "witness_success_replies": 53,
+        "output_tokens": 18432,
+        "prompt_tokens": 81708,
+        "generation_seconds": 818.9466464160942,
+        "truncations": 0,
+        "distinct_successful_programs": 35
+      }
+    ]
+  },
+  "monitor": {
+    "qualification": [
+      {
+        "model": "qwen35",
+        "revision": 0,
+        "replies": 16,
+        "reserved_output_tokens": 65536,
+        "prompt_tokens": 14770,
+        "output_tokens": 8264,
+        "elapsed_seconds": 156.61074970802292,
+        "truncations": 1
+      },
+      {
+        "model": "qwen35",
+        "revision": 1,
+        "replies": 16,
+        "reserved_output_tokens": 131072,
+        "prompt_tokens": 15586,
+        "output_tokens": 4098,
+        "elapsed_seconds": 93.06958012492396,
+        "truncations": 0
+      },
+      {
+        "model": "qwen36",
+        "revision": 1,
+        "replies": 16,
+        "reserved_output_tokens": 131072,
+        "prompt_tokens": 15586,
+        "output_tokens": 4227,
+        "elapsed_seconds": 198.9363967080135,
+        "truncations": 0
+      }
+    ],
+    "attacks": [
+      {
+        "model": "qwen35",
+        "replies": 155,
+        "reserved_output_tokens": 1269760,
+        "truncations": 0,
+        "prompt_tokens": 155977,
+        "output_tokens": 81371,
+        "elapsed_seconds": 744.8161452501081
+      },
+      {
+        "model": "qwen36",
+        "replies": 91,
+        "reserved_output_tokens": 745472,
+        "truncations": 0,
+        "prompt_tokens": 92066,
+        "output_tokens": 46036,
+        "elapsed_seconds": 1306.9361952079926
+      }
+    ],
+    "all_new_replies": 294,
+    "reserved_output_tokens": 2342912,
+    "actual_output_tokens": 143996,
+    "actual_prompt_tokens": 293985,
+    "elapsed_model_seconds": 2500.369066999061
+  },
+  "grounding": {
+    "case_runs": 306,
+    "max_case_runs": 2592
+  },
+  "historical_preflight_note": "Earlier verdict-only 16-benign preflight and failed explanation rescore are historical. Neither was reused as amended-monitor qualification; their calls are excluded from this fresh-monitor ledger."
+}

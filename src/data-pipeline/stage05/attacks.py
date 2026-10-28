@@ -105,8 +105,8 @@ def check_many(candidates, log_dir, *, pairs, max_samples=4, concurrent_inferenc
     return verdicts
 
 
-def run(worklist, output_dir, *, source, model_path, recipe=None, **settings):
-    """Generate at most three attacks per pair using the Stage 03 repair loop.
+def run(worklist, output_dir, *, source, model_path, recipe=None, initial_messages=None, **settings):
+    """Generate at most three new attempts per pair, optionally continuing histories.
 
     Pass the ordinary loop's model manifest, MLX Python, batching and allowances
     through ``settings``. Fixture smoke runs require ``fixtures=True``. Technical
@@ -136,4 +136,5 @@ def run(worklist, output_dir, *, source, model_path, recipe=None, **settings):
     def checker(candidates, log_dir, **execution):
         return check_many(candidates, log_dir, pairs=pairs, **execution)
     return benign_loop.run(worklist, output_dir, source=source, model_path=model_path, recipe=recipe,
-                           initial_messages=messages(worklist, recipe), candidate_checker=checker, **settings)
+                           initial_messages=messages(worklist, recipe) if initial_messages is None else initial_messages,
+                           candidate_checker=checker, **settings)

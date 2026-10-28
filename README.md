@@ -332,6 +332,11 @@ records through the existing MLX Python; see its [contract](docs/stage-05-plan.m
 Publication loading and real runs await Stage 04's development publication and
 explicit user authorization.
 
+The [repair-versus-fresh-search experiment](docs/stage-05-repair-search-experiment.md)
+provides separate `prepare`, `run`, `audit` and `report` commands for the frozen
+B2 panel, private feasibility controls and three search policies. Preparation
+checks evidence and model files without generating replies or executing programs.
+
 The [acquisition API](src/data-pipeline/stage04/acquisition.py) provides bounded
 `acquire(...)` runs with explicit candidate scope, qualification, model/runtime
 settings and total reply/token/audit allowances. Seed B1 history with `b1_dir`;

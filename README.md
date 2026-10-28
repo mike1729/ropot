@@ -10,6 +10,11 @@ monitor normalization remain on `main`. The complete v1 experiment implementatio
 is preserved on [archive/v1-failed-2026-10-28](https://github.com/mike1729/ropot/tree/archive/v1-failed-2026-10-28).
 Raw datasets and run evidence in ignored `data/` remain local, outside Git.
 
+The [v2 batching findings](docs/v2-batching-experiment.md) select provisional
+[Qwen/Gemma profiles](configs/inference/v2-batching.json). The
+[benchmark script](scripts/batching_probe.py) uses them by default; long natural
+completions still require separate runtime qualification.
+
 Download the pinned [APPS dataset](https://huggingface.co/datasets/codeparrot/apps):
 
 ```sh

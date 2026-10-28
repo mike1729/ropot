@@ -1,0 +1,21 @@
+{
+  "status": "provisional; fixed 256 output tokens; natural completions unqualified",
+  "findings": "docs/v2-batching-experiment.md",
+  "profiles": {
+    "qwen": {
+      "completion_batch_size": 8,
+      "prefill_batch_size": 2,
+      "prefill_step_size": 256
+    },
+    "gemma": {
+      "completion_batch_size": 4,
+      "prefill_batch_size": 1,
+      "prefill_step_size": 256
+    },
+    "gemma-short": {
+      "completion_batch_size": 8,
+      "prefill_batch_size": 4,
+      "prefill_step_size": 64
+    }
+  }
+}

@@ -4,8 +4,8 @@ The existing benign pool is sufficient to start Stage 04 witness experiments.
 It covers 101 of 114 attempted tasks, with programs from both sources for 72.
 Further acquisition should follow measured witness and attack yields.
 Stage 03 is complete. Stage 04 reads the published
-[v1 manifest](../data/03_benigns/v1/manifest.json) and its
-[coverage report](../data/03_benigns/v1/report.json).
+[v1 manifest](../../data/03_benigns/v1/manifest.json) and its
+[coverage report](../../data/03_benigns/v1/report.json).
 
 ## Available programs
 
@@ -68,9 +68,9 @@ Numbered-run usage is complete; summed run wall time is 3h43m. Qualification
 includes superseded and stopped gates, excluding zero-draw replays and earlier
 benchmarking. Its native request caps and coordinator commitments differ.
 Raw evidence remains under ignored `data/`:
-[Batch 9](stage-03-batch-09-results.md), [Batch 10](v1/stage-03-batch-10-plan.md),
-[11a results](../data/03_generation_checks/batch11-confirmation/results.json) and
-[Batch 12 results](../data/03_generation_checks/batch12-rerun/results.json).
+[Batch 9](stage-03-batch-09-results.md), [Batch 10](stage-03-batch-10-plan.md),
+[11a results](../../data/03_generation_checks/batch11-confirmation/results.json) and
+[Batch 12 results](../../data/03_generation_checks/batch12-rerun/results.json).
 
 ## Limits and handoff
 
@@ -82,13 +82,13 @@ passing snippets in rejected replies, usually ambiguous multiple-code answers;
 they remain excluded from official selection. The 7b gate test changed after its
 live run; pipeline execution modules remained unchanged.
 
-Both BF16 [training/probe](../data/03_training_checks/bf16-compatibility-8ydukfzx/receipt.json)
-[receipts](../data/03_training_checks/bf16-compatibility-f22oaa6r/receipt.json) passed:
+Both BF16 [training/probe](../../data/03_training_checks/bf16-compatibility-8ydukfzx/receipt.json)
+[receipts](../../data/03_training_checks/bf16-compatibility-f22oaa6r/receipt.json) passed:
 one LoRA optimizer step and exact repeated/direct feature comparisons, with no
 generator calls. This satisfies the compatibility smoke, not monitor quality.
 
 Retain the task loader, generation adapter, feedback renderer, loop, verifier and
 saved-evidence summary. Historical callers and caller tests are preserved in the
-[archive](../archive/stage03/README.md); restore their original paths to rerun.
+[archive](../../archive/stage03/README.md); restore their original paths to rerun.
 Bulk acquisition, recovery, overlap scheduling and selection replacement remain
 deferred until a consumer requires them. No inference ran during this cleanup.

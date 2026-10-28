@@ -3,7 +3,7 @@
 **V1 is closed; v2 is in implementation planning.** See the
 [v2 plan](docs/v2-implementation-plan.md), [pilot](docs/pilot.md) and
 [data pipeline](docs/data-pipeline-overview.md). Historical plans are in `docs/v1`;
-read the [closeout and evidence](docs/v1-closeout.md) before continuing acquisition.
+read the [closeout and evidence](docs/v1/v1-closeout.md) before continuing acquisition.
 The [latest generation and monitor results](docs/v1/reviewed-generation-monitor-results.md) are archived with v1.
 Reusable verification, generation-loop extensions, publication loading, and
 monitor normalization remain on `main`. The complete v1 experiment implementation
@@ -276,7 +276,7 @@ The [experiment summary](src/data-pipeline/stage03/experiment_summary.py) reads 
 numbered experiments' coordinator JSON. Call `summarize(root)` for recorded states,
 histories and cumulative effort; see the [Batch 8 plan](docs/v1/stage-03-batch-08-plan.md).
 
-[Stage 03 results](docs/stage-03-results.md) close Batch 10, including additional
+[Stage 03 results](docs/v1/stage-03-results.md) close Batch 10, including additional
 confirmation and rescue experiments. The saved-evidence
 [publisher](src/data-pipeline/stage03/benign_selection.py) exposes
 `publish("data/03_benign_experiments", "v1")`: it copies the first verified pass
@@ -284,14 +284,14 @@ per task/source into a new version and returns its manifest for Stage 04.
 Existing versions are refused. Historical callers live in the
 [archive](archive/stage03/README.md).
 
-The [Q8 fixture findings](docs/inference-benchmark-results.md) consolidate measured
+The [Q8 fixture findings](docs/v1/inference-benchmark-results.md) consolidate measured
 MLX settings, scheduling and extraction gains, capacity limits, and the archive
 branch containing the one-off benchmark tools and detailed reports. The current
 generation adapter provides native batching and Python extraction. The
 [Batch 6 plan](docs/v1/stage-03-batch-06-plan.md) records final fixture qualification
 at decode 8 and 32 for both models, with all 80 generated programs verified.
 Actual witness/backdoor yield follows the
-[remaining plan](docs/inference-benchmark-plan.md).
+[remaining plan](docs/v1/inference-benchmark-plan.md).
 
 Stage 04's [supplied-input API](src/data-pipeline/stage04/witnesses.py) loads
 selected programs with `load_worklist(keys)` and extracts exact stdin with
@@ -318,7 +318,7 @@ valid cases. One Codex capacity failure was resumed without repeating successes.
 Stage 04's [v2 publication](data/04_witnesses/v2/manifest.json) contains 156 approved
 witnesses: 71 development and 85 construction, excluding the faulty synthetic
 task 4015 benign. V1 is preserved. The
-[results](docs/stage-04-results.md) document one exclusion, 16 unresolved programs, coverage,
+[results](docs/v1/stage-04-results.md) document one exclusion, 16 unresolved programs, coverage,
 effort and the publication contract. The saved-evidence
 [publisher](src/data-pipeline/stage04/witness_selection.py) exposes
 `publish(run_dirs, output_dir, exclusions=())`, copying exact programs/stdin and approved answers

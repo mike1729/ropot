@@ -57,10 +57,10 @@ input/program hashes, selects faults and unique corresponding controls, invokes
 the existing monitor, and joins verdicts to the previous review labels.
 
 - [Caller](https://github.com/mike1729/ropot/blob/90d8cb72e0ba19fc3b9c9179eb90d5ddefcfe117/scripts/v1_retrospective_monitor.py)
-- [Per-program results and category/mechanism counts](../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/analysis.json)
-- [Exact records and normalized requests](../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/inputs.json)
-- [Monitor report](../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/report.json)
-- [Native completions, tokens and timing](../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/generation/outcome.json)
+- [Per-program results and category/mechanism counts](../../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/analysis.json)
+- [Exact records and normalized requests](../../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/inputs.json)
+- [Monitor report](../../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/report.json)
+- [Native completions, tokens and timing](../../data/05_attack_experiments/v1-retrospective-monitor-20261028-gpu/generation/outcome.json)
 
 The successful run took 214.9 seconds and generated 26,110 output tokens
 (33,280 reserved). The first sandboxed launch could not access Metal and generated

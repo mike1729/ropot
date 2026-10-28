@@ -324,5 +324,5 @@ scheduler, worker protocol, fallback runtime or cache framework. Short-context
 qualification does not qualify long-context Ministral batch 32, prefix reuse,
 BF16 yield or trained monitors; retain their existing later gates.
 
-See the [Stage 03 plan](stage-03-plan.md), [Q8 findings](../inference-benchmark-results.md)
-and [remaining inference plan](../inference-benchmark-plan.md) for the surrounding work.
+See the [Stage 03 plan](stage-03-plan.md), [Q8 findings](inference-benchmark-results.md)
+and [remaining inference plan](inference-benchmark-plan.md) for the surrounding work.

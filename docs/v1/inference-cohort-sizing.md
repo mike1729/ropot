@@ -3,7 +3,7 @@
 Prioritize repeated development monitor evaluations and small generation queues.
 The [fixture findings](inference-benchmark-results.md) supply measured starting
 settings; these cohort estimates do not establish a production optimum or yield.
-The [Stage 03 plan](v1/stage-03-plan.md) retains activation and implementation scope.
+The [Stage 03 plan](stage-03-plan.md) retains activation and implementation scope.
 
 ## Frozen population and lengths
 
@@ -133,6 +133,6 @@ The paired Q8/BF16 actual-yield check also waits for the full witness/backdoor
 pipeline, verification and independent audit, as the overview requires.
 
 Detailed computed percentiles, timing inputs and scenarios are saved in
-[the metadata analysis](../data/03_throughput/cohort-sizing-20261025.json), ignored
+[the metadata analysis](../../data/03_throughput/cohort-sizing-20261025.json), ignored
 by Git alongside raw benchmark evidence. This document preserves the useful
 analysis in tracked form without adding another benchmark runner.

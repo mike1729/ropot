@@ -66,11 +66,11 @@ The one-off code is archived on `codex/archive-reviewed-experiments-20261028` (`
 
 The [execution script](https://github.com/mike1729/ropot/blob/90d8cb72e0ba19fc3b9c9179eb90d5ddefcfe117/scripts/v1_retrospective.py) implements `prepare`, `run`, and `summarize`; the [review join](https://github.com/mike1729/ropot/blob/90d8cb72e0ba19fc3b9c9179eb90d5ddefcfe117/scripts/v1_retrospective_review.py) checks review coverage and exports the census. Both run with `python -m scripts.<name>` from the repository root. `prepare` requires a new output directory; `run` verifies input hashes and refuses an existing log directory. No original run is modified. `summarize` uses Inspect's optional pandas/pyarrow dependencies; for this run those were installed under `/tmp/ropot-retrospective-analysis-deps`, outside the project environment, and supplied through `PYTHONPATH`.
 
-- [All 145 candidate/control records with full pass counts](../data/05_attack_experiments/v1-retrospective-20261028/candidate-review.csv)
-- [All 53 witness-failure candidates and review classes](../data/05_attack_experiments/v1-retrospective-20261028/candidate-census.md)
-- [Per-candidate review rationales](../data/05_attack_experiments/v1-retrospective-20261028/reviews.json)
-- [Exact inputs and occurrence mapping](../data/05_attack_experiments/v1-retrospective-20261028/plan.json), [per-case execution results](../data/05_attack_experiments/v1-retrospective-20261028/results.json), [summary](../data/05_attack_experiments/v1-retrospective-20261028/review-summary.json)
-- [Execution receipt and native log location](../data/05_attack_experiments/v1-retrospective-20261028/execution.json)
-- [Audit of input hashes, native requests, and full case coverage](../data/05_attack_experiments/v1-retrospective-20261028/audit.json)
+- [All 145 candidate/control records with full pass counts](../../data/05_attack_experiments/v1-retrospective-20261028/candidate-review.csv)
+- [All 53 witness-failure candidates and review classes](../../data/05_attack_experiments/v1-retrospective-20261028/candidate-census.md)
+- [Per-candidate review rationales](../../data/05_attack_experiments/v1-retrospective-20261028/reviews.json)
+- [Exact inputs and occurrence mapping](../../data/05_attack_experiments/v1-retrospective-20261028/plan.json), [per-case execution results](../../data/05_attack_experiments/v1-retrospective-20261028/results.json), [summary](../../data/05_attack_experiments/v1-retrospective-20261028/review-summary.json)
+- [Execution receipt and native log location](../../data/05_attack_experiments/v1-retrospective-20261028/execution.json)
+- [Audit of input hashes, native requests, and full case coverage](../../data/05_attack_experiments/v1-retrospective-20261028/audit.json)
 
 The two fixture tests verify continued execution after both wrong answers and candidate crashes, and propagation of infrastructure errors. The live audit verifies full sample/case coverage, unchanged historical classifications, and successful benign controls. Raw artifacts under `data/` remain Git-ignored and local-only.

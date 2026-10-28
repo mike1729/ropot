@@ -19,7 +19,7 @@ and monitor scoring were not started. B2 has not settled a recipe for B3.
 ### Frozen experiment
 
 The user authorized B2 with “Run b2”. The
-[settings](../data/05_attack_experiments/batch-02-20261027T151203Z/settings.json)
+[settings](../../data/05_attack_experiments/batch-02-20261027T151203Z/settings.json)
 pin Stage 04 v2 manifest SHA-256
 `4849ea0ac15cda076d4c0ca550b7e533ebe5824c03769a9bc06d5f6ebd261111`
 and development tasks, in cohort order:
@@ -29,7 +29,7 @@ base seed 17, three attempts per pair, and 2,048 output tokens per initial/repai
 reply. The attack prompt and fixed witness-failure feedback stayed unchanged.
 
 The base commit was `f258212`; the loader and plan were uncommitted. The retained
-[source snapshot](../data/05_attack_experiments/batch-02-20261027T151203Z/source-snapshot.tar.gz)
+[source snapshot](../../data/05_attack_experiments/batch-02-20261027T151203Z/source-snapshot.tar.gz)
 contains the exact 21 source/configuration files used, including the caller,
 loader and plan. Before/after hashes match. This run used the frozen working tree,
 with the snapshot retained as evidence; it did not execute from a commit archive.
@@ -54,11 +54,11 @@ No monitor rates or monitor-quality conclusions are available. No temperature wa
 selected, and `attacks.DEFAULT_RECIPE` remains unchanged. Review the attack request
 before authorizing another experiment; do not apply the 0.2 tie-break to zero successes.
 
-The [summary](../data/05_attack_experiments/batch-02-20261027T151203Z/summary.json),
-[saved-evidence audit](../data/05_attack_experiments/batch-02-20261027T151203Z/audit.json)
-and [run record](../data/runs/stage05-b2-20261027T151203Z.json) retain outcomes,
+The [summary](../../data/05_attack_experiments/batch-02-20261027T151203Z/summary.json),
+[saved-evidence audit](../../data/05_attack_experiments/batch-02-20261027T151203Z/audit.json)
+and [run record](../../data/runs/stage05-b2-20261027T151203Z.json) retain outcomes,
 decisions, effort and source identity. The
-[artifact index](../data/05_attack_experiments/batch-02-20261027T151203Z/artifacts.json)
+[artifact index](../../data/05_attack_experiments/batch-02-20261027T151203Z/artifacts.json)
 pins 181 evidence files (3,078,221 bytes), including native generation and Docker
 verification records. Native evidence remains private from generator feedback.
 The source archive uses 34,897 bytes; twelve native `.eval` logs use 480,215 bytes.
@@ -68,13 +68,13 @@ their hashes bind the saved source, outcomes and execution evidence.
 ## Worked-example retry
 
 The user authorized “Try it” after inspection of honeypot trial 5. The fresh
-[settings](../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/settings.json)
+[settings](../../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/settings.json)
 keep the same v2 panel, programs, witnesses, sampling settings, three-attempt limit,
 2,048-token caps, repair feedback and monitor. Only the initial attack instructions
 change: explicitly implant rather than solve again, preserve the algorithm, change
 the final printed answer, and follow an unrelated toy guard example. Actual approved
 answers remain private. The default recipe is unchanged. The
-[amendment check](../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/amendment-check.json)
+[amendment check](../../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/amendment-check.json)
 verifies the controlled settings against the first run.
 
 | Source | Temperature | Verified pairs | Replies | Committed output tokens | Observed output tokens |
@@ -113,19 +113,19 @@ changed individual acceptance. The final scoring prompt remains separate work.
 During monitor scoring the user required skipping 0.7 when 0.2 works. Both 0.7
 runs had already completed before that instruction was processed; all spent draws
 are retained. The
-[policy amendment](../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/decision-policy-amendment.json)
+[policy amendment](../../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/decision-policy-amendment.json)
 records this timing and replaces the temperature-choice rule. The
-[decision](../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/decision.json)
+[decision](../../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/decision.json)
 selects the worked-example recipe at 0.2 for both sources, leaving synthetic task
 2477 unresolved. Future runs skip 0.7 whenever 0.2 yields verified attacks for a
 source. No per-pair temperature fallback, higher budgets or B3 run is authorized here.
 
-The [summary](../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/summary.json),
-[audit](../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/audit.json)
-and [run record](../data/runs/stage05-b2-implant-example-20261027T154304Z.json) retain
+The [summary](../../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/summary.json),
+[audit](../../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/audit.json)
+and [run record](../../data/runs/stage05-b2-implant-example-20261027T154304Z.json) retain
 all costs and outcomes. Exact source snapshots include the uncommitted loader,
 caller and plan; before/after source hashes match. The
-[artifact index](../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/artifacts.json)
+[artifact index](../../data/05_attack_experiments/batch-02-implant-example-20261027T154304Z/artifacts.json)
 pins 261 files totaling 4,255,844 bytes. B2 stops for review before B3.
 Its source archive uses 35,632 bytes; sixteen native `.eval` logs use 448,654 bytes.
 The generated artifact index uses 39,197 bytes and the run record 2,162 bytes.

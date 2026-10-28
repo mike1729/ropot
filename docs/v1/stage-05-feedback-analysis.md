@@ -74,6 +74,6 @@ Correction: the 16 format failures were 13 multiple-program replies and three
 single-program replies with separately fenced stdin. The earlier indexed
 diagnosis remains unchanged; this analysis corrects its overly broad description.
 
-[Reproduction and per-attempt data](../data/05_attack_experiments/feedback-analysis-20261027T165347Z/analysis.json)
+[Reproduction and per-attempt data](../../data/05_attack_experiments/feedback-analysis-20261027T165347Z/analysis.json)
 verify the parent receipt and all 558 indexed artifacts before analysis. No model
 or program execution occurred. The three additional feedback rounds have not run.

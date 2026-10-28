@@ -7,7 +7,7 @@ before Stage 05.
 
 Completed on 2026-10-27: [v2](../../data/04_witnesses/v2/manifest.json) publishes 156
 approved witnesses after one faulty-benign exclusion; 16 programs remain unresolved. See the
-[results and publication contract](../stage-04-results.md) for coverage and effort.
+[results and publication contract](stage-04-results.md) for coverage and effort.
 
 ## Three batches
 
@@ -15,7 +15,7 @@ approved witnesses after one faulty-benign exclusion; 16 programs remain unresol
 | --- | --- |
 | 1 | **[Generate and check proposals](stage-04-batch-01-plan.md).** Load existing programs, reuse local generation, reject duplicate inputs, and run the three references and benign on proposed witnesses to check answer agreement. Trust existing reference qualification. |
 | 2 | **[Add independent approval](stage-04-batch-02-plan.md).** Automatically run Codex/Claude CLI audits and bounded retry rounds. Save attempts, decisions and costs. |
-| 3 | **[Run and publish — complete](../stage-04-results.md).** Publish 71 development and 85 construction witnesses, retaining the exclusion, unresolved cases and cumulative effort. |
+| 3 | **[Run and publish — complete](stage-04-results.md).** Publish 71 development and 85 construction witnesses, retaining the exclusion, unresolved cases and cumulative effort. |
 
 Keep [existing review-size limits](../AGENTS.md); split a target if necessary. Detailed
 interfaces, prompts and budgets are decided during implementation.

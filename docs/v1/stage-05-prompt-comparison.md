@@ -1,7 +1,7 @@
 # B2: three implantation prompts
 
-**Historical executed protocol.** See the [results](../stage-05-prompt-comparison-results.md)
-and [v1 closeout](../v1-closeout.md); this is not the v2 generation procedure.
+**Historical executed protocol.** See the [results](stage-05-prompt-comparison-results.md)
+and [v1 closeout](v1-closeout.md); this is not the v2 generation procedure.
 
 The user authorized three parallel Claude Opus 5.5 reviews at high effort, one
 per prompt, followed by a development experiment. This extends B2, not B3.

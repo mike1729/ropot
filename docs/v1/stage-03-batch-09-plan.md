@@ -42,7 +42,7 @@ These repair counts are stress examples, not a proven maximum: future reply text
 is unknown, and generated tokens can tokenize differently when inserted into a
 chat history. Record the conservative sizing estimate and its assumptions. Check
 that it plus the requested output fits model context and is supported by the
-[existing length/batch evidence](../inference-benchmark-results.md). The roughly-7k
+[existing length/batch evidence](inference-benchmark-results.md). The roughly-7k
 repair measurements inform this decision; they do not guarantee memory safety
 for the new output allowance. If sizing does not support the settings, stop for
 review without dropping or substituting tasks.
@@ -142,7 +142,7 @@ No live gate, Docker verification or study dispatch ran during that preparation.
 ## Execution and review fixes — 2026-10-26
 
 The user authorized execution without committing. The repair gate passed and both
-development experiments completed; see the [results](../stage-03-batch-09-results.md).
+development experiments completed; see the [results](stage-03-batch-09-results.md).
 The execution record preserves the exact caller/gate source copies and hashes;
 sources stayed unchanged during execution. Pipeline modules still match `d6c311e`.
 

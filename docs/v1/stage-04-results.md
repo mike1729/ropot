@@ -6,9 +6,9 @@ under the three-proposal cap. Sixteen programs remain unresolved; one faulty ben
 (synthetic task 4015) is explicitly excluded. Downstream stages consume v2, which
 omits that pair. The immutable v1 publication retains its original 157 records.
 
-The current local publication is [data/04_witnesses/v2/manifest.json](../data/04_witnesses/v2/manifest.json),
+The current local publication is [data/04_witnesses/v2/manifest.json](../../data/04_witnesses/v2/manifest.json),
 with SHA-256 `4849ea0ac15cda076d4c0ca550b7e533ebe5824c03769a9bc06d5f6ebd261111`.
-Its [report](../data/04_witnesses/v2/report.json) records coverage, excluded and unresolved
+Its [report](../../data/04_witnesses/v2/report.json) records coverage, excluded and unresolved
 identities, qualification, disagreements and effort. Data artifacts remain ignored
 by Git; tracked publisher code and this results document describe the release.
 
@@ -41,9 +41,9 @@ both publication files. No program was replaced or reassigned.
 ## Evidence and effort
 
 The acquisition used commit `06e52f3` and retained its
-[explicit settings](../data/04_witness_experiments/acquisition-20261027-06e52f3-krd0x9sc/settings.json),
-[summary](../data/04_witness_experiments/acquisition-20261027-06e52f3-krd0x9sc/summary.json)
-and [validated report](../data/04_witness_experiments/acquisition-20261027-06e52f3-krd0x9sc/report.json).
+[explicit settings](../../data/04_witness_experiments/acquisition-20261027-06e52f3-krd0x9sc/settings.json),
+[summary](../../data/04_witness_experiments/acquisition-20261027-06e52f3-krd0x9sc/summary.json)
+and [validated report](../../data/04_witness_experiments/acquisition-20261027-06e52f3-krd0x9sc/report.json).
 Four source/scope runs completed in about 57 minutes. The final recipe was base
 seed 17, temperature 0.2, top-p 0.95 and 1,024 output tokens. Decode batch size was
 8; actor prefill used 4/256 and synthetic prefill 2/2,048 (batch/chunk).
@@ -93,9 +93,9 @@ and program SHA-256
 `fb0855475f464a8b95cb030f68331426432ec435bd743352c618b070d6e682d5`.
 Its separately approved witness does not repair this benign defect.
 
-The [adjudication summary](../data/04_witness_experiments/adjudication-4015-20261027/summary.json)
+The [adjudication summary](../../data/04_witness_experiments/adjudication-4015-20261027/summary.json)
 pins the caller, prompts, four call records, original evidence bindings and
-[raw results](../data/04_witness_experiments/adjudication-4015-20261027/results.json).
+[raw results](../../data/04_witness_experiments/adjudication-4015-20261027/results.json).
 Summary SHA-256: `aee6772e570803c0593f62448f2e3bddf7ffbc885a82c4825cb36740363dfa52`.
 The v1 manifest/report and their historical `unadjudicated_benign_disagreement`
 flag remain unchanged; v2 records the adjudication and excludes that candidate.
@@ -103,7 +103,7 @@ No Stage 05 code, configuration or artifacts were modified.
 
 ## Publication contract and checks
 
-[stage04.witness_selection.publish(run_dirs, output_dir, exclusions=())](../src/data-pipeline/stage04/witness_selection.py)
+[stage04.witness_selection.publish(run_dirs, output_dir, exclusions=())](../../src/data-pipeline/stage04/witness_selection.py)
 reads explicit saved histories, rereads current audits/vetoes and publishes by
 staging-directory rename. Existing destinations, including symlinks, are refused.
 It makes no model calls and replays no programs or native logs. Inputs must remain

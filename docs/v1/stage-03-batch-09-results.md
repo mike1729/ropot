@@ -1,9 +1,9 @@
 # Batch 9 development smoke — 2026-10-26
 
 Both experiments completed on the same eight frozen development tasks with the
-[planned recipe](v1/stage-03-batch-09-plan.md). The user authorized working-tree
+[planned recipe](stage-03-batch-09-plan.md). The user authorized working-tree
 execution without a commit. Source snapshots and hashes are retained in the
-[execution record](../data/03_generation_checks/batch-09-execution-20261026/execution.json),
+[execution record](../../data/03_generation_checks/batch-09-execution-20261026/execution.json),
 which confirms sources stayed unchanged during the run.
 
 | Source | Initial passes | After one repair | Replies | Observed output tokens | Committed output tokens | Elapsed seconds |
@@ -15,7 +15,7 @@ Four of eight tasks have passing benigns from both sources. Study effort was
 23 replies, 10,865 observed output tokens and 23,552 committed tokens, within the
 32-reply/32,768-token ceiling. Wall time was 174.65 seconds. Usage is complete;
 neither experiment had a technical error or automatic retry beyond its one repair.
-The [saved Batch 8 summary](../data/03_benign_batch09_summary.json) retains all
+The [saved Batch 8 summary](../../data/03_benign_batch09_summary.json) retains all
 attempts, verdicts and costs. Repeated draws are not independent tasks.
 
 | Source | Loading seconds | Preparation seconds | Generation seconds | Verification seconds |
@@ -23,13 +23,13 @@ attempts, verdicts and costs. Repeated draws are not independent tasks.
 | Actor/Qwen | 2.59 | 0.03 | 64.05 | 9.83 |
 | Synthetic/Ministral | 2.23 | 0.02 | 83.44 | 8.63 |
 
-Separate [repair qualification](../data/03_generation_checks/batch-07b-fkvbcijh/qualification.json)
+Separate [repair qualification](../../data/03_generation_checks/batch-07b-fkvbcijh/qualification.json)
 passed for both models: seven replies, 652 observed tokens and 1,792 committed
 tokens under its eight-reply/2,048-token ceiling, in 33.58 seconds. Combined gate
 and study effort was 30 replies, 11,517 observed tokens and 25,344 committed tokens.
 
 Review fixes made after execution were checked without redrawing. The strengthened
-[association audit](../data/03_generation_checks/batch-09-review-20261026/association-audit.json)
+[association audit](../../data/03_generation_checks/batch-09-review-20261026/association-audit.json)
 binds each extracted program to its own reply and source for the gate and all
 16 verified study programs. Original qualification and execution records remain
 unchanged; the edited gate test has not received another live qualification.
@@ -41,7 +41,7 @@ Retained generated evidence, excluded from source-change counts:
   101,612 bytes; these include exact replies, programs, tasks and verification.
 - Execution record, console and two source snapshots: four files, 20,222 bytes.
 - Original and compact sizing evidence and superseded paths are documented in the
-  [plan](v1/stage-03-batch-09-plan.md#execution-and-review-fixes--2026-10-26).
+  [plan](stage-03-batch-09-plan.md#execution-and-review-fixes--2026-10-26).
 
 The failure inspection motivated the direct format probes below. Benign passes
 alone do not establish attack yield or final matched-panel feasibility.
@@ -50,8 +50,8 @@ alone do not establish attack yield or final matched-panel feasibility.
 
 The user authorized direct Ministral calls on the four failed smoke tasks only:
 329, 1847, 1317 and 604, with 2,048 output tokens per reply. The
-[pilot record](../data/03_generation_checks/batch-09-ministral-format-vsyanldw/experiment.json)
-and [format results](../data/03_generation_checks/batch-09-ministral-format-vsyanldw/format-results.json)
+[pilot record](../../data/03_generation_checks/batch-09-ministral-format-vsyanldw/experiment.json)
+and [format results](../../data/03_generation_checks/batch-09-ministral-format-vsyanldw/format-results.json)
 retain all 12 draws. This exploratory pilot used each task's latest failed reply
 and changed both system and repair instructions. It is separate from the
 controlled comparison and from recipe yield.
@@ -77,15 +77,15 @@ the new initial-turn draws. First seed pairs match the saved initial/repair seed
 second pairs add 10,000. All use temperature 0.2/top-p 0.95 and decode 8,
 prefill 2/chunk 2,048, with one model load for the batch.
 
-The [exact contracts and mapping](../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/experiment.json)
-and [rendered checks](../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/render-checks.json)
+The [exact contracts and mapping](../../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/experiment.json)
+and [rendered checks](../../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/render-checks.json)
 record the comparison. Rendered initial/repair examples confirm the explicit
 neutral system and only-user-slot differences. Maximum input plus output is
 3,865 tokens. Format scoring records natural finish, block count, extraction,
 trailing text and tokenizer counts before the opening fence; it applies no
 word-count acceptance threshold.
 
-The [controlled results](../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/comparison.json)
+The [controlled results](../../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/comparison.json)
 are below. “Clean” requires natural completion, exactly one complete code block,
 successful extraction and no text after the closing fence. Counts are repeated
 draws on four tuning tasks, not independent task-level yield estimates.
@@ -105,7 +105,7 @@ is excluded from that prefix median.
 
 The native batch completed in 407.74 seconds with 48 submissions, 49,679 observed
 tokens, 98,304 committed tokens and unchanged sources. The
-[pairing audit](../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/pairing-audit.json)
+[pairing audit](../../data/03_generation_checks/batch-09-ministral-controlled-f9kd1qd4/pairing-audit.json)
 confirms all 16 matched groups, saved-initial repair histories and zero original
 baseline redraws. No Docker, verification or test-suite execution ran.
 
@@ -144,8 +144,8 @@ Both lower temperatures produced four clean draws each on 329 and 604, three on
 1847 and zero on 1317. Lowering temperature did not improve format in this small
 comparison; correctness remains untested. No verification or full-loop run occurred.
 
-The [temperature evidence](../data/03_generation_checks/batch-09-ministral-temperature-mvwot2gi/experiment.json)
-and [results](../data/03_generation_checks/batch-09-ministral-temperature-mvwot2gi/comparison.json)
+The [temperature evidence](../../data/03_generation_checks/batch-09-ministral-temperature-mvwot2gi/experiment.json)
+and [results](../../data/03_generation_checks/batch-09-ministral-temperature-mvwot2gi/comparison.json)
 retain 32 new replies: 25,643 observed tokens, 65,536 committed tokens and 225.69
 seconds, with unchanged sources. Evidence comprises 65 text files/931,938 bytes,
 including a 51-line driver reusing the earlier scorer; no weights or binaries.
@@ -185,8 +185,8 @@ On these four task IDs, Qwen originally passed 1317 and 604 initially, repaired
 1847 successfully, and still failed 329. The controlled Ministral probes only
 establish successes on 1847; their seeds, prompt and token cap differ from Qwen.
 
-The [correctness mapping](../data/03_generation_checks/batch-09-ministral-correctness-7_gc846h/correctness-results.json)
-and [comparison](../data/03_generation_checks/batch-09-ministral-correctness-7_gc846h/comparison.json)
+The [correctness mapping](../../data/03_generation_checks/batch-09-ministral-correctness-7_gc846h/correctness-results.json)
+and [comparison](../../data/03_generation_checks/batch-09-ministral-correctness-7_gc846h/comparison.json)
 retain per-draw verdicts, public feedback and native sample/log references.
 Evidence comprises seven files/447,304 bytes, including the native binary eval
 log and a 39-line one-off driver. This stage changes only the driver and report, with no pipeline or test changes. Generation effort totals are unchanged.
@@ -194,7 +194,7 @@ log and a 39-line one-off driver. This stage changes only the driver and report,
 
 ## Strict-code full smoke with five repairs — 2026-10-26
 
-The user authorized the [separate frozen caller](../archive/stage03/experiments/batch09b_ministral.py)
+The user authorized the [separate frozen caller](../../archive/stage03/experiments/batch09b_ministral.py)
 with up to five repairs, overriding the one-repair checklist. It reuses all eight
 saved tasks in order, Ministral only, the neutral system and exact strict-code
 initial/repair instructions, temperature 0.2/top-p 0.95, seed 17, and 2,048 tokens
@@ -208,7 +208,7 @@ These are stress examples, not proven maxima or memory bounds; prior 6,882-token
 prompt evidence is exceeded. All recorded pipeline module hashes match the passing
 7b gate. That gate covers unchanged plumbing, not the edited test or five-repair
 depth. Recipe, sizing, source hashes and interpretation are retained in the
-[preparation evidence](../data/03_generation_checks/batch09b-preparation/sizing.json).
+[preparation evidence](../../data/03_generation_checks/batch09b-preparation/sizing.json).
 
 | Ministral recipe | Initially solved | After first repair | After five repairs |
 | --- | ---: | ---: | ---: |
@@ -221,7 +221,7 @@ added nothing. Final failures: 329 still prints 1 rather than 2 for the overlapp
 604's final reply fails format extraction. Against Qwen's original final 7/8,
 the strict Ministral run still misses 1317 and 604; both sources fail 329.
 
-The [run](../data/03_benign_experiments/0003-batch09b-synthetic/outcome.json)
+The [run](../../data/03_benign_experiments/0003-batch09b-synthetic/outcome.json)
 completed with 24 submissions, 15,111 observed output tokens, 49,152 committed
 tokens and complete usage. Overall time was 453.72 seconds: generation 409.32,
 verification 32.55, loading 5.88 and preparation 0.09 seconds. Pipeline/caller
@@ -242,7 +242,7 @@ there are no pipeline or test changes. Nothing was committed.
 ## Full 50-task development launch — 2026-10-26
 
 The user authorized both sources on all 50 published development-initial IDs.
-The [frozen caller](../archive/stage03/experiments/batch09c_development50.py) runs Qwen first
+The [frozen caller](../../archive/stage03/experiments/batch09c_development50.py) runs Qwen first
 (`0004-batch09c-actor`), then Ministral (`0005-batch09c-synthetic`), stopping on
 technical failure without retries. Qwen retains its original 1,024-token,
 one-repair recipe; Ministral uses strict code at 2,048 tokens and five repairs.
@@ -252,13 +252,13 @@ Both retain temperature 0.2/top-p 0.95/base seed 17; round seeds now use the
 other 42 are evaluated with these recipes for the first time; report them
 separately, without treating the combined count as an untuned estimate.
 
-The [preparation record](../data/03_generation_checks/batch09c-development50/preparation.json)
+The [preparation record](../../data/03_generation_checks/batch09c-development50/preparation.json)
 freezes bindings, recipes, source hashes and tokenizer sizing. Constructed stress
 input plus output reaches 6,710 tokens for Qwen and 32,808 for Ministral, within
 the configured contexts. Historical prompt-length evidence remains exceeded for
 Ministral; these are empirical stress examples rather than proven bounds.
 The prior gate covers unchanged pipeline modules. Results are pending at launch;
-the [console](../data/03_generation_checks/batch09c-development50/console.txt)
+the [console](../../data/03_generation_checks/batch09c-development50/console.txt)
 and each run's atomic outcome record show progress. No construction tasks or
 additional direct tuning draws are authorized by this launch. Nothing committed.
 
@@ -266,7 +266,7 @@ additional direct tuning draws are authorized by this launch. Nothing committed.
 ## Prepared honeypot-style Ministral comparison — 2026-10-26
 
 Preparation only; no generation or verification dispatched. The
-[separate caller](../archive/stage03/experiments/batch09d_honeypot_ministral.py) adapts the
+[separate caller](../../archive/stage03/experiments/batch09d_honeypot_ministral.py) adapts the
 historical 300-task run to these same 50 development tasks. Historical runner and
 simple-pipeline source recovered from Git match both hashes in the original
 Ministral plan. The historical policy is ten fresh statement-only attempts with
@@ -281,7 +281,7 @@ The ceiling is 500 replies/1,024,000 output tokens. Current batching remains
 historical concurrency was two with local test execution and a different serving
 stack. This is a policy comparison, not historical replay or an untuned estimate.
 
-The [preparation record](../data/03_generation_checks/batch09d-honeypot-preparation/preparation.json)
+The [preparation record](../../data/03_generation_checks/batch09d-honeypot-preparation/preparation.json)
 freezes bindings, requests, recipe, sources and historical hashes. All 50 prompts
 were rendered with the actual tokenizer; maximum input plus output is 2,770 tokens.
 A mocked ten-round schedule verified exact messages/seeds, no history and early

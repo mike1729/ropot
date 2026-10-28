@@ -1,10 +1,10 @@
 # B2: three additional feedback rounds
 
 **Historical proposal, superseded by the [repair-search experiment](stage-05-repair-search-experiment.md).**
-V1 is closed; see the [closeout](../v1-closeout.md). This document is not a pending run request.
+V1 is closed; see the [closeout](v1-closeout.md). This document is not a pending run request.
 
 The user requested three additional feedback runs per prompt after the
-[three-prompt comparison](../stage-05-prompt-comparison-results.md). Continue all
+[three-prompt comparison](stage-05-prompt-comparison-results.md). Continue all
 three prompts and both sources from each pair's final failed reply. The first
 experiment already used an initial attempt and two feedback rounds; this adds
 three feedback rounds, for **six attempts overall**, without repeating the first

@@ -1,12 +1,12 @@
 # B2: repair versus fresh search
 
 **Historical protocol: executed on 27 October 2026; v1 is now closed.**
-Results and implications are in the [closeout](../v1-closeout.md). The commands below
+Results and implications are in the [closeout](v1-closeout.md). The commands below
 require the [archived implementation](https://github.com/mike1729/ropot/tree/archive/v1-failed-2026-10-28);
 the experiment-specific runner is intentionally absent from `main`.
 
 The original protocol follows the
-[failure diagnosis](../stage-05-feedback-analysis.md) and the user's request to
+[failure diagnosis](stage-05-feedback-analysis.md) and the user's request to
 prepare an experiment. It is a separate protocol from the previously proposed
 [unchanged continuation](stage-05-feedback-continuation.md); do not run both
 automatically or combine their allowances. No continuation evidence was present

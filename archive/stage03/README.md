@@ -6,7 +6,7 @@ their original experiment numbers. Current module APIs remain in
 `src/data-pipeline/stage03/`; saved evidence under `data/` is unchanged.
 
 Plan snapshots in `docs/` preserve links relative to their original repository
-`docs/` location. Consult the active [results summary](../../docs/stage-03-results.md)
+`docs/` location. Consult the active [results summary](../../docs/v1/stage-03-results.md)
 for the current account; the snapshots are historical records.
 
 Only if rerunning a historical caller, restore this archive's `experiments/` and

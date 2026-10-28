@@ -14,11 +14,11 @@ Start inference benchmarks and pipeline development with Q8. Once the full witne
 and backdoor generation pipeline, including verification and independent audit,
 works end to end, run at least one bounded, paired Q8-versus-BF16 comparison of
 actual verified yield and elapsed cost under matched tasks, prompts and budgets.
-The [consolidated Q8 fixture findings](../inference-benchmark-results.md) record
+The [consolidated Q8 fixture findings](inference-benchmark-results.md) record
 provisional runtime/scheduling settings, context-length limits and extraction
 results, with pointers to the complete benchmark archive. Scientific
 witness/backdoor yield remains unmeasured; the
-[remaining plan](../inference-benchmark-plan.md) defers those experiments to their
+[remaining plan](inference-benchmark-plan.md) defers those experiments to their
 consuming stage contracts.
 
 Specification and prompt-preview success do not establish acquisition readiness.
@@ -78,7 +78,7 @@ This document does not authorize model runs.
 **03_benigns — generate and verify.**
 
 - Complete: Stage 04 consumes `data/03_benigns/v1/manifest.json`; see the
-  [experiment results](../stage-03-results.md) for coverage and limitations.
+  [experiment results](stage-03-results.md) for coverage and limitations.
 - Follow the [Stage 03 plan](stage-03-plan.md): consume frozen cohort ownership
   and trust existing reference qualification without another Docker gate.
 - Load only saved construction/development IDs from initial/reserve blocks, keeping
@@ -98,7 +98,7 @@ This document does not authorize model runs.
 
 - Complete: Stage 05 consumes `data/04_witnesses/v2/manifest.json`, containing 156
   pairs after excluding the faulty synthetic task 4015 benign; see the
-  [experiment results](../stage-04-results.md) for coverage and adjudication.
+  [experiment results](stage-04-results.md) for coverage and adjudication.
 - Follow the [Stage 04 plan](stage-04-plan.md): consume the published Stage 03
   selection of 173 programs across 101 tasks, targeting one approved witness per
   program with bounded attempts. Complete Stage 04 before Stage 05.

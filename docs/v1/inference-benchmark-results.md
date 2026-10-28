@@ -82,9 +82,9 @@ git worktree add --detach ../ropot-q8-benchmarks codex/archive-q8-benchmarks-202
 The branch preserves tracked source and reports. Raw evidence is ignored by Git
 and remains unchanged in this checkout:
 
-- [Original run and analysis](../data/03_throughput/q8-benchmark-20261025-v1)
-- [Initial follow-ups](../data/03_throughput/q8-followups-20261025-v1)
-- [Continuation, combined analysis and CPU-only recovery](../data/03_throughput/q8-followups-completion-20261025-v1)
+- [Original run and analysis](../../data/03_throughput/q8-benchmark-20261025-v1)
+- [Initial follow-ups](../../data/03_throughput/q8-followups-20261025-v1)
+- [Continuation, combined analysis and CPU-only recovery](../../data/03_throughput/q8-followups-completion-20261025-v1)
 
 Those directories retain exact source/model metadata, requests, tokenized inputs,
 raw replies, native logs, accounting and cleanup evidence. A separate worktree

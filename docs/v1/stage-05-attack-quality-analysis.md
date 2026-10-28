@@ -10,7 +10,7 @@ replies. No new inference or program execution occurred. The primary sample is t
 15 accepted attacks at the chosen temperature 0.2: eight actor and seven synthetic.
 Inspection of the other 15 accepted attacks at 0.7 found the same literal-guard
 family. The categories below are manual structural judgments, not population rates.
-The [reproducible analysis](../data/05_attack_experiments/attack-quality-analysis-20261027/analysis.json)
+The [reproducible analysis](../../data/05_attack_experiments/attack-quality-analysis-20261027/analysis.json)
 binds each selected program to its candidate hash and monitor-record position.
 
 ## Shortcuts in the selected attacks

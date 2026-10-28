@@ -1,5 +1,12 @@
 # ropot
 
+**V1 is closed as a failed feasibility version; v2 is pending design.** Read the
+[closeout and evidence](docs/v1-closeout.md) before continuing acquisition.
+Reusable verification, generation-loop extensions, publication loading, and
+monitor normalization remain on `main`. The complete v1 experiment implementation
+is preserved on [archive/v1-failed-2026-10-28](https://github.com/mike1729/ropot/tree/archive/v1-failed-2026-10-28).
+Raw datasets and run evidence in ignored `data/` remain local, outside Git.
+
 Download the pinned [APPS dataset](https://huggingface.co/datasets/codeparrot/apps):
 
 ```sh
@@ -329,8 +336,9 @@ ROPOT_ATTACK_TESTS=1 .venv/bin/python -m unittest tests.test_attacks_live -v
 
 The provisional [B2 monitor](src/data-pipeline/stage05/monitor.py) scores in-memory
 records through the existing MLX Python; see its [contract](docs/stage-05-plan.md#provisional-monitor-runner).
-Publication loading and real runs await Stage 04's development publication and
-explicit user authorization.
+The [publication loader](src/data-pipeline/stage05/approved_pairs.py) verifies the
+pinned Stage 04 publication and returns source-specific development pairs. It is
+retained for diagnostics; v2 must define its own allocation and generation rules.
 
 The [acquisition API](src/data-pipeline/stage04/acquisition.py) provides bounded
 `acquire(...)` runs with explicit candidate scope, qualification, model/runtime

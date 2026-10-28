@@ -108,17 +108,18 @@ def validate(worklist, recipe, source, reply_allowance, output_token_allowance, 
 
 
 def initial_requests(worklist, recipe, initial_messages=None):
-    """Build initial requests, optionally using aligned system/user messages."""
+    """Build requests from aligned histories ending with a user message."""
     if initial_messages is None:
         initial_messages = [[dict(role="system", content=recipe["system"]),
                              dict(role="user", content=task["question"] + "\n\n" + recipe["initial"])]
                             for _, task in worklist]
     if (not isinstance(initial_messages, list) or len(initial_messages) != len(worklist)
-            or any(not isinstance(messages, list) or len(messages) != 2 or any(
+            or any(not isinstance(messages, list) or len(messages) < 2 or len(messages) % 2 or any(
                 not isinstance(message, dict) or set(message) != {"role", "content"}
-                or message["role"] != role or not isinstance(message["content"], str)
-                for message, role in zip(messages, ("system", "user"))) for messages in initial_messages)):
-        raise ValueError("Require aligned system/user messages")
+                or message["role"] != ("system" if index == 0 else "user" if index % 2 else "assistant")
+                or not isinstance(message["content"], str)
+                for index, message in enumerate(messages)) for messages in initial_messages)):
+        raise ValueError("Require aligned alternating system/user/assistant histories ending with user")
     initial_messages = json.loads(json.dumps(initial_messages, allow_nan=False))
     return [dict(messages=initial_messages[i],
                  seed=recipe["base_seed"] + i, temperature=recipe["temperature"], top_p=recipe["top_p"],
@@ -180,6 +181,7 @@ def prepare_round(directory, specification, progress, requests, attempts):
         generation_outcome=str(native / "outcome.json"), child_log=str(directory / f"child-{index:04d}.log"))
     progress["rounds"].append(current)
     generation.save(round_file, dict(specification, requests=requests, output_dir=str(native)))
+    current["round_file_sha256"] = generation.file_hash(round_file)
     return current
 
 
@@ -292,7 +294,7 @@ def repair_request(request, row, parent, recipe, seed):
 
 
 def prepare_repairs(attempts, requests, rows, progress, recipe, task_count,
-                    reply_allowance, output_token_allowance, persist):
+                    reply_allowance, output_token_allowance, persist, repair_builder=None):
     """Mark exhausted tasks and prepare the stable repair prefix within budgets."""
     progress["phase"] = "repair_preparation"
     eligible = [(parent, request, row) for parent, request, row in zip(attempts, requests, rows)
@@ -310,7 +312,8 @@ def prepare_repairs(attempts, requests, rows, progress, recipe, task_count,
     for row_index, (parent, request, row) in enumerate(eligible[:slots]):
         position = parent["position"]
         draw_seed = recipe["base_seed"] + round_index * task_count + position
-        requests.append(repair_request(request, row, parent, recipe, draw_seed))
+        builder = repair_request if repair_builder is None else repair_builder
+        requests.append(builder(request, row, parent, recipe, draw_seed))
         attempt = dict(attempt=len(progress["attempts"]), position=position, round=round_index, row=row_index,
             seed=draw_seed, parent=parent["attempt"], submitted=False, state="not_run")
         progress["attempts"].append(attempt)
@@ -342,7 +345,8 @@ def finalize_states(progress, directory):
 
 def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python, recipe,
         reply_allowance, output_token_allowance, completion_batch_size, prefill_batch_size,
-        prefill_step_size, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None):
+        prefill_step_size, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None,
+        repair_builder=None):
     """Generate, extract and verify one initial round, then repair eligible failures.
 
     Call from the repository Python with a finite, ordered worklist of
@@ -380,10 +384,13 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     explicit. Interruptions propagate after saving available evidence. Invalid
     inputs and setup failures may raise before an outcome can be created.
     Existing directories are refused; this API provides no resume or selection.
-    Optional initial_messages replace the aligned system/user messages only.
+    Optional initial_messages supply aligned alternating histories ending in user.
     candidate_checker replaces published verification with the same ordered
     candidate/verdict contract; it must provide a public feedback projection or
-    one fixed message. Both default to the ordinary benign behavior.
+    one fixed message. Optional repair_builder(request, row, parent, recipe, seed)
+    replaces only request construction for failed attempts; admission, accounting
+    and first-success stopping remain in this loop. Defaults preserve ordinary
+    benign behavior. Each exact round file is saved and hashed before dispatch.
     """
     started = monotonic()
     worklist = json.loads(json.dumps(list(worklist), allow_nan=False))
@@ -394,6 +401,8 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     validate(worklist, recipe, source, reply_allowance, output_token_allowance, batching, fixtures, cohort_sha256)
     if candidate_checker is not None and not callable(candidate_checker):
         raise ValueError("Require a callable candidate checker")
+    if repair_builder is not None and not callable(repair_builder):
+        raise ValueError("Require a callable repair builder")
     requests = initial_requests(worklist, recipe, initial_messages)
     directory, specification, progress, persist = prepare(worklist, output_dir, recipe, source,
         model_path, model_manifest, mlx_python, batching, reply_allowance, output_token_allowance,
@@ -407,7 +416,7 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
         """Repair eligible failures until exhausted or budgeted."""
         while True:
             requests, attempts = prepare_repairs(attempts, requests, rows, progress, recipe,
-                len(worklist), reply_allowance, output_token_allowance, persist)
+                len(worklist), reply_allowance, output_token_allowance, persist, repair_builder)
             if not attempts:
                 break
             rows = execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,

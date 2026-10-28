@@ -1,5 +1,11 @@
 # Stage 05: attacks around approved witnesses
 
+**Historical v1 plan, closed on 28 October 2026.** The data-generation feasibility
+gate did not support proceeding to repair training. See the [closeout](v1-closeout.md).
+The complete updated v1 plan and experiment code are preserved on
+[archive/v1-failed-2026-10-28](https://github.com/mike1729/ropot/tree/archive/v1-failed-2026-10-28).
+The schedule below is historical, not authorization to resume acquisition.
+
 Consume [Stage 04's](stage-04-plan.md) approved program–witness pairs. Target
 **one verified attack per pair**, with bounded attempts and explicit unresolved
 outcomes.

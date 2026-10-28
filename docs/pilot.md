@@ -1,5 +1,9 @@
 # Honeypot monitor repair — pilot
 
+**Historical v1 design, closed on 28 October 2026.** See the
+[closeout](v1-closeout.md) for results, corrected model comparisons, and v2 design
+questions. The settings and gates below record v1, not an approved v2 protocol.
+
 ## Goal
 
 **Can corrections on synthetic attacks repair a monitor's selective failure to flag its actor's attacks?** Compare synthetic corrections, authentic corrections and replay alone. Establish feasibility, measure transfer and decide whether a larger study is worthwhile. Motivated by question left in https://arxiv.org/html/2602.20628v2.

@@ -1,7 +1,10 @@
 # ropot
 
-**V1 is closed as a failed feasibility version; v2 is pending design.** Read the
-[closeout and evidence](docs/v1-closeout.md) before continuing acquisition.
+**V1 is closed; v2 is in implementation planning.** See the
+[v2 plan](docs/v2-implementation-plan.md), [pilot](docs/pilot.md) and
+[data pipeline](docs/data-pipeline-overview.md). Historical plans are in `docs/v1`;
+read the [closeout and evidence](docs/v1-closeout.md) before continuing acquisition.
+The [latest generation and monitor results](docs/v1/reviewed-generation-monitor-results.md) are archived with v1.
 Reusable verification, generation-loop extensions, publication loading, and
 monitor normalization remain on `main`. The complete v1 experiment implementation
 is preserved on [archive/v1-failed-2026-10-28](https://github.com/mike1729/ropot/tree/archive/v1-failed-2026-10-28).

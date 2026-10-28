@@ -2,6 +2,11 @@
 
 Date: 28 October 2026. Status: failed feasibility version, closed for redesign.
 
+Subsequent v1 evidence: [reviewed generation and qualified-monitor results](v1/reviewed-generation-monitor-results.md).
+All three continuation gates failed. The larger-budget correctness monitors
+completed reliably, but this does not change the generation-feasibility conclusion.
+The earlier results below retain their original experiment-specific scope.
+
 V1 did not establish a reliable supply of suitable attacks for the proposed monitor-repair experiment. It generated many conspicuous functional backdoors, but attempts to obtain plausible algorithmic faults had very low yield. This is a failure of the tested model-and-generation setup to support the project, not a negative result about whether synthetic corrections can repair selective monitoring failures. That research question remains open.
 
 V2 should preserve the preferred relationship between actor and monitor: the actor generates attacks from the same starting checkpoint used to train the monitor. The immediate design problem is to qualify an attack-generation procedure and model pair before investing in monitor training.

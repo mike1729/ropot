@@ -79,6 +79,7 @@ def load_inputs(input_dir, analysis_dir, known_use_records=RECORDS, known_use_co
         row["id"] = key[1]
         rows[key] = row
     tasks = []
+    # Join qualified artifacts to checked analysis rows and historical exposure records.
     for relative, raw, task in iter_qualified_tasks(input_dir, manifest):
         if task["split"] != "test":
             raise ValueError("Cohort input must contain test tasks only")
@@ -157,6 +158,7 @@ def allocate(tasks):
             sequential[metric] += 1
     buckets = {owner: {block: [[], []] for block in BLOCKS} for owner in QUOTAS}
     phases = {phase: {block: [[], []] for block in BLOCKS} for phase in PHASES}
+    # Allocate initial quotas, then distribute reserve and deferred tasks by difficulty.
     for difficulty_index, difficulty in enumerate(DIFFICULTIES):
         ordered = sorted((t for t in records.values() if t["difficulty"] == difficulty), key=hash_key)
         eligible = [t for t in ordered if not t["defer_reasons"]]

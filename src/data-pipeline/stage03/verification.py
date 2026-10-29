@@ -61,6 +61,7 @@ def _derive_sample(sample, item, log_path, contract_sha256):
     if not results or len(results) > len(cases):
         raise ValueError("Missing or excessive case results")
     public, hidden = [], "not_run"
+    # Check ordered case coverage and separate public feedback from hidden outcomes.
     for offset, (case, result) in enumerate(zip(cases, results)):
         if result["index"] != case["index"]:
             raise ValueError("Results differ from publication order")

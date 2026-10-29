@@ -117,6 +117,7 @@ def execute_programs(check_answers=False):
         state.store.set("cases", results)
         program = base64.b64decode(state.metadata["program_base64"])
         await prepare_program(program)
+        # Retain each capture and stop this sample at its first failed case.
         for case in state.metadata["cases"]:
             result = await run_case(case["input"])
             results.append({"index": case["index"], **result})
@@ -157,6 +158,7 @@ def run(programs, log_dir, *, concurrent_inference=False, check_answers=False, m
     the final eval as errored if any sample errored; inspect each sample's error/results.
     """
     programs = list(programs)
+    # Validate case identities and checked-answer ordering before starting sandboxes.
     for item in programs:
         indices = [case["index"] for case in item["cases"]]
         if any(type(index) is not int for index in indices) or len(set(indices)) != len(indices):

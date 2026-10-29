@@ -63,6 +63,7 @@ def _b1(directory, wanted):
     rows, rounds, seen = [], {}, set()
     files = dict(inputs["original_sha256"])
     files.update({str(directory / name): _hash(directory / name) for name in ("inputs.json", "outcomes.json")})
+    # Bind reclassified B1 outcomes to their original saved generation attempts.
     for row in _read(directory / "outcomes.json"):
         if _identity(row["candidate"]) not in wanted:
             continue
@@ -128,6 +129,7 @@ def _audit_state(batches, settings):
     entries carry each saved batch's unused ceiling; missing records still use slots.
     """
     decisions, pending, calls = {}, [], []
+    # Reconcile qualified audit batches, decisions and remaining retry allowances.
     for batch in batches:
         saved = _read(batch / "inputs.json")
         if (saved["source_sha256"] != settings["source_sha256"] or saved["timeout"] != settings["timeout"]
@@ -157,10 +159,12 @@ def _audit_state(batches, settings):
 
 def _programs(scope, rows, decisions):
     result = []
+    # Derive each candidate's acquisition state from its proposal and audit history.
     for candidate in scope:
         history = [r for r in rows if r["candidate"] == candidate]
         count = sum(r.get("submitted") is not False for r in history)
         state, approved, turns, previous_inputs = "eligible", None, [], []
+        # Rebuild rejection feedback and resolve approvals or outstanding audits.
         for row in history:
             if "input" in row:
                 previous_inputs.append(Path(row["input"]).read_bytes().decode("utf-8"))
@@ -280,6 +284,7 @@ def acquire(output_dir, *, source, qualification_dir, reply_allowance, output_to
         proposals.control.atomic_save(directory / "outcome.json", progress)
 
     try:
+        # Finish outstanding audits before generating another bounded proposal round.
         while True:
             programs, decisions, pending = collect()
             persist()

@@ -55,16 +55,19 @@ def publish(root, version):
                 and study_tasks.DIGEST.fullmatch(experiment["model_manifest_sha256"]),
                 "Require terminal, readable pinned study experiments")
     choices = {}
+    # Collect publication candidates for each pinned task/source cell.
     for cell in summary["cells"]:
         identifier, source = cell["id"], cell["source"]
         binding = cohort["tasks_by_id"].get(identifier)
         require(identifier in groups and binding is not None and cell["split"] == binding["split"]
                 and cell["sha256"] == binding["sha256"], "Task outside publication groups or pinned binding")
+        # Resolve each saved history to its source experiment and cohort binding.
         for history in cell["experiments"]:
             name = history["experiment"]
             experiment = experiments[name]
             require(history["binding"] == binding and experiment["source"] == source,
                     "Worklist binding differs from pinned cohort")
+            # Validate passing programs and retain the earliest successful attempt.
             for attempt in sorted(history["attempts"], key=lambda a: a["attempt"]):
                 number = attempt["attempt"]
                 require(number >= 0 and number not in seen[name], "Invalid or duplicate attempt number")

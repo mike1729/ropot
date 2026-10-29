@@ -123,6 +123,7 @@ def check_many(proposals, log_dir):
     if log.status != "success" or log.error is not None or any(s.error is not None for s in log.samples or []):
         raise RuntimeError(f"Unsuccessful witness execution: {log.location}")
     samples = {sample.id: sample for sample in log.samples or []}
+    # Compare three reference answers with the benign result for each proposed input.
     for j, position in enumerate(positions):
         programs = {}
         for k, role in enumerate(ROLES):

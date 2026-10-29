@@ -40,6 +40,7 @@ def system_memory():
 def freeze(directory):
     """Only previously exposed requests and generated candidates; no private cases."""
     requests, sources = [], []
+    # Reuse exposed initial requests with fixed sampling and recorded provenance.
     for source in ("actor",):
         folder = BASE / source / "generation-0000"
         inputs = json.loads((folder / "inputs.json").read_text())

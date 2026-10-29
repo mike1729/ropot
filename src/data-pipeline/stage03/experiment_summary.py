@@ -52,6 +52,7 @@ def summarize(root):
     if any(m is None for m in names) or len({m[1] for m in names}) != len(names):
         raise ValueError("Require unique four-digit prefixes and lowercase hyphenated experiment names")
     experiments, cells, provenance, cohorts = [], {}, set(), set()
+    # Read saved experiment state and fold attempts into task/source histories.
     for directory in directories:
         problems = []
         inputs, _, inputs_sha256 = read_record(directory / "inputs.json", problems)

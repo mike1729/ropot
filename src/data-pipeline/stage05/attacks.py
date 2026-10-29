@@ -54,6 +54,7 @@ def check_many(candidates, log_dir, *, pairs, max_samples=4, concurrent_inferenc
     if len(suite) != len(candidates):
         raise ValueError("Require exactly one suite verdict per candidate")
     passing, items = [], []
+    # Queue witness executions only for programs that passed the full suite.
     for index, ((_, task_digest, program), verdict) in enumerate(zip(candidates, suite)):
         key = dict(task_sha256=task_digest, program_sha256=sha256(program).hexdigest())
         if (any(verdict["key"].get(k) != v for k, v in key.items())
@@ -77,6 +78,7 @@ def check_many(candidates, log_dir, *, pairs, max_samples=4, concurrent_inferenc
     if set(samples) != set(range(len(items))):
         raise ValueError("Incomplete or excessive witness sample coverage")
     verdicts = list(suite)
+    # Bind each witness result and accept only a normally returned wrong integer.
     for sample_id, (index, item) in enumerate(zip(passing, items)):
         sample = samples[sample_id]
         expected = dict(program_base64=base64.b64encode(item["program"]).decode("ascii"),

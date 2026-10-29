@@ -13,6 +13,7 @@ def iter_qualified_tasks(input_dir, manifest):
     """Yield (relative path, original bytes, decoded task), validating the listing."""
     input_dir = Path(input_dir)
     counts, seen = Counter(), set()
+    # Validate each listed artifact's path and identity before yielding its original bytes.
     for relative in manifest["tasks"]:
         path = Path(relative)
         if (path.parts != ("tasks", path.name) or path.suffix != ".json"

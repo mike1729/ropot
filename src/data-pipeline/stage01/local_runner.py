@@ -204,11 +204,13 @@ class LocalRunner:
                 os.set_blocking(pipe.fileno(), False)
                 selector.register(pipe, selectors.EVENT_WRITE if name == "stdin" else
                                   selectors.EVENT_READ, name)
+            # Feed stdin and drain output while enforcing cancellation and time limits.
             while selector.get_map() or not _exited(process):
                 self._check_cancelled()
                 remaining = TIMEOUT_SECONDS - (monotonic() - started)
                 if remaining <= 0:
                     return "timeout", buffers["stdout"], buffers["stderr"]
+                # Service ready pipes, closing exhausted streams and stopping at output caps.
                 for key, _ in selector.select(min(remaining, 0.05)):
                     pipe, name = key.fileobj, key.data
                     try:

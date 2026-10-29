@@ -152,6 +152,7 @@ def _extract(worklist, rows, directory, progress, persist, previous_inputs):
     """Save exact inputs and retain format/token failures at original positions."""
     progress["phase"] = "extraction"
     pending = []
+    # Save exact proposed inputs, rejecting truncated, malformed or duplicate replies.
     for i, (record, attempt, row) in enumerate(zip(worklist, progress["attempts"], rows)):
         if row["status"] == "length":
             attempt["state"] = "token_limit"

@@ -164,6 +164,7 @@ def qualify(input_dir=DESTINATION, output_dir=OUTPUT, workers=MAX_CONCURRENT_CAS
         rows = iter((split, row) for split in FILES for row in read_rows(input_dir, split))
         with ThreadPoolExecutor(max_workers=workers) as pool, LocalRunner() as runner:
             pending, exhausted, processed = {}, False, 0
+            # Refill the bounded worker pool and collect qualification outcomes until exhausted.
             while pending or not exhausted:
                 while not exhausted and len(pending) < workers:
                     item = next(rows, None)
@@ -175,6 +176,7 @@ def qualify(input_dir=DESTINATION, output_dir=OUTPUT, workers=MAX_CONCURRENT_CAS
                 if not pending:
                     break
                 completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                # Save accepted tasks or rejection evidence for each completed worker.
                 for future in completed:
                     split, identifier = pending.pop(future)
                     try:

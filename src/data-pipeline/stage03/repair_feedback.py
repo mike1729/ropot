@@ -50,6 +50,7 @@ def render(feedback, field_bytes, total_bytes):
     def oversized():
         return size + (len(suffix) if stripped or omitted else 0) > available
 
+    # Remove passing-case details first to preserve failure feedback within the budget.
     for index in range(len(cases) - 1, -1, -1):
         if not oversized():
             break

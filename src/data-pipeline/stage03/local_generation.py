@@ -57,6 +57,7 @@ def split_answer(tokenizer, row):
     opening, closing = list(tokenizer.think_start_tokens), list(tokenizer.think_end_tokens)
     opened = tokenizer.rfind_think_start(row["prompt_ids"]) > tokenizer.rfind_think_end(row["prompt_ids"])
     tokens, cursor, answer_start = row["tokens"], 0, 0
+    # Track thought boundaries to locate the answer and reject unmatched closing tokens.
     while cursor < len(tokens):
         if tokens[cursor:cursor + len(opening)] == opening:
             opened = True
@@ -272,6 +273,7 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
         generator = BatchGenerator(model, stop_tokens=[[t] for t in sorted(eos)], **batching)
         cursor = 0
         with generator.stats() as stats:
+            # Fill free decode slots, route native events and persist finished replies.
             while cursor < len(requests) or active:
                 end = min(len(requests), cursor + completion_batch_size - len(active))
                 if cursor < end:
@@ -307,6 +309,7 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
                         del active[uid]
                         finished.append((i, row, reason))
                 write_errors = []
+                # Persist every finished peer before propagating a write or decode failure.
                 for i, row, reason in finished:
                     try:
                         write_reply(i)

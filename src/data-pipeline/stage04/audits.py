@@ -171,6 +171,7 @@ def dispatch(output_dir):
     """Rerun a stopped batch: skip successes; cap unusable replies, not technical failures."""
     directory = Path(output_dir).absolute()
     inputs = _read(directory / "inputs.json")
+    # Verify frozen packets and dispatch only auditors still eligible for a reply.
     for packet_id, entry in inputs["packets"].items():
         prompt = (directory / f"{packet_id}.txt").read_bytes()
         if sha256(prompt).hexdigest() != entry["sha256"]:
@@ -197,6 +198,7 @@ def decide(output_dir):
     if not isinstance(vetoes, dict) or set(vetoes) - inputs["packets"].keys():
         raise ValueError("Vetoes must map known packet IDs to reasons")
     rows = []
+    # Combine saved auditor replies and explicit vetoes into one packet decision.
     for packet_id, entry in inputs["packets"].items():
         if sha256((directory / f"{packet_id}.txt").read_bytes()).hexdigest() != entry["sha256"]:
             raise ValueError("Changed audit packet")

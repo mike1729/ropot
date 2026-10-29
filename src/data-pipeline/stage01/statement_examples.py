@@ -36,6 +36,7 @@ def parse_statement_examples(question):
     if EXAMPLE_LABEL.search(question[:headers[0].start()] if headers else question):
         raise Rejected("unsupported_example_format")
     relevant = []
+    # Collect supported example sections and reject ambiguous sample headings.
     for i, header in enumerate(headers):
         name = header[1]
         end = headers[i + 1].start() if i + 1 < len(headers) else len(question)
@@ -73,6 +74,7 @@ def parse_statement_examples(question):
     if len(relevant) % 2:
         raise Rejected("ambiguous_examples")
     pairs, labels = [], set()
+    # Pair AtCoder sample sections, separating numeric output from explanatory prose.
     for i in range(0, len(relevant), 2):
         input_name, stdin = relevant[i]
         output_name, stdout = relevant[i + 1]
@@ -113,6 +115,7 @@ def map_statement_examples_to_cases(task):
 
     format_name, pairs = parse_statement_examples(task["question"])
     mappings, visible = [], set()
+    # Bind each statement example to all equivalent stored cases and check its answer.
     for index, (stdin, stdout) in enumerate(pairs):
         if not stdin.strip():
             raise Rejected("ambiguous_examples")

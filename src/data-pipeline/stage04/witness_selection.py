@@ -19,6 +19,7 @@ def _require(condition, message):
 
 def _coverage(selections, accepted, excluded=()):
     result = {}
+    # Summarize program and matched-task coverage for each ownership group.
     for owner in ("development", "construction", "all"):
         pool = [s for s in selections if owner == "all" or s["binding"]["owner"] == owner]
         approved = [s for s in pool if c._identity(s["candidate"]) in accepted]
@@ -66,6 +67,7 @@ def publish(run_dirs, output_dir, *, exclusions=()):
     costs, calls_seen, usage = {}, set(), defaultdict(Counter)
     audit_counts, validity_pairs, novelty_pairs = Counter(), Counter(), Counter()
     qualifications, version_changes = {}, []
+    # Validate each acquisition history and collect its approved witnesses and costs.
     for run_dir in run_dirs:
         directory = Path(run_dir).absolute()
         runs = c._runs(directory)
@@ -99,6 +101,7 @@ def publish(run_dirs, output_dir, *, exclusions=()):
             for packet_id, entry in c._read(batch / "inputs.json")["packets"].items():
                 binding = entry["binding"]
                 locations[binding["round"], binding["attempt"]] = (batch, packet_id)
+        # Count each audit call once, retaining unknown usage and version changes.
         for path, call in calls:
             if str(path) in calls_seen:
                 continue
@@ -124,6 +127,7 @@ def publish(run_dirs, output_dir, *, exclusions=()):
             if row["state"] == "benign_disagreement":
                 findings.append(dict(proposal={k: row[k] for k in ("round", "attempt", "candidate", "stdin_sha256")},
                                      log=pin(row["verification"]["log"]), status="unadjudicated"))
+        # Bind approved programs to exact inputs, executions and dual audit approval.
         for program in c._programs(first["scope"], rows, decisions):
             identity = c._identity(program["candidate"])
             _require(program["attempts"] <= 3, "Proposal cap exceeded")
@@ -179,6 +183,7 @@ def publish(run_dirs, output_dir, *, exclusions=()):
         run_records.append(dict(directory=str(directory), outcome_sha256=c._hash(directory / "outcome.json")))
     _require(wanted == selected.keys(), "Runs must cover every pinned benign exactly once")
     excluded = {}
+    # Apply documented benign-defect exclusions after checking their pinned evidence.
     for path in exclusions:
         adjudication = c._read(pin(path))
         _require(adjudication["status"] == "confirmed_faulty_benign", "Require confirmed benign defect")

@@ -78,6 +78,7 @@ def run_child(command, state, persist):
             persist()
         except BaseException as error:
             primary = error
+        # Reap the child, escalating interrupts while preserving the original error.
         while True:
             try:
                 if primary is not None and not sent:
@@ -258,6 +259,7 @@ def extract_round(directory, worklist, rows, attempts, progress, source, persist
     progress["phase"] = "extraction"
     persist()
     extracted = []
+    # Save compilable programs and classify failed replies at their original positions.
     for row, attempt in zip(rows, attempts):
         binding, task = worklist[attempt["position"]]
         try:
@@ -538,6 +540,7 @@ def prepare_contract(output_dir, exposure_file, runtimes):
     loaded = study_tasks.load_cohort()
     order = loaded["groups"]["development"]["initial"]
     entries, exclusions = [], []
+    # Select the first eight case-eligible scaffold tasks in cohort order.
     for identifier in order[:20]:
         binding, task = study_tasks.load_task(loaded, identifier)
         history = exposure["tasks"].get(str(identifier))
@@ -660,6 +663,7 @@ def acquire_source(contract, worklist, shown, audits, source, directory, state):
 def summarize_acquisition(report, directory, started):
     """Fold saved loop accounting into coverage and cost, including failed work."""
     passed, output_tokens, replies, truncated, complete, prompt_tokens = {}, 0, 0, 0, True, 0
+    # Reconcile each source's audited coverage and total usage, including failed work.
     for source, state in report["sources"].items():
         path = directory / source / "outcome.json"
         outcome = read(path) if path.exists() else None

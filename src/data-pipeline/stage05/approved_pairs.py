@@ -49,8 +49,10 @@ def load_development(publication_dir=PUBLICATION_DIR, *, cohort_dir=study_tasks.
     if not task_ids:
         raise ValueError("No development tasks have approved pairs from both sources")
     worklists = {source: [] for source in study_tasks.SOURCES}
+    # Load the same selected task order into both source worklists.
     for identifier in task_ids:
         binding, task = study_tasks.load_task(cohort, identifier)
+        # Bind each saved benign and witness to its pinned task and source.
         for source in study_tasks.SOURCES:
             selection = selections[identifier, source]
             if selection["binding"] != binding:

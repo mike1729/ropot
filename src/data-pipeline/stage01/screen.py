@@ -136,6 +136,7 @@ def screen_task(row, split):
     if not all(isinstance(source, str) for source in solutions):
         raise Rejected("invalid_solutions")
     references, seen, unusable = [], set(), []
+    # Identify distinct usable reference programs without executing them.
     for index, source in enumerate(solutions):
         if not source.strip():
             unusable.append(index)

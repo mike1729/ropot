@@ -58,8 +58,10 @@ with known exposure history. Record the exact checked files and hashes from:
 
 ## Models and budget
 
-Use the frozen [Qwen3.6 actor manifest](../data/05_attack_experiments/batch-03-qwen36-capability-20261027T190000Z/model-manifest.json)
+For new acquisition use the [verified Qwen3.8 actor checkpoint](qwen38-migration.md)
 and [Gemma synthetic manifest](../data/05_attack_experiments/batch-03-gemma4-capability-20261027T192449Z/model-manifest.json).
+The completed 28 October B1 run used Qwen3.6. Preserve that provenance and acquire
+fresh Qwen3.8 benigns before claiming own-source eligibility for the official run.
 Run Qwen then Gemma, one model at a time. Generate fresh benigns from the statement
 and shown inputs/answers, with one initial reply and at most two repairs per pair.
 Keep thinking off for all future benign generation and repair runs.

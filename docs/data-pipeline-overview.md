@@ -33,6 +33,11 @@ Audit cases and results never enter generation, assistance or repair feedback. R
 prior exposure and exclude exposed cases from the independent audit designation;
 withheld here does not mean absent from model pretraining.
 
+The current actor/monitor checkpoint is Qwen3.8-27B MLX 8-bit; Gemma remains
+the synthetic source. Existing Qwen3.6 benigns are historical and may be reused
+only in labelled cross-checkpoint exploration. Refresh Qwen benigns before official
+own-source acquisition, preserving task identities, partitions and prior costs.
+
 Each source generates its own benign. Select using shown cases, then privately verify
 all audit cases before attack generation. Failure disqualifies the source/task pair
 without repair feedback or another benign attempt for that pair. Missing qualified

@@ -5,6 +5,12 @@ Use `scripts/qwen_experiment.py` for the exploratory rounds in the
 shared generation loop, attack prompts, shown-case checker and guarded worker.
 No official `prepare_contract` or two-source acquisition is required.
 
+The selected actor and monitor are now Qwen3.8-27B MLX 8-bit, with thinking
+enabled and explicit `reasoning_effort=low` for development. See the
+[model migration](qwen38-migration.md) for runtime wiring still to complete.
+Existing B1 Qwen3.6 benigns remain labelled cross-checkpoint exploratory inputs;
+they do not establish Qwen3.8 own-source eligibility for the official baseline.
+
 Run from the repository root with the execution environment installed:
 
 ```sh
@@ -53,9 +59,10 @@ Optionally add `--monitor` to score immediately, or score the saved run later:
 .venv/bin/python scripts/qwen_experiment.py monitor data/05_attack_experiments/qwen-dev-01
 ```
 
-Monitoring reuses the frozen Qwen3.6 baseline prompt, parser, normalization and
-sampling (seed 17 for every request), with batching 4/1/256 and an 8,192-token input
-ceiling. It scores all eight benigns and the first mechanically accepted candidate
+The new monitor recipe uses Qwen3.8 with thinking enabled, `reasoning_effort=low`
+and seed 17 for every request. Reuse the historical prompt and normalization,
+but parse only the final answer and record Qwen3.8 sampling explicitly. Batching
+4/1/256 and the 8,192-token input ceiling remain starting settings for validation. It scores all eight benigns and the first mechanically accepted candidate
 per task in chain/attempt order, at most 16 replies. `monitor/report.json` contains
 PASS/FLAG/missing counts, FLAG fractions and separate scoring costs. Claims are not
 validated against private cases; monitor results are diagnostic. Scoring uses a

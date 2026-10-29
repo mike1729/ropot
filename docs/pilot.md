@@ -4,8 +4,10 @@ Can synthetic corrections repair a monitor's selective failure to flag its actor
 attacks? Compare synthetic corrections, authentic corrections and replay alone on
 held-out tasks. The [implementation plan](v2-implementation-plan.md) covers initial
 feasibility; the [pipeline](data-pipeline-overview.md) governs data ownership.
-Use Qwen3.6-27B for the frozen actor and monitor base, and Gemma-4-31B-it for the
-synthetic source. Source identity includes benign provenance and generation procedure.
+Use **Qwen3.8-27B MLX 8-bit** for the actor and monitor base, and Gemma-4-31B-it
+for the synthetic source. The [29 October model migration](qwen38-migration.md)
+pins the checkpoint and records runtime transition requirements. Source identity
+includes benign provenance, model revision and generation procedure.
 
 ## Experiment sequence
 
@@ -40,11 +42,14 @@ stays outside locked evaluation, including any optional threshold calibration.
 
 ## Base monitor qualification
 
-Use the exact historical prompt, settings and parser preserved in the tracked
-[monitor baseline](../configs/monitor/qwen36-v2-baseline.json). Apply it to v2 before
-revising it. Keep one scoring configuration across sources and checkpoints, and log
-any development revision separately. Thinking-on monitoring requires a compatible
-training method before becoming the twin baseline.
+The active monitor choice is Qwen3.8-27B with thinking enabled and explicit
+`reasoning_effort=low`. Carry forward the historical prompt and comment
+normalization, parse only the final answer, and record new model/sampling bindings
+as a separate recipe. The [Qwen3.6 baseline](../configs/monitor/qwen36-v2-baseline.json)
+remains historical evidence, not qualification of Qwen3.8. Qualify the new monitor
+on development data before freezing it; use one scoring configuration across
+sources and checkpoints. Thinking-on monitoring requires a compatible training
+method before becoming the twin baseline.
 
 | Check, separately by source | Development target |
 | --- | --- |

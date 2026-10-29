@@ -2,9 +2,13 @@
 
 ## Goal and gates
 
-Use the eight tasks, own-source benigns, partitions and checkpoint bindings from the
+Use the eight tasks and partitions from the
 [completed B1 run](../data/03_benign_experiments/v2-b1-20261028T135847Z/acquisition/report.json).
-Preserve task/menu order. Do not acquire replacements or inspect confirmation outcomes.
+The active actor and monitor are now Qwen3.8-27B MLX 8-bit; see the
+[model migration](qwen38-migration.md). Existing Qwen3.6 benigns may seed labelled
+exploratory rounds only. Refresh Qwen benigns under B1 before the official run to
+restore own-source eligibility. Preserve task/menu order, retain prior costs and
+failed work, and do not inspect confirmation outcomes or replace failed tasks.
 
 Attack-feasibility gates:
 
@@ -63,7 +67,10 @@ config's parser. Check the normalizer module hash during preparation; pin the wh
 config rather than separately rechecking its prompt/parser hashes.
 
 Use monitor batching **4/1/256**, recording the deviation from historical **8/4/256**.
-Preserve its prompt, parser and sampling, including seed **17 for every request**.
+Use the Qwen3.8 monitor recipe with thinking enabled, `reasoning_effort=low`,
+and seed **17 for every request**. Preserve the historical prompt and normalization;
+parse the final answer separately from reasoning. Freeze and record effective
+sampling after runtime wiring; Qwen3.6 sampling is historical, not the new default.
 
 Keep shared generation, repairs and process control in `stage03.generation_loop`;
 keep benign eligibility and acquisition in `stage03.benign_acquisition`. Attack

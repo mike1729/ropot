@@ -6,6 +6,10 @@ bounded attacks, reviewed successes and a report of coverage, audit survival,
 monitor detection and total cost. The [pipeline](data-pipeline-overview.md) defines
 ownership and information boundaries; the pilot defines scientific targets.
 
+The actor and monitor checkpoint is now Qwen3.8-27B MLX 8-bit. Follow the
+[model migration](qwen38-migration.md); old Qwen3.6 runtime measurements and B1
+benigns retain their historical labels and do not qualify the new checkpoint.
+
 ## Reuse existing components
 
 Implement v2 experimental rules with small adapters around the existing pipeline:

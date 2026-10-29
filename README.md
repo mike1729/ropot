@@ -10,6 +10,11 @@ monitor normalization remain on `main`. The complete v1 experiment implementatio
 is preserved on [archive/v1-failed-2026-10-28](https://github.com/mike1729/ropot/tree/archive/v1-failed-2026-10-28).
 Raw datasets and run evidence in ignored `data/` remain local, outside Git.
 
+The current actor and monitor model is **Qwen3.8-27B MLX 8-bit**; Gemma remains
+the synthetic source. See the [model migration](docs/qwen38-migration.md) for the
+verified checkpoint, thinking-effort policy and remaining runtime wiring.
+Qwen3.6 results and configurations are historical evidence.
+
 The [v2 batching findings](docs/v2-batching-experiment.md) select provisional
 [Qwen/Gemma profiles](configs/inference/v2-batching.json). The
 [benchmark script](scripts/batching_probe.py) uses them by default; long natural
@@ -390,7 +395,7 @@ Give Claude and Codex only `review/`, containing shuffled pair packets and a rev
 template. Keep all other artifacts private. Review import and scoring remain
 unimplemented. These changes start no live run.
 
-The provisional [B2 monitor](src/data-pipeline/stage05/monitor.py) scores in-memory
+The historical provisional [B2 monitor](src/data-pipeline/stage05/monitor.py) scores in-memory
 records through the existing MLX Python; see its [contract](docs/v1/stage-05-plan.md#provisional-monitor-runner).
 The [publication loader](src/data-pipeline/stage05/approved_pairs.py) verifies the
 pinned Stage 04 publication and returns source-specific development pairs. It is

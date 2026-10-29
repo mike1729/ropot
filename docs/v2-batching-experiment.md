@@ -1,7 +1,10 @@
 # V2 local batching findings — 28 October 2026
 
 These are provisional operating points for Qwen3.6-27B Q8 and Gemma-4-31B-it Q8
-on the Apple M5 Pro with 64 GiB RAM. They select starting settings for further
+on the Apple M5 Pro with 64 GiB RAM. These are historical Qwen3.6 measurements;
+the [current actor and monitor](qwen38-migration.md) use Qwen3.8. Similar size and
+architecture motivate starting settings but do not establish Qwen3.8 throughput
+or long-completion capacity. They select starting settings for further
 qualification; they do not establish a global optimum or generation quality.
 
 ## Selected settings and conclusions

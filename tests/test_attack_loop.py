@@ -74,6 +74,15 @@ class AttackLoopTests(initial.LoopFixture):
                 self.assertNotIn(secret, text)
         self.verifier.assert_not_called()
 
+    def test_witness_attack_adapter_also_strips_generated_and_repaired_comments(self):
+        self.draws[0, 0] = "stop", "# initial note\nprint(0) # inline\n"
+        self.draws[1, 0] = "stop", "# repair note\nprint(1) # inline\n"
+        self.statuses[0, 0] = "failed"
+        result = self.run_attacks()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual(Path(result["attempts"][0]["program"]).read_bytes(), b"print(0)\n")
+        self.assertEqual(Path(result["attempts"][2]["program"]).read_bytes(), b"print(1)\n")
+
     def test_fixed_witness_feedback_three_attempts_and_shrinking_rounds(self):
         self.statuses.update({(round_index, 1): "failed" for round_index in range(3)})
         result = self.run_attacks()

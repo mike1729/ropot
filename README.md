@@ -363,6 +363,15 @@ Benign preparation and private eligibility checks now live in
 [`stage03.benign_acquisition`](src/data-pipeline/stage03/benign_acquisition.py);
 both acquisition paths use the neutral generation engine.
 
+Benign and attack acquisition strip Python comments after each generation or repair, before
+saving, hashing and verification. String literals and the program AST are preserved.
+Attack case declarations are extracted into attempt metadata before stripping;
+repair prompts reconstruct the declaration above the stripped code. Comment text
+is excluded from the announcing-name check. Historical benign files retain their
+exact audited bytes: the attack loader verifies their original hashes and strips
+comments only in memory. AST comparison is iterative so deep valid programs do
+not fail merely because recursive AST serialization would exceed Python's limit.
+
 ```python
 import importlib
 attacks = importlib.import_module("src.data-pipeline.stage05.attacks")

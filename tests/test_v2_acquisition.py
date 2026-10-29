@@ -72,6 +72,7 @@ class Fixture(BenignFixture):
         self.failures = set()
         self.all_fail = self.truncate = self.unclosed = self.technical_error = self.interrupt = False
         self.incomplete_native_json = False
+        self.extra_comment = b""
         self.memory = mock.patch.object(a, "memory_state", return_value=dict(pressure=1, swap_used_mib=5)).start()
 
     def prepare_attacks(self, development_reports=()):
@@ -93,6 +94,7 @@ class Fixture(BenignFixture):
                                       request=deepcopy(request), spec=deepcopy(spec)))
             fails = self.all_fail or (source, chain, round_index, position) in self.failures
             program = b"# case: 1\n" + ORIGINAL if fails else PROGRAM
+            program += self.extra_comment
             text = "PRIVATE_REASONING\n" + program.decode()
             row = dict(submitted=True, status="stop", text=text, answer_text=program.decode(),
                        enable_thinking=True, generation_tokens=2, tokens=[12, 99], prompt_tokens=11)
@@ -121,7 +123,7 @@ class Fixture(BenignFixture):
             case = view["cases"][0]
             self.native_cases.append(deepcopy(case))
             named_inputs = {e["partition"]["menu"][0]["input"] for e in self.benign_contract["entries"]}
-            wrong = program == PROGRAM and case["input"] in named_inputs
+            wrong = program == a.programs.strip_comments(PROGRAM.decode()).encode() and case["input"] in named_inputs
             capture = dict(status="wrong_answer" if wrong else "passed", stdout="99999\n" if wrong else case["answer"],
                            stderr="", returncode=0, diagnostic=None)
             results.append(dict(status="failed" if wrong else "passed", feedback=dict(visible=[capture]),
@@ -136,6 +138,36 @@ class Fixture(BenignFixture):
 
 
 class PreparationTests(Fixture):
+    def test_benign_is_stripped_at_load_time_without_changing_audited_files(self):
+        path = self.benign_run_dir / "actor/program-0000.py"
+        original = b"# original explanation\n" + ORIGINAL
+        path.write_bytes(original)
+        outcome_path = path.parent / "outcome.json"
+        outcome = b.read(outcome_path)
+        candidate = outcome["attempts"][0]["candidate"]
+        candidate["program_sha256"] = sha256(original).hexdigest()
+        b.generation.save(outcome_path, outcome)
+        audit = self.benign_report["sources"]["actor"]["audits"][0]
+        audit["verdict"]["key"]["program_sha256"] = candidate["program_sha256"]
+        b.generation.save(self.benign_run_dir / "report.json", self.benign_report)
+        self.receipt["report_sha256"] = b.generation.file_hash(self.benign_run_dir / "report.json")
+        b.generation.save(self.benign_run_dir.parent / "receipt.json", self.receipt)
+        contract = self.prepare_attacks()
+        benign = contract["entries"][0]["benigns"]["actor"]
+        self.assertEqual(benign["program"], ORIGINAL.decode())
+        self.assertEqual(benign["candidate"]["program_sha256"], sha256(ORIGINAL).hexdigest())
+        self.assertEqual(benign["audited_candidate"], candidate)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(contract["inputs"][str(path.resolve())], sha256(original).hexdigest())
+        self.assertFalse((path.parent / "original-programs").exists())
+
+    def test_unbound_comment_only_edit_to_audited_benign_is_rejected(self):
+        path = self.benign_run_dir / "actor/program-0000.py"
+        path.write_bytes(b"# unbound edit\n" + path.read_bytes())
+        with self.assertRaisesRegex(ValueError, "eligibility"):
+            self.prepare_attacks()
+        self.assertFalse(self.prepared.exists())
+
     def test_freezes_existing_panel_runtime_costs_review_and_source_hashes_without_inference(self):
         with mock.patch.object(b.generation_loop, "run_child") as child, mock.patch.object(b, "partition") as repartition:
             contract = self.prepare_attacks()
@@ -295,6 +327,29 @@ class AcquisitionTests(Fixture):
         super().setUp()
         self.contract = self.prepare_attacks()
 
+    def test_initial_and_repaired_attacks_strip_comments_and_keep_case_metadata(self):
+        self.extra_comment = b"# attack backdoor implant trigger witness\n"
+        self.failures = {("actor", 0, 0, 0)}
+        report = self.acquire_attacks()
+        self.assertEqual(report["status"], "awaiting_review", report)
+        self.assertEqual(len(self.requests), 33)
+        for run in report["runs"]:
+            directory = Path(run["directory"])
+            outcome = b.read(directory / "outcome.json")
+            for attempt in outcome["attempts"]:
+                program = Path(attempt["program"]).read_bytes()
+                self.assertNotIn(b"#", program)
+                self.assertEqual(attempt["metadata"], dict(case_declaration="1", repair_prefix="# case: 1\n"))
+                self.assertEqual(attempt["verification"]["mechanical"]["menu_position"], 1)
+                self.assertEqual(attempt["candidate"]["program_sha256"], sha256(program).hexdigest())
+                self.assertTrue(all(e["key"]["program_sha256"] == sha256(program).hexdigest()
+                                    for e in attempt["verification"]["evidence"]))
+            raw = b.read(directory / "generation-0000/outcome.json")
+            self.assertIn(self.extra_comment.decode(), raw["requests"][0]["answer_text"])
+        repair = next(r["request"] for r in self.requests if r["round"])
+        self.assertIn("Previous candidate:\n# case: 1\nimport sys", repair["messages"][1]["content"])
+        self.assertNotIn(self.extra_comment.decode(), repair["messages"][1]["content"])
+
     def test_two_independent_chains_source_order_budgets_and_private_boundaries(self):
         report = self.acquire_attacks()
         self.assertEqual(report["status"], "awaiting_review", report)
@@ -358,7 +413,7 @@ class AcquisitionTests(Fixture):
         for row in revisions:
             self.assertEqual(len(row["request"]["messages"]), 2)
             public = row["request"]["messages"][1]["content"]
-            self.assertIn("Previous candidate:\n# case: 1", public)
+            self.assertIn("Previous candidate:\n# case: 1\nimport sys", public)
             self.assertIn('"named_case"', public)
             self.assertNotIn("PRIVATE_REASONING", public)
         second_chain = next(r for r in self.requests if r["source"] == "actor" and r["chain"] == 1)

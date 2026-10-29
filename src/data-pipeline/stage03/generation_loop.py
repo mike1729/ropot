@@ -231,7 +231,8 @@ def generate_round(current, attempts, progress, persist, mlx_python, requests, g
     return outcome
 
 
-def extract_round(directory, worklist, rows, attempts, progress, source, persist, remove_comments=False):
+def extract_round(directory, worklist, rows, attempts, progress, source, persist, remove_comments=False,
+                  program_metadata=None):
     progress["phase"] = "extraction"
     persist()
     extracted = []
@@ -243,6 +244,7 @@ def extract_round(directory, worklist, rows, attempts, progress, source, persist
                 attempt.update(extraction="length", state="failed")
                 continue
             program = generation.extract_program(row)
+            metadata = program_metadata(program) if program_metadata is not None else None
             if remove_comments:
                 program = programs.strip_comments(program.decode("utf-8")).encode("utf-8")
         except (MemoryError, RecursionError) as error:
@@ -256,6 +258,9 @@ def extract_round(directory, worklist, rows, attempts, progress, source, persist
         path.write_bytes(program)
         identity = study_tasks.candidate_identity(binding["split"], binding["id"], binding["sha256"], source, program)
         attempt.update(extraction="success", program=str(path), candidate=identity)
+        if metadata is not None:
+            attempt["metadata"] = metadata
+            task = dict(task, candidate_metadata=metadata)
         extracted.append((attempt, (task, binding["sha256"], program)))
     return extracted
 
@@ -290,12 +295,13 @@ def verify_round(directory, current, extracted, progress, persist, candidate_che
 
 
 def execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
-                  candidate_checker=None, generation_driver=None, remove_comments=False):
+                  candidate_checker=None, generation_driver=None, remove_comments=False, program_metadata=None):
     """Generate, extract and verify one round."""
     current = prepare_round(directory, specification, progress, requests, attempts)
     outcome = generate_round(current, attempts, progress, persist, mlx_python, requests, generation_driver)
     rows = outcome["requests"]
-    extracted = extract_round(directory, worklist, rows, attempts, progress, source, persist, remove_comments)
+    extracted = extract_round(directory, worklist, rows, attempts, progress, source, persist,
+                              remove_comments, program_metadata)
     verify_round(directory, current, extracted, progress, persist, candidate_checker)
 
 
@@ -303,6 +309,7 @@ def repair_request(initial, parent, recipe, seed):
     """Build a fresh prompt with original context, current code and public feedback."""
     if parent["extraction"] == "success":
         code = Path(parent["program"]).read_bytes().decode("utf-8")
+        code = parent.get("metadata", {}).get("repair_prefix", "") + code
         feedback = parent["verification"]["feedback"]
         rendered = (dict(text=feedback["message"]) if set(feedback) == {"message"}
                     else repair_feedback.render(feedback, recipe["feedback_field_bytes"], recipe["feedback_bytes"]))
@@ -365,7 +372,7 @@ def finalize_states(progress, directory):
 def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python, recipe,
         reply_allowance, output_token_allowance, completion_batch_size, prefill_batch_size,
         prefill_step_size, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None,
-        generation_driver=None):
+        generation_driver=None, program_metadata=None):
     """Generate, extract and verify one initial round, then repair eligible failures.
 
     Call from the repository Python with a finite, ordered worklist of
@@ -382,6 +389,10 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     Optional enable_thinking defaults to false and passes through every round.
     Optional strip_comments removes Python comments before saving, hashing and
     checking each initial or repaired program; raw generation evidence is retained.
+    Optional program_metadata(program_bytes) extracts JSON-safe metadata before
+    stripping. It is saved on the attempt and passed to the checker in the task's
+    candidate_metadata field. An optional repair_prefix restores protocol headers
+    in repair prompts while keeping declarations outside the executable code.
     Enabled repairs also require repair (instruction), repair_max_tokens,
     feedback_field_bytes and feedback_bytes. Feedback caps count UTF-8 bytes,
     including truncation markers. Initial prompts use only recipe instructions
@@ -424,6 +435,8 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     validate(worklist, recipe, source, reply_allowance, output_token_allowance, batching, fixtures, cohort_sha256)
     if candidate_checker is not None and not callable(candidate_checker):
         raise ValueError("Require a callable candidate checker")
+    if program_metadata is not None and not callable(program_metadata):
+        raise ValueError("Require a callable program metadata extractor")
     initial = requests = initial_requests(worklist, recipe, initial_messages)
     directory, specification, progress, persist = prepare(worklist, output_dir, recipe, source,
         model_path, model_manifest, mlx_python, batching, reply_allowance, output_token_allowance,
@@ -432,7 +445,7 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
         """Execute the initial round: generate first responses, extract and verify."""
         attempts = progress["attempts"][:]
         execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
-                      candidate_checker, generation_driver, recipe.get("strip_comments", False))
+                      candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata)
 
         """Repair eligible failures until exhausted or budgeted."""
         while True:
@@ -441,7 +454,7 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
             if not attempts:
                 break
             execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
-                          candidate_checker, generation_driver, recipe.get("strip_comments", False))
+                          candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata)
         progress.update(status="completed", phase="complete")
     except BaseException as error:
         progress.update(status="error" if isinstance(error, Exception) else "cancelled", error=repr(error))

@@ -30,6 +30,12 @@ Pass `--config path/to/recipe.json` to tune `chains` and any existing
 {"chains": 1, "recipe": {"max_repairs": 0, "max_tokens": 4096, "temperature": 0.2}}
 ```
 
+Comment stripping is always enabled, including with custom recipes. The `# case:`
+declaration is validated and saved as attempt metadata before comments are removed.
+Saved programs and execution use the stripped code. Repair prompts reconstruct the
+case declaration from metadata above the stripped candidate. Historical benign
+files are hash-verified unchanged and normalized only in memory when loaded.
+
 `system`, `initial` and `repair` replace scaffold instructions; the statement,
 original benign and complete shown-case context stay in each request. Seeds are
 `base_seed + chain * 8 * (max_repairs + 1) + repair_round * 8 + position`.

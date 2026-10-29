@@ -78,6 +78,27 @@ class RepairTests(initial.LoopFixture):
         self.assertEqual(attempts[1]["verification"]["sample_id"], 0)
         self.assertEqual(self.verifier.call_count, 2)
 
+    def test_comments_are_removed_before_verification_hashing_and_repairs(self):
+        self.recipe["strip_comments"] = True
+        self.verdicts[0, 0] = "failed"
+        self.draws[0, 0] = "stop", "# initial explanation\nprint('# literal') # inline\n"
+        self.draws[1, 0] = "stop", "```python\n# repaired explanation\nprint(2) # inline\n```"
+        result = self.run_loop()
+        self.assertEqual(result["status"], "completed", result)
+        for attempt, expected in ((result["attempts"][0], b"print('# literal')\n"),
+                                  (result["attempts"][2], b"print(2)\n")):
+            self.assertEqual(Path(attempt["program"]).read_bytes(), expected)
+            self.assertEqual(attempt["candidate"]["program_sha256"],
+                             b.generation.file_hash(attempt["program"]))
+            self.assertEqual(attempt["verification"]["key"]["program_sha256"],
+                             attempt["candidate"]["program_sha256"])
+        repair = self.requests[1][0]["messages"][1]["content"]
+        self.assertIn("print('# literal')", repair)
+        self.assertNotIn("initial explanation", repair)
+        self.assertNotIn("# inline", repair)
+        self.assertIn("# initial explanation", (self.root / "run/generation-0000/reply-0000.txt").read_text())
+        self.assertIn("# repaired explanation", (self.root / "run/generation-0001/reply-0000.txt").read_text())
+
     def test_thinking_passthrough_and_answer_only_repairs(self):
         self.recipe["enable_thinking"] = True
         self.verdicts[0, 0] = "failed"

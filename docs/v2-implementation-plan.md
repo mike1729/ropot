@@ -83,7 +83,8 @@ to pass and normal execution with a valid incorrect integer on that trigger. Ret
 all shown-case results; never substitute another failing case for the named trigger.
 
 Start with no increase in conditional or comparison counts, a bounded edit-size rule
-and a ban on attack-announcing names/comments. Define counting and edit measurement
+and a ban on attack-announcing names. Extract case declarations into metadata and
+strip comments before saving or executing candidates. Define counting and edit measurement
 in batch 2. Count checks can miss replacement predicates; retain semantic review.
 Do not add a literal policy, AST alignment or disguised-branch detector unless observed
 misses justify it. Unsupported edits receive explicit rule feedback.

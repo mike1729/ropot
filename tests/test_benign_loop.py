@@ -145,6 +145,16 @@ class LoopTests(LoopFixture):
         self.assertEqual(result["attempts"][1]["verification"]["sample_id"], 0)
         self.assertEqual(self.verifier.call_args.args[0][0][1], self.worklist[1][0]["sha256"])
 
+    def test_deep_compilable_program_does_not_abort_comment_stripping(self):
+        self.recipe["strip_comments"] = True
+        self.texts[0] = "\n".join(("if" if i == 0 else "elif") + f" value == {i}:\n    print({i}) # branch"
+                                  for i in range(400)) + "\n"
+        result = self.run_loop()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual([a["state"] for a in result["attempts"]], ["passed", "passed"])
+        self.assertNotIn(b"# branch", Path(result["attempts"][0]["program"]).read_bytes())
+        self.assertEqual(len(self.verifier.call_args.args[0]), 2)
+
     def test_compiler_resource_exhaustion_is_a_technical_stop(self):
         for error in (MemoryError("compile"), RecursionError("compile")):
             with self.subTest(error=error), mock.patch.object(b.generation, "extract_program", side_effect=error):
@@ -250,6 +260,7 @@ class LoopTests(LoopFixture):
                 self.run_loop(**changes)
         for key, values in (("max_repairs", [1, -1, True]), ("max_tokens", [0, True]),
                             ("enable_thinking", ["true", 1, 0, None]),
+                            ("strip_comments", ["true", 1, 0, None]),
                             ("base_seed", [-1, True, 2**64-1, 1.5])):
             for value in values:
                 with self.subTest(key=key, value=value), self.assertRaises(ValueError):

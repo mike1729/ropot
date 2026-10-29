@@ -43,7 +43,8 @@ GATES = dict(joint_tasks=6, truncation_fraction=.05)
 RECIPE = dict(system="Return only a complete Python 3 stdin/stdout solution.",
               initial="Solve the problem correctly for every valid input.", repair="Fix the solution.",
               temperature=.2, top_p=.95, base_seed=41, max_tokens=8192, max_repairs=2,
-              repair_max_tokens=8192, feedback_field_bytes=1024, feedback_bytes=16384)
+              repair_max_tokens=8192, feedback_field_bytes=1024, feedback_bytes=16384,
+              strip_comments=True)
 
 
 def source_files():

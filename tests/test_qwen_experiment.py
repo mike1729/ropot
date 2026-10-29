@@ -47,10 +47,11 @@ class ExperimentTests(unittest.TestCase):
         rows = []
         for request in spec['requests']:
             self.requests.append(deepcopy(request))
-            text = 'PRIVATE_REASONING\nprint(2)\n'
+            answer = '# case: 1\nprint(2) # comment\n'
+            text = 'PRIVATE_REASONING\n' + answer
             if target.parent.name == 'batch':
                 text = 'Analysis: checked.\nVerdict: PASS'
-            rows.append(dict(status='stop', submitted=True, text=text, answer_text='print(2)\n',
+            rows.append(dict(status='stop', submitted=True, text=text, answer_text=answer,
                 tokens=[1,2], generation_tokens=2, prompt_tokens=11, enable_thinking=request['enable_thinking']))
         e.g.save(target / 'runtime.json', dict(load_seconds=.01))
         e.g.save(target / 'outcome.json', dict(status='error' if self.technical_error else 'success', requests=rows,
@@ -83,6 +84,10 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(request['messages'][0]['content'], 'Custom system')
             self.assertNotIn('PRIVATE_REASONING', content)
         record = e.loop.read(self.output / 'experiment.json')
+        outcome = e.loop.read(self.output / 'actor-chain-0/outcome.json')
+        for attempt in outcome['attempts']:
+            self.assertEqual(Path(attempt['program']).read_bytes(), b'print(2)\n')
+            self.assertEqual(attempt['metadata'], dict(case_declaration='1', repair_prefix='# case: 1\n'))
         self.assertEqual((record['reply_limit'], record['output_token_limit']), (32,1024))
         self.assertTrue((self.output / 'evidence.json').is_file())
         with self.assertRaises(FileExistsError):
@@ -139,6 +144,9 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(report['observed_output_tokens_lower_bound'], 0)
 
     def test_monitor_uses_frozen_baseline_and_first_accepted_per_task(self):
+        self.entries[0]['benigns']['actor']['program'] = '\n'.join(
+            ('if' if i == 0 else 'elif') + f' value == {i}:\n    print({i}) # branch'
+            for i in range(400)) + '\n'
         e.run(self.output, dict(chains=2, recipe=dict(max_repairs=0)))
         self.requests.clear()
         config = e.loop.read(e.a.MONITOR_CONFIG)
@@ -157,6 +165,8 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(result['output_tokens'], 32)
         self.assertEqual(result['native_prompt_tokens'], 160)
         self.assertEqual(self.requests[0]['messages'][0]['content'], config['system_prompt'])
+        self.assertIn('elif value == 399:', self.requests[0]['messages'][1]['content'])
+        self.assertNotIn('# branch', self.requests[0]['messages'][1]['content'])
 
     def test_monitor_report_exists_before_first_dispatch_result(self):
         e.run(self.output, dict(recipe=dict(max_repairs=0)))

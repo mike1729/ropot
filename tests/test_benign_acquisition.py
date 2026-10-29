@@ -202,6 +202,7 @@ class PreparationTests(Fixture):
         self.assertEqual([call.args[1] for call in load.call_args_list], list(range(9)))
         self.assertEqual(contract["confirmation"], list(range(20, 50)))
         self.assertEqual(contract["case_execution_allowance"], 496)
+        self.assertIs(contract["recipe"]["strip_comments"], True)
         self.assertEqual(contract, b.read(self.root / "prepared/contract.json"))
 
     def test_fewer_than_eight_preserves_preparation_failure(self):

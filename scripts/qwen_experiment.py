@@ -20,6 +20,7 @@ def settings(config):
         raise ValueError('Config accepts chains and existing ATTACK_RECIPE fields only')
     recipe = dict(a.ATTACK_RECIPE, base_seed=1_000_041)
     recipe.update(config.get('recipe', {}))
+    recipe['strip_comments'] = True
     chains = config.get('chains', 1)
     if type(chains) is not int or chains < 1:
         raise ValueError('chains must be a positive integer')
@@ -130,7 +131,8 @@ def run(output, config, benigns=DEFAULT_BENIGNS, monitor=False):
                 ('model_path', 'model_manifest', 'mlx_python')}, **batching,
                 recipe=dict(recipe, base_seed=recipe['base_seed'] + stride * chain),
                 reply_allowance=replies, output_token_allowance=tokens, cohort_sha256=a.study_tasks.COHORT_SHA256,
-                initial_messages=initial, candidate_checker=checker, generation_driver=a.DRIVER)
+                initial_messages=initial, candidate_checker=checker, generation_driver=a.DRIVER,
+                program_metadata=a.attack_metadata)
             if result['status'] != 'completed':
                 raise RuntimeError(f"Qwen chain {chain}: {result.get('error', result['status'])}")
         report['status'] = 'completed'
@@ -182,7 +184,7 @@ def score_monitor(directory):
             records.append(dict(position=position, label=label))
             requests.append(dict(config['generation'], max_prompt_tokens=8192, messages=[
                 dict(role='system', content=config['system_prompt']), dict(role='user', content=
-                config['user_template'].format(statement=task['question'], normalized_program=normalizer.strip_comments(program)))]))
+                config['user_template'].format(statement=task['question'], normalized_program=a.programs.strip_comments(program)))]))
     target = directory / 'monitor'
     target.mkdir(exist_ok=False)
     child = dict(child_log=str(target / 'child.log'))

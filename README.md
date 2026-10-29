@@ -222,10 +222,10 @@ retain scalar evidence without applying their events to rows.
 Hard termination can lose active partial replies and outcome metadata.
 Requests may set `enable_thinking=True`; the default is explicitly false.
 Both adapters retain raw `text` and token IDs and save separate `answer_text`.
-Thinking uses the loaded tokenizer's token boundaries; an unclosed thought leaves
-`answer_text=None`. `extract_program(row)` requires that field and returns exact
-Python bytes only from natural completions. The shared loop passes the recipe's
-`enable_thinking` through initial and repair requests. Natural-length thinking
+Thinking uses the loaded tokenizer's token boundaries; an unclosed thought or an
+unmatched closing token leaves `answer_text=None`. `extract_program(row)` requires
+that field and returns exact Python bytes only from natural completions. The shared
+loop passes the recipe's `enable_thinking` through initial and repair requests. Natural-length thinking
 qualification belongs to the [V2 B02 plan](docs/v2-batch-02-plan.md).
 See the [Batch 6 plan](docs/v1/stage-03-batch-06-plan.md)
 for settings, statuses, extraction rules and fixture qualification.
@@ -347,6 +347,13 @@ Run its made-up-task smoke with:
 ```sh
 ROPOT_ATTACK_TESTS=1 .venv/bin/python -m unittest tests.test_attacks_live -v
 ```
+
+V2 adds `attacks.check_shown(candidates, log_dir, pairs=...)` for the
+[B02 acceptance rules](docs/v2-batch-02-plan.md). Each task digest maps to its
+original `program` text and ordered `examples`/`menu` cases. It executes one shown
+case per native sample, including mechanically rejected programs, and returns
+complete bounded feedback plus fault certificates. B02's contract, acquisition
+and scoring phases will wire this checker into the shared loop.
 
 The provisional [B2 monitor](src/data-pipeline/stage05/monitor.py) scores in-memory
 records through the existing MLX Python; see its [contract](docs/v1/stage-05-plan.md#provisional-monitor-runner).

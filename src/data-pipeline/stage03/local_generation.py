@@ -49,7 +49,8 @@ def split_answer(tokenizer, row):
 
     Qwen opens its thought in the prompt. Gemma may open one in the reply or
     finish directly. Boundaries come from the loaded tokenizer, never text tags.
-    Unclosed thoughts retain their raw evidence but cannot supply a program.
+    Unclosed thoughts and unmatched closing tokens retain raw evidence but leave
+    answer_text=None and cannot supply a program.
     """
     if not row["enable_thinking"]:
         row["answer_text"] = row["text"]

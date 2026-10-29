@@ -92,6 +92,8 @@ ceiling**, including repairs.
 Before freezing the contract, run six natural-length fixtures: workload requests
 **0, 1 and 8 for each model** from the frozen batching preparation. Preserve
 messages/seeds; use B2 sampling, thinking and output ceiling with normal EOS behavior.
+Set `enable_thinking=True` explicitly when replaying these requests; the frozen
+workload records predate that request field.
 
 Run fixtures through a **one-off driver**, as B1 did. Only that driver applies
 memory-pressure, swap-growth and peak-memory guards. Bind its source, evidence and

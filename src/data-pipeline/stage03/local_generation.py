@@ -27,11 +27,13 @@ def save(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, allow_nan=False), encoding="utf-8")
 
 
-def render(tokenizer, messages):
-    options = dict(add_generation_prompt=True, enable_thinking=False)
+def render(tokenizer, messages, *, enable_thinking=False):
+    if enable_thinking and not tokenizer.has_thinking:
+        raise ValueError("Thinking requires tokenizer token-ID boundaries")
+    options = dict(add_generation_prompt=True, enable_thinking=enable_thinking)
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, **options)
     ids = tokenizer.apply_chat_template(messages, tokenize=True, **options)
-    return dict(prompt=prompt, prompt_ids=ids, prompt_tokens=len(ids))
+    return dict(prompt=prompt, prompt_ids=ids, prompt_tokens=len(ids), enable_thinking=enable_thinking)
 
 
 def decode_tokens(tokenizer, tokens, eos):
@@ -40,6 +42,38 @@ def decode_tokens(tokenizer, tokens, eos):
         decoder.add_token(token)
     decoder.finalize()
     return decoder.text
+
+
+def split_answer(tokenizer, row):
+    """Keep raw evidence intact; decode only the answer after a closed thought.
+
+    Qwen opens its thought in the prompt. Gemma may open one in the reply or
+    finish directly. Boundaries come from the loaded tokenizer, never text tags.
+    Unclosed thoughts retain their raw evidence but cannot supply a program.
+    """
+    if not row["enable_thinking"]:
+        row["answer_text"] = row["text"]
+        return
+    opening, closing = list(tokenizer.think_start_tokens), list(tokenizer.think_end_tokens)
+    opened = tokenizer.rfind_think_start(row["prompt_ids"]) > tokenizer.rfind_think_end(row["prompt_ids"])
+    tokens, cursor, answer_start = row["tokens"], 0, 0
+    while cursor < len(tokens):
+        if tokens[cursor:cursor + len(opening)] == opening:
+            opened = True
+            cursor += len(opening)
+        elif tokens[cursor:cursor + len(closing)] == closing:
+            if not opened:
+                row["answer_text"] = None
+                return
+            opened = False
+            cursor += len(closing)
+            answer_start = cursor
+        else:
+            cursor += 1
+    row["answer_text"] = None
+    if not opened:
+        row["answer_text"] = (decode_tokens(tokenizer, tokens[answer_start:], set(tokenizer.eos_token_ids))
+                              if answer_start else row["text"])
 
 
 def attempt(errors, action):
@@ -51,6 +85,8 @@ def attempt(errors, action):
 
 
 def prepare_run(model_path, requests, directory, model_manifest, **metadata):
+    if any(type(request.get("enable_thinking", False)) is not bool for request in requests):
+        raise ValueError("enable_thinking must be a boolean")
     config = json.loads((model_path / "config.json").read_text())
     if config.get("quantization", config.get("quantization_config", {})).get("bits") != 8:
         raise ValueError("Generation requires 8-bit quantization")
@@ -101,7 +137,7 @@ def generate_request(model, tokenizer, request, row, reply_path):
     started = monotonic()
     row.update(status="running", finish_reason=None)
     try:
-        row.update(render(tokenizer, request["messages"]))
+        row.update(render(tokenizer, request["messages"], enable_thinking=request.get("enable_thinking", False)))
         sampler = make_sampler(temp=request["temperature"], top_p=request["top_p"], seed=request["seed"])
         with reply_path.open("w", encoding="utf-8") as reply:
             with closing(stream_generate(model, tokenizer, row["prompt_ids"],
@@ -114,6 +150,7 @@ def generate_request(model, tokenizer, request, row, reply_path):
                     reply.write(response.text)
                     reply.flush()
         if row["finish_reason"] in ("stop", "length"):
+            split_answer(tokenizer, row)
             row["status"] = row["finish_reason"]
         else:
             raise RuntimeError("Native stream ended without completion")
@@ -125,13 +162,15 @@ def generate(model_path, requests, output_dir, *, model_manifest):
     """Load once, process a finite list serially, and save plain result files.
 
     Requests supply messages, seed, temperature, top_p and max_tokens.
+    Optional enable_thinking defaults to false. Raw text/tokens retain reasoning;
+    answer_text contains only the answer, or None for an unclosed thought.
     An error ends the run without retry.
     Python interruptions save evidence then propagate; hard termination may
     lose metadata. Replies are flushed to text files as chunks arrive.
     """
     model_path, directory = Path(model_path).resolve(), Path(output_dir).absolute()
     config = prepare_run(model_path, requests, directory, model_manifest)
-    rows = [{"status": "not_run", "text": "", "tokens": []} for _ in requests]
+    rows = [{"status": "not_run", "text": "", "tokens": [], "answer_text": None} for _ in requests]
     result = {"status": "error", "requests": rows, "error": None}
     started, active = monotonic(), None
     try:
@@ -153,10 +192,12 @@ def generate(model_path, requests, output_dir, *, model_manifest):
 
 
 def extract_program(row):
-    """Return exact Python bytes; compiler resource errors propagate separately."""
+    """Extract only answer_text; compiler resource errors propagate separately."""
     if row["status"] != "stop":
         raise ValueError("Require natural completion")
-    text = row["text"]
+    text = row["answer_text"]
+    if text is None:
+        raise ValueError("Require a closed thought before program extraction")
     if not text.strip():
         raise ValueError("Empty program")
     program = text.encode("utf-8")
@@ -193,7 +234,7 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
         raise ValueError("Require positive integer token limits")
     model_path, directory = Path(model_path).resolve(), Path(output_dir).absolute()
     config = prepare_run(model_path, requests, directory, model_manifest, batching=batching)
-    rows = [dict(status="not_run", text="", tokens=[], submitted=False, native_uid=None,
+    rows = [dict(status="not_run", text="", answer_text=None, tokens=[], submitted=False, native_uid=None,
                  finish_reason=None, elapsed_seconds=None) for _ in requests]
     result = dict(status="error", requests=rows, error=None, cleanup_error=None, batching=batching,
                   max_observed_decode_batch=0, native=None)
@@ -219,7 +260,7 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
             extra_modules=("mlx_lm.models.cache", "mlx_lm.generate_utils"))
         preparing = monotonic()
         for request, row in zip(requests, rows):
-            row.update(render(tokenizer, request["messages"]))
+            row.update(render(tokenizer, request["messages"], enable_thinking=request.get("enable_thinking", False)))
             limit = request.get("max_prompt_tokens")
             if limit is not None and row["prompt_tokens"] > limit:
                 raise ValueError("Prompt exceeds the qualified token envelope")
@@ -269,6 +310,7 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
                 for i, row, reason in finished:
                     try:
                         write_reply(i)
+                        split_answer(tokenizer, row)
                         row.update(status=reason, elapsed_seconds=observed - row["submitted_seconds"])
                     except BaseException as error:
                         write_errors.append(error)

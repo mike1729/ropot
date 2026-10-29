@@ -38,7 +38,8 @@ class RepairTests(initial.LoopFixture):
             round_index, position = divmod(request["seed"] - self.recipe["base_seed"], len(self.worklist))
             self.assertEqual(round_index, self.round_index)
             status, text = self.draws.get((round_index, position), ("stop", f"print({position})\r\n"))
-            row = dict(status=status, text=text, submitted=True, native_uid=40+index,
+            row = dict(status=status, text=text, answer_text=self.answer_texts.get((round_index, position), text),
+                       submitted=True, native_uid=40+index,
                        tokens=[12, 99], generation_tokens=2, prompt_tokens=7)
             rows.append(row)
             (directory / f"reply-{index:04d}.txt").write_bytes(text.encode())
@@ -76,6 +77,36 @@ class RepairTests(initial.LoopFixture):
         self.assertEqual(Path(attempts[1]["program"]).read_bytes(), b"print(1)\r\n")
         self.assertEqual(attempts[1]["verification"]["sample_id"], 0)
         self.assertEqual(self.verifier.call_count, 2)
+
+    def test_thinking_passthrough_and_answer_only_repairs(self):
+        self.recipe["enable_thinking"] = True
+        self.verdicts[0, 0] = "failed"
+        self.draws[0, 0] = "stop", "PRIVATE_REASONING\n```python\nprint(999)\n```"
+        self.answer_texts[0, 0] = "print('answer only')\n"
+        result = self.run_loop()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertTrue(all(r["enable_thinking"] is True for rs in self.requests for r in rs))
+        repair = self.requests[1][0]["messages"][1]["content"]
+        self.assertIn("print('answer only')", repair)
+        self.assertNotIn("PRIVATE_REASONING", repair)
+        self.assertNotIn("print(999)", repair)
+        attempt = result["attempts"][0]
+        self.assertEqual(Path(attempt["program"]).read_bytes(), b"print('answer only')\n")
+        self.assertEqual(result["observed_tokens"], 6)
+
+    def test_unclosed_thought_consumes_attempt_and_never_enters_repair(self):
+        self.recipe["enable_thinking"] = True
+        self.draws[0, 0] = "stop", "PRIVATE_REASONING\n```python\nprint(999)\n```"
+        self.answer_texts[0, 0] = None
+        result = self.run_loop()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual(result["attempts"][0]["extraction"], "format")
+        self.assertEqual([len(call.args[0]) for call in self.verifier.call_args_list], [1, 1])
+        repair = self.requests[1][0]["messages"][1]["content"]
+        self.assertIn("Local extraction failure: format", repair)
+        self.assertNotIn("PRIVATE_REASONING", repair)
+        self.assertNotIn("print(999)", repair)
+        self.assertEqual((result["committed_replies"], result["observed_tokens"]), (3, 6))
 
     def test_fresh_repairs_contain_only_context_current_code_and_public_feedback(self):
         self.verdicts.update({(r, 0): "failed" for r in range(3)})

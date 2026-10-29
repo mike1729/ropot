@@ -9,6 +9,8 @@ from types import SimpleNamespace as NS
 import unittest
 from unittest import mock
 
+from tests.test_thinking_generation import ThinkingTokenizer
+
 g = importlib.import_module("src.data-pipeline.stage03.local_generation")
 
 
@@ -214,6 +216,8 @@ class BatchTests(unittest.TestCase):
         self.assertEqual([r["status"] for r in result["requests"]], ["stop", "stop", "length"])
         self.assertEqual([r["tokens"] for r in result["requests"]], [[12, 99], [12, 99], [12]])
         self.assertEqual([r["text"] for r in result["requests"]], ["print(1)\n"] * 3)
+        self.assertEqual([r["answer_text"] for r in result["requests"]], ["print(1)\n"] * 3)
+        self.assertTrue(all(r["enable_thinking"] is False for r in result["requests"]))
         self.assertEqual(self.native.max_active, 2)
         self.assertEqual([len(call[0]) for call in self.native.insertions], [2, 1])
         self.assertEqual(self.native.settings["stop_tokens"], [[98], [99]])
@@ -258,14 +262,42 @@ class BatchTests(unittest.TestCase):
                    ("prefill_batch_size", 3), ("prefill_batch_size", 1.5),
                    ("prefill_step_size", False), ("prefill_step_size", -1),
                    ("max_tokens", 0), ("max_tokens", True), ("max_tokens", 1.5),
-                   ("max_prompt_tokens", 0), ("max_prompt_tokens", True), ("max_prompt_tokens", 1.5)]
+                   ("max_prompt_tokens", 0), ("max_prompt_tokens", True), ("max_prompt_tokens", 1.5),
+                   ("enable_thinking", None), ("enable_thinking", 0), ("enable_thinking", 1),
+                   ("enable_thinking", "true")]
         for i, (key, value) in enumerate(invalid):
             req, settings = request(), {}
-            (req if key.endswith("tokens") else settings)[key] = value
+            (req if key.endswith("tokens") or key == "enable_thinking" else settings)[key] = value
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 self.generate([req], f"invalid-{i}", **settings)
             self.assertFalse((self.root / f"invalid-{i}").exists())
         self.load.assert_not_called()
+
+    def test_thinking_answer_preserves_raw_reply_and_usage(self):
+        tokenizer, tokens = ThinkingTokenizer("gemma"), [40, 41, 11, 42, 12, 98]
+        self.load.return_value = object(), tokenizer
+        self.steps = [([], [event(41, t, "stop" if i == len(tokens) - 1 else None)])
+                      for i, t in enumerate(tokens)]
+        result = self.generate([dict(request(cap=len(tokens)), enable_thinking=True)])
+        self.assertEqual(result["status"], "success", result)
+        row = result["requests"][0]
+        self.assertEqual((row["tokens"], row["generation_tokens"]), (tokens, len(tokens)))
+        self.assertEqual(row["text"], "".join(tokenizer.pieces[t] for t in tokens))
+        self.assertEqual((self.root / "run/reply-0000.txt").read_bytes(), row["text"].encode())
+        self.assertEqual(g.extract_program(row), tokenizer.pieces[12].encode())
+        self.assertTrue(all(c.kwargs["enable_thinking"] for c in tokenizer.apply_chat_template.call_args_list))
+
+    def test_cancellation_preserves_raw_reply_without_answer_extraction(self):
+        self.steps = [([], [event(41, 12)]), KeyboardInterrupt("native cancellation")]
+        with mock.patch.object(g, "split_answer", side_effect=RuntimeError("answer decode failed")) as splitter:
+            with self.assertRaisesRegex(KeyboardInterrupt, "native cancellation"):
+                self.generate()
+        splitter.assert_not_called()
+        result = self.saved()
+        self.assertEqual(result["status"], "cancelled")
+        self.assertIsNone(result["cleanup_error"])
+        self.assertIsNone(result["requests"][0]["answer_text"])
+        self.assertEqual(result["requests"][0]["text"], "print(1)\n")
 
     def test_wall_time_field_is_optional_and_legacy_value_does_not_expire_requests(self):
         clock = [0.]
@@ -582,9 +614,9 @@ class BatchTests(unittest.TestCase):
 
 class ExtractionTests(unittest.TestCase):
     def extract(self, text, status="stop"):
-        row = {"status": status, "text": text}
+        row = {"status": status, "answer_text": text}
         result = g.extract_program(row)
-        self.assertEqual(row, {"status": status, "text": text})
+        self.assertEqual(row, {"status": status, "answer_text": text})
         return result
 
     def test_exact_plain_bytes_and_fenced_slices(self):

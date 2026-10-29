@@ -96,7 +96,7 @@ class Fixture(unittest.TestCase):
             text = f"PRIVATE_REASONING_{source}_{round_index}\n```python\nprint('{source} r{round_index} p{position}')\n```"
             if self.extraction_failure and (source, round_index, position) == ("actor", 0, 0):
                 text = "PRIVATE_REASONING_REFUSAL\n```python\n```"
-            row = dict(status="stop", text=text, submitted=True, tokens=[12, 99],
+            row = dict(status="stop", text=text, answer_text=text, submitted=True, tokens=[12, 99],
                        generation_tokens=2, prompt_tokens=11)
             if self.truncate and (source, round_index, position) == ("actor", 0, 0):
                 row["status"] = "length"

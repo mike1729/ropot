@@ -131,6 +131,7 @@ def validate(worklist, recipe, source, reply_allowance, output_token_allowance, 
     count = len(worklist)
     limits = (reply_allowance, output_token_allowance, *batching.values(), recipe["max_tokens"])
     if (not count or source not in study_tasks.SOURCES or any(type(n) is not int or n <= 0 for n in limits)
+            or type(recipe.get("enable_thinking", False)) is not bool
             or batching["prefill_batch_size"] > batching["completion_batch_size"] or type(recipe["max_repairs"]) is not int
             or recipe["max_repairs"] < 0 or reply_allowance < count
             or output_token_allowance < count * recipe["max_tokens"]):
@@ -167,6 +168,7 @@ def initial_requests(worklist, recipe, initial_messages=None):
     return [dict(messages=initial_messages[i],
                  seed=recipe["base_seed"] + i, temperature=recipe["temperature"], top_p=recipe["top_p"],
                  max_tokens=recipe["max_tokens"],
+                 enable_thinking=recipe.get("enable_thinking", False),
                  **{k: recipe[k] for k in ("max_prompt_tokens",) if k in recipe}) for i, (_, task) in enumerate(worklist)]
 
 
@@ -396,6 +398,7 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
 
     Required recipe fields are system, initial, temperature, top_p, base_seed,
     max_tokens and max_repairs. A zero max_repairs runs only the initial round.
+    Optional enable_thinking defaults to false and passes through every round.
     Enabled repairs also require repair (instruction), repair_max_tokens,
     feedback_field_bytes and feedback_bytes. Feedback caps count UTF-8 bytes,
     including truncation markers. Initial prompts use only recipe instructions

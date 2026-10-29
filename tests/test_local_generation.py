@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 
 from tests.fixture_verification import verify_saved_programs
+from tests.test_thinking_generation import ThinkingTokenizer
 
 g = importlib.import_module("src.data-pipeline.stage03.local_generation")
 
@@ -80,6 +81,8 @@ class GenerationTests(unittest.TestCase):
         self.assertEqual(self.closed.call_count, 3)
         row = result["requests"][0]
         self.assertEqual(row["text"], "```python\n<unk>\n```")
+        self.assertEqual(row["answer_text"], row["text"])
+        self.assertFalse(row["enable_thinking"])
         self.assertEqual(row["generation_tokens"], 2)
         self.assertEqual((self.root / "run/reply-0000.txt").read_text(), row["text"])
 
@@ -100,6 +103,41 @@ class GenerationTests(unittest.TestCase):
         self.assertEqual(inputs["model_metadata_sha256"]["tokenizer_config.json"],
                          g.file_hash(self.root / "tokenizer_config.json"))
         self.sampler.assert_called_once_with(temp=.7, top_p=.9, seed=17)
+
+    def test_thinking_answer_preserves_raw_reply_and_usage(self):
+        tokenizer, tokens = ThinkingTokenizer("qwen"), [10, 11, 31, 12, 99]
+        self.load.return_value = object(), tokenizer
+        self.stream.side_effect = lambda *a, **kw: (
+            response(tokenizer.pieces[t], t, i + 1, "stop" if i == len(tokens) - 1 else None)
+            for i, t in enumerate(tokens))
+        result = self.generate([dict(request(cap=len(tokens)), enable_thinking=True)])
+        self.assertEqual(result["status"], "success", result)
+        row = result["requests"][0]
+        self.assertEqual((row["tokens"], row["generation_tokens"]), (tokens, len(tokens)))
+        self.assertEqual(row["text"], "".join(tokenizer.pieces[t] for t in tokens))
+        self.assertEqual((self.root / "run/reply-0000.txt").read_bytes(), row["text"].encode())
+        self.assertEqual(g.extract_program(row), tokenizer.pieces[12].encode())
+        self.assertTrue(all(c.kwargs["enable_thinking"] for c in tokenizer.apply_chat_template.call_args_list))
+
+    def test_cancellation_preserves_original_exception_without_answer_extraction(self):
+        def interrupted(*args, **kwargs):
+            yield response()
+            raise KeyboardInterrupt("native cancellation")
+        self.stream.side_effect = interrupted
+        with mock.patch.object(g, "split_answer", side_effect=RuntimeError("answer decode failed")) as splitter:
+            with self.assertRaisesRegex(KeyboardInterrupt, "native cancellation"):
+                self.generate([request()])
+        splitter.assert_not_called()
+        row = json.loads((self.root / "run/outcome.json").read_text())["requests"][0]
+        self.assertIsNone(row["answer_text"])
+        self.assertEqual(row["text"], "partial<unk>")
+
+    def test_invalid_thinking_setting_fails_before_output_creation_or_loading(self):
+        for value in (None, 0, 1, "true"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.generate([dict(request(), enable_thinking=value)])
+            self.assertFalse((self.root / "run").exists())
+        self.load.assert_not_called()
 
     def test_gemma_records_its_own_architecture_sources(self):
         (self.root / "config.json").write_text('{"model_type":"gemma4","quantization":{"bits":8}}')
@@ -169,14 +207,14 @@ class SmokeExtractionTests(unittest.TestCase):
     def test_raw_fenced_and_prose_wrapped_python_preserve_code(self):
         code = "print('żółw')\n"
         for text in (code, f"```python\n{code}```", f"Here is the code:\n```python\n{code}```\nDone."):
-            self.assertEqual(g.extract_program({"status": "stop", "text": text}), code.encode())
+            self.assertEqual(g.extract_program({"status": "stop", "answer_text": text}), code.encode())
 
     def test_incomplete_ambiguous_and_invalid_replies_are_rejected(self):
         for status, text in (("length", "print(1)"), ("cancelled", "print(1)"),
                 ("stop", "```python\nprint(1)"), ("stop", "```python\nprint(1)\n```\n```python\nprint(2)\n```"),
                 ("stop", "```javascript\nprint(1)\n```"), ("stop", "print(")):
             with self.subTest(status=status, text=text), self.assertRaises((ValueError, SyntaxError)):
-                g.extract_program({"status": status, "text": text})
+                g.extract_program({"status": status, "answer_text": text})
 
 
 @unittest.skipUnless(os.environ.get("ROPOT_MLX_TESTS") == "1", "set ROPOT_MLX_TESTS=1 in the MLX Python")

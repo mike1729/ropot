@@ -220,8 +220,14 @@ request and writes its reply file before marking it complete; Python abort also
 saves partial replies and retries failed reply writes. Malformed native calls
 retain scalar evidence without applying their events to rows.
 Hard termination can lose active partial replies and outcome metadata.
-`extract_program(row)` returns exact Python
-bytes only from natural completions. See the [Batch 6 plan](docs/v1/stage-03-batch-06-plan.md)
+Requests may set `enable_thinking=True`; the default is explicitly false.
+Both adapters retain raw `text` and token IDs and save separate `answer_text`.
+Thinking uses the loaded tokenizer's token boundaries; an unclosed thought leaves
+`answer_text=None`. `extract_program(row)` requires that field and returns exact
+Python bytes only from natural completions. The shared loop passes the recipe's
+`enable_thinking` through initial and repair requests. Natural-length thinking
+qualification belongs to the [V2 B02 plan](docs/v2-batch-02-plan.md).
+See the [Batch 6 plan](docs/v1/stage-03-batch-06-plan.md)
 for settings, statuses, extraction rules and fixture qualification.
 For Ministral, pass `/Users/michal/Workspace/models/mlx-community/Ministral-3-8B-Instruct-2512-8bit`
 and its corresponding artifact manifest through the same API, with an explicit

@@ -48,7 +48,8 @@ def freeze(directory):
                             outcome_sha256=g.file_hash(folder / "outcome.json")))
         for i, request in enumerate(inputs["requests"]):
             request = json.loads(json.dumps(request))
-            request.update(seed=41 + len(requests), temperature=0.2, top_p=0.95, max_tokens=8192)
+            request.update(seed=41 + len(requests), temperature=0.2, top_p=0.95, max_tokens=8192,
+                           enable_thinking=True)
             requests.append(request)
     long_path = ROOT / "data/03_throughput/q8-followups-20261025-v1/actor-long/7k-calibration/inputs.json"
     long = json.loads(long_path.read_text())
@@ -58,7 +59,7 @@ def freeze(directory):
         # Flatten saved public conversation into a fresh single-turn request.
         content = "\n\n".join(f"{m['role']}:\n{m['content']}" for m in old["messages"])
         requests.append(dict(messages=[dict(role="user", content=content)],
-            seed=41 + len(requests), temperature=0.2, top_p=0.95, max_tokens=8192))
+            seed=41 + len(requests), temperature=0.2, top_p=0.95, max_tokens=8192, enable_thinking=True))
     g.save(directory / "workload.json", dict(requests=requests, sources=sources,
         note="8 historical initial prompts + 8 invented long repair fixtures; thinking on; no execution or yield scoring"))
     return requests
@@ -106,15 +107,7 @@ def run(args):
     text = config["text_config"]
     max_prompt = 0
 
-    def render(tokenizer, messages):
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False,
-            add_generation_prompt=True, enable_thinking=True)
-        ids = tokenizer.apply_chat_template(messages, tokenize=True,
-            add_generation_prompt=True, enable_thinking=True)
-        return dict(prompt=prompt, prompt_ids=ids, prompt_tokens=len(ids))
-
-    g.render = render
-    rendered = [render(tokenizer, r["messages"]) for r in requests]
+    rendered = [g.render(tokenizer, r["messages"], enable_thinking=r["enable_thinking"]) for r in requests]
     max_prompt = max(r["prompt_tokens"] for r in rendered)
     g.save(directory / "rendered.json", rendered)
     g.save(directory / "contract.json", dict(model=str(model_path), manifest_sha256=g.file_hash(manifest_path),
@@ -125,7 +118,7 @@ def run(args):
         max_prompt_tokens=max_prompt, peak_stop_bytes=44 * GIB,
         admission=("weights + full KV + chunk-bounded rotating KV + >=2 GiB measured workspace <=44 GiB"
                    if args.capacity else "weights + 1.5 * estimated KV/state + 4 GiB workspace <= 44 GiB; advisory estimate"),
-        caveat="Benchmark overrides render, resident load reuse, and screening EOS; no production adapter changes"))
+        caveat="Benchmark overrides resident load reuse and screening EOS; no production adapter changes"))
     runtime = json.loads((loaded / "runtime.json").read_text())
     # Warning pressure is diagnostic: earlier batch-8 Qwen runs succeeded.
     # Stop on critical pressure or new swap, rather than warning alone.

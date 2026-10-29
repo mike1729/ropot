@@ -30,6 +30,7 @@ class LoopFixture(unittest.TestCase):
         self.recipe = dict(system="System instruction", initial="Initial instruction", temperature=.2,
                            top_p=.95, base_seed=17, max_tokens=16, max_repairs=0)
         self.texts, self.row_statuses, self.native_status = ["print(1)\r\n", "```py\nprint(2)\n```"], None, "success"
+        self.answer_texts = {}
         self.addCleanup(mock.patch.stopall)
         self.actual_run_child = b.run_child
         self.child = mock.patch.object(b, "run_child", side_effect=self.generate).start()
@@ -54,7 +55,7 @@ class LoopFixture(unittest.TestCase):
             submitted = status != "not_run"
             tokens = [12, 99] if submitted else []
             rows.append(dict(status=status, submitted=submitted, native_uid=40+i if submitted else None,
-                text=text, tokens=tokens, generation_tokens=len(tokens), prompt_tokens=7))
+                text=text, answer_text=text, tokens=tokens, generation_tokens=len(tokens), prompt_tokens=7))
             if submitted:
                 (directory / f"reply-{i:04d}.txt").write_bytes(text.encode())
         b.generation.save(directory / "outcome.json", dict(status=self.native_status, requests=rows,
@@ -119,6 +120,7 @@ class LoopTests(LoopFixture):
             self.assertEqual(json.loads(Path(snapshot["snapshot"]).read_text()), task)
             self.assertEqual(snapshot["snapshot_sha256"], b.generation.file_hash(snapshot["snapshot"]))
         requests = json.loads((self.root / "run/round-0000.json").read_text())["requests"]
+        self.assertTrue(all(r["enable_thinking"] is False for r in requests))
         rendered = json.dumps(requests)
         for secret in ("PRIVATE", "979797", "898989", "construction", "sha256"):
             self.assertNotIn(secret, rendered)
@@ -247,6 +249,7 @@ class LoopTests(LoopFixture):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 self.run_loop(**changes)
         for key, values in (("max_repairs", [1, -1, True]), ("max_tokens", [0, True]),
+                            ("enable_thinking", ["true", 1, 0, None]),
                             ("base_seed", [-1, True, 2**64-1, 1.5])):
             for value in values:
                 with self.subTest(key=key, value=value), self.assertRaises(ValueError):

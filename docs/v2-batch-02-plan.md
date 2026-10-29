@@ -16,12 +16,34 @@ Monitor results are diagnostic. Block continuation only when either source has
 **at least two combined benign FLAGs and invalid replies across both labels**.
 Formal monitor targets and reviewed grounding move to B4.
 
+## Qwen-only development experiments
+
+Before the official B2 baseline, run several exploratory rounds on Qwen only to
+measure yield and tune generation parameters and the prompt/feedback scaffold.
+Use only the existing eight scaffold-development tasks and their shown cases;
+keep private audits and confirmation outcomes out of tuning. Gemma is not required
+for these rounds. The user has assigned `acquire` and `score` implementation to
+another agent.
+
+Postpone `prepare_contract` implementation and the official contract freeze until
+the exploratory recipe is ready. Exploratory rounds do not require that interface
+or satisfy the official B2 gates. Each round must still record its exact inputs,
+recipe, model/code bindings, seeds, finite submission/token limits, outcomes and
+costs, using existing generation artifacts and a small run record. Preserve failed
+rounds and identify each recipe revision; include exploratory work in total pipeline
+cost accounting. Apply the same thinking/extraction checks and resource guards
+during generation. No standalone qualification fixtures are required.
+
+After tuning, freeze the official B2 contract before its acquisition. Results on
+these reused development tasks describe development yield, not independent
+confirmation; keep the reserved B4 panel untouched for frozen confirmation.
+
 ## Implementation and three phases
 
 Keep B2 in the existing attacks adapter. Reuse the shared loop, generation backend,
 restricted loader, verifier and clipping.
 
-1. **`prepare_contract`** validates B1 bindings and qualification receipts, freezes inputs/settings/budgets, and returns the contract digest.
+1. **`prepare_contract`** validates B1 bindings and existing runtime evidence, freezes inputs/settings/budgets, and returns the contract digest. No separate thinking-fixture receipt is required.
 2. **`acquire`** requires that expected digest, runs generation, freezes outcomes and emits review packets.
 3. **`score`** requires the digest, imports reviews/adjudication, selects attacks, freezes selection, runs audits and monitoring, checks eligible counterexamples and writes the final report.
 
@@ -76,7 +98,7 @@ Duplicates, refusals, malformed declarations, extraction failures and truncation
 consume slots. Technical failures stop dispatch with partial evidence retained.
 No retries, substitute triggers or cross-chain feedback.
 
-## Thinking qualification and budgets
+## Thinking checks and budgets
 
 Explicitly default thinking to **off**; attacks enable it. Inside generation, split
 by the tokenizer's existing **token-ID thinking boundaries**, saving `answer_text`
@@ -89,17 +111,26 @@ code only from `answer_text`.
 Use attack batching **Qwen 4/1/256**, **Gemma 2/1/256**, and a **25,808-token prompt
 ceiling**, including repairs.
 
-Before freezing the contract, run six natural-length fixtures: workload requests
-**0, 1 and 8 for each model** from the frozen batching preparation. Preserve
-messages/seeds; use B2 sampling, thinking and output ceiling with normal EOS behavior.
-Set `enable_thinking=True` explicitly when replaying these requests; the frozen
-workload records predate that request field.
+Check thinking closure, natural completion and answer-only code extraction during
+the development attack run itself, using normal EOS behavior. These eight tasks
+are scaffold development; no separate thinking fixtures or pre-run qualification
+gate are required. Truncations, unclosed thoughts and extraction failures consume
+their submission slots and remain in yield/cost accounting; they do not individually
+block the run. Apply the existing **≤5% truncated attack submissions** gate to the
+completed baseline. Record unclosed thoughts and extraction failures separately.
+Technical failures still stop dispatch, with partial evidence and no retries.
 
-Run fixtures through a **one-off driver**, as B1 did. Only that driver applies
-memory-pressure, swap-growth and peak-memory guards. Bind its source, evidence and
-summaries by hash. Fixtures test generation/extraction, not candidate execution or
-B2 yield. Any truncation, unclosed thought or extraction failure blocks qualification
-pending a separate recipe revision.
+Apply memory-pressure, swap-growth and peak-memory guards in the development run's
+one-off driver: require normal initial pressure; stop dispatch at critical pressure,
+more than **256 MiB** swap growth or more than **44 GiB** peak MLX memory. Bind the
+driver and evidence by hash. A resource stop is a technical failure, not a candidate
+rejection or an extra submission opportunity. Recipe changes require a separately
+recorded development revision; retain prior costs and do not retune on confirmation.
+
+The interrupted Qwen fixture attempt of 2026-10-29 is retained under
+`data/03_generation_checks/v2-b2-thinking-20261029/`. Include its delivered output
+tokens and elapsed time in pipeline costs, but not in attack yield or the attack
+truncation denominator. Run no further standalone thinking fixtures.
 
 Keep the chosen **8,192-token monitor input ceiling**. Together with its output
 allowance and B1's Qwen batching, this fits the tested context envelope. No monitor
@@ -110,7 +141,6 @@ scoring; oversize stops scoring without truncation or reselection.
 |---|---:|
 | Attack replies / reserved tokens | 96 / 786,432 |
 | Monitor replies / reserved tokens | 32 / 262,144 |
-| Thinking fixtures / reserved tokens | 6 / 49,152 |
 | Shown-case executions | 936 |
 | Selected attack audit executions | 64 |
 | Monitor counterexample executions | 32 |

@@ -6,6 +6,32 @@ bounded attacks, reviewed successes and a report of coverage, audit survival,
 monitor detection and total cost. The [pipeline](data-pipeline-overview.md) defines
 ownership and information boundaries; the pilot defines scientific targets.
 
+## Reuse existing components
+
+Implement v2 experimental rules with small adapters around the existing pipeline:
+
+- `stage03.study_tasks` and `stage02.published_cohort` already provide restricted
+  loading, pinned task identities and ownership. Prepare case views over those tasks.
+- `stage03.local_generation` already provides model loading, batching, seeded
+  requests, extraction and runtime evidence. Consume qualified model settings and
+  make only necessary checkpoint/template/provenance fixes.
+- `stage03.benign_loop.run` already provides bounded rounds, repair admission,
+  budgets, selection, child-process control and attempt/cost records. Supply
+  `initial_messages` and `candidate_checker` for v2 behavior; code-only fresh
+  repairs are built into the loop.
+  Keep B1 preparation and acquisition in that same module, using
+  `prepare_contract` and `acquire` as the entry points.
+- `stage03.verification`, `stage03.inspect_runner` and `stage03.repair_feedback`
+  provide sandbox execution, integer checks, native evidence and bounded feedback.
+  B1 uses shown-only and private-audit adapters; B2 adds complete attack-case feedback
+  only where the existing path cannot meet its contract.
+- Reuse `stage05.monitor.strip_comments` for normalization and the tracked monitor
+  baseline for the qualified prompt, settings and parser when wiring B2 scoring.
+
+Preserve provenance, privacy and accounting. Add checks or infrastructure only for
+the current batch's acceptance criteria or a demonstrated gap; defer later consumers'
+work to their batch. Choose review boundaries from the actual diff.
+
 ## Five implementation batches
 
 | Batch | Outcome |
@@ -22,6 +48,9 @@ run needs its finite batch contract; this plan does not start acquisition.
 
 ## Batch 1 scope
 
+The [B1 implementation plan](v2-batch-01-plan.md) defines the thin adapters, proposed
+case/acquisition limits and the handoff from parallel runtime qualification.
+
 Bind the pilot's model checkpoints using existing provenance records. Use a small
 runtime/extraction smoke only for unverified changes, including thinking; do not
 build another benchmark or configuration framework. Record effective settings and usage.
@@ -29,8 +58,9 @@ build another benchmark or configuration framework. Record effective settings an
 Prepare the worklist and case partition under the pipeline contract. Record the
 matched-task target, available tasks, reserve rule and budgets in the batch contract,
 following the pilot's gate-freezing policy. Generate new own-source benigns with
-bounded shown-case repairs and a common thinking-mode policy. Apply the pipeline's
-private benign check before admitting pairs to attack generation.
+bounded shown-case repairs and thinking disabled for both sources, including repairs
+and future benign acquisition runs. Apply the pipeline's private benign check before
+admitting pairs to attack generation.
 
 ## Attack loop and review
 

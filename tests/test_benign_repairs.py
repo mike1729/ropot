@@ -1,4 +1,4 @@
-"""Repair rounds: original positions, accounting, public history and technical stops."""
+"""Repair rounds: original positions, accounting, fresh prompts and technical stops."""
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -77,16 +77,20 @@ class RepairTests(initial.LoopFixture):
         self.assertEqual(attempts[1]["verification"]["sample_id"], 0)
         self.assertEqual(self.verifier.call_count, 2)
 
-    def test_history_contains_only_projection_and_preserves_all_preceding_turns(self):
+    def test_fresh_repairs_contain_only_context_current_code_and_public_feedback(self):
         self.verdicts.update({(r, 0): "failed" for r in range(3)})
+        self.draws.update({(0, 0): ("stop", "PRIVATE_REASONING\n```python\nprint('first')\n```"),
+                           (1, 0): ("stop", "PRIVATE_REASONING\n```python\nprint('second')\n```")})
         original = deepcopy(self.worklist)
         result = self.run_loop()
         self.assertEqual([t["state"] for t in result["tasks"]], ["repairs_exhausted", "passed"])
         messages = self.requests[2][0]["messages"]
-        self.assertEqual(len(messages), 6)
-        self.assertEqual(messages[:4], self.requests[1][0]["messages"])
-        self.assertEqual(messages[2], dict(role="assistant", content="print(0)\r\n"))
-        self.assertIn("PUBLIC_ANSWER", messages[3]["content"])
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0], self.requests[0][0]["messages"][0])
+        self.assertTrue(messages[1]["content"].startswith(self.requests[0][0]["messages"][1]["content"]))
+        self.assertIn("print('second')", messages[1]["content"])
+        self.assertNotIn("print('first')", messages[1]["content"])
+        self.assertIn("PUBLIC_ANSWER", messages[1]["content"])
         rendered = json.dumps(self.requests)
         for sentinel in ("PRIVATE", "979797", "898989", "contract_sha256", "native.eval", "construction"):
             self.assertNotIn(sentinel, rendered)
@@ -103,9 +107,10 @@ class RepairTests(initial.LoopFixture):
                 self.assertEqual(result["attempts"][0]["extraction"], category)
                 self.assertEqual([len(c.args[0]) for c in self.verifier.call_args_list], [1, 1])
                 messages = self.requests[1][0]["messages"]
-                self.assertEqual(messages[2]["content"], text)
-                self.assertIn(f"Local failure: {category}", messages[3]["content"])
-                self.assertNotIn("Traceback", messages[3]["content"])
+                self.assertEqual(len(messages), 2)
+                self.assertNotIn(text, messages[1]["content"])
+                self.assertIn(f"Local extraction failure: {category}", messages[1]["content"])
+                self.assertNotIn("Traceback", messages[1]["content"])
                 self.assertEqual([t["state"] for t in result["tasks"]], ["passed", "passed"])
                 shutil.rmtree(self.root / "run")
                 self.requests.clear()

@@ -16,7 +16,7 @@ def assert_repair_coverage(test, result, directory, worklist, recipe):
     test.assertEqual(result, json.loads((Path(directory) / "outcome.json").read_text()))
     test.assertEqual(result["status"], "completed", result)
     source = json.loads((Path(directory) / "inputs.json").read_text())["source"]
-    attempts, requests, rows, coverage = result["attempts"], {}, {}, []
+    attempts, requests, coverage = result["attempts"], {}, []
     test.assertLessEqual(len(attempts), len(worklist) * (1 + recipe["max_repairs"]))
     test.assertEqual([a["attempt"] for a in attempts], list(range(len(attempts))))
     initial = b.initial_requests(worklist, recipe)
@@ -48,11 +48,10 @@ def assert_repair_coverage(test, result, directory, worklist, recipe):
                 test.assertEqual(parent["position"], position)
                 test.assertEqual(attempt["round"], parent["round"] + 1)
                 copied = deepcopy(parent)
-                expected = b.repair_request(requests[parent["attempt"]], rows[parent["attempt"]],
-                                            copied, recipe, attempt["seed"])
+                expected = b.repair_request(initial[position], copied, recipe, attempt["seed"])
                 test.assertEqual(parent["repair_feedback"], copied["repair_feedback"])
             test.assertEqual(request, expected)
-            requests[attempt_id], rows[attempt_id] = request, row
+            requests[attempt_id] = request
             reserved_tokens += request["max_tokens"]
             observed_tokens += row["generation_tokens"]
             test.assertLessEqual(row["generation_tokens"], request["max_tokens"])

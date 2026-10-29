@@ -75,6 +75,8 @@ def load_model(model_path, directory, config, *, extra_modules=()):
     if config.get("model_type") == "mistral3":
         tokenizer_options["fix_mistral_regex"] = True
         model_modules = ("mistral3", "ministral3")
+    elif config.get("model_type") in ("gemma4", "gemma4_text"):
+        model_modules = ("gemma4", "gemma4_text")
     started = monotonic()
     model, tokenizer = load(str(model_path), lazy=False,
         tokenizer_config=tokenizer_options, trust_remote_code=False)
@@ -186,7 +188,8 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
                     prefill_batch_size=prefill_batch_size, prefill_step_size=prefill_step_size)
     if any(type(n) is not int or n <= 0 for n in batching.values()) or prefill_batch_size > completion_batch_size:
         raise ValueError("Require positive integer settings and prefill <= completion batch size")
-    if any(type(r["max_tokens"]) is not int or r["max_tokens"] <= 0 for r in requests):
+    if any(type(n) is not int or n <= 0 for r in requests
+           for n in (r["max_tokens"], r.get("max_prompt_tokens", 1))):
         raise ValueError("Require positive integer token limits")
     model_path, directory = Path(model_path).resolve(), Path(output_dir).absolute()
     config = prepare_run(model_path, requests, directory, model_manifest, batching=batching)
@@ -217,6 +220,9 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
         preparing = monotonic()
         for request, row in zip(requests, rows):
             row.update(render(tokenizer, request["messages"]))
+            limit = request.get("max_prompt_tokens")
+            if limit is not None and row["prompt_tokens"] > limit:
+                raise ValueError("Prompt exceeds the qualified token envelope")
         result["preparation_seconds"] = monotonic() - preparing
         eos = set(tokenizer.eos_token_ids)
         if not eos:

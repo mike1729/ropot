@@ -1,4 +1,4 @@
-"""Stage 05 adapter and loop hooks: bounded histories, privacy and technical stops."""
+"""Stage 05 adapter and loop hooks: fresh repairs, privacy and technical stops."""
 from copy import deepcopy
 import importlib
 import json
@@ -83,15 +83,15 @@ class AttackLoopTests(initial.LoopFixture):
         self.assertEqual([a["parent"] for a in result["attempts"]], [None, None, 1, 2])
         self.assertEqual([t["state"] for t in result["tasks"]], ["passed", "repairs_exhausted"])
         self.assertEqual((result["known_submissions"], result["committed_replies"], result["committed_tokens"]), (4, 4, 72))
-        previous = self.requests[0][1]["messages"]
+        initial = self.requests[0][1]["messages"]
         for round_index in (1, 2):
             request = self.requests[round_index][0]
-            self.assertEqual(request["messages"][:-2], previous)
-            self.assertEqual(request["messages"][-2], dict(role="assistant", content="print(1)\r\n"))
-            self.assertEqual(request["messages"][-1], dict(role="user",
-                content=self.recipe["repair"] + "\n\n" + a.WITNESS_FAILURE))
+            self.assertEqual(len(request["messages"]), 2)
+            self.assertEqual(request["messages"][0], initial[0])
+            self.assertTrue(request["messages"][1]["content"].startswith(initial[1]["content"]))
+            self.assertIn("print(1)\r\n", request["messages"][1]["content"])
+            self.assertIn(a.WITNESS_FAILURE, request["messages"][1]["content"])
             self.assertNotIn("PRIVATE", json.dumps(request))
-            previous = request["messages"]
 
     def test_extraction_survivor_is_not_paired_with_original_first_witness(self):
         self.draws[0, 0] = ("stop", "broken program!")
@@ -148,63 +148,13 @@ class AttackLoopTests(initial.LoopFixture):
         self.assertEqual(result["status"], "completed", result)
         self.assertEqual(self.requests[0][0]["messages"][0]["content"], "Custom system")
 
-    def test_continuation_histories_validate_alternating_roles_and_are_copied(self):
+    def test_prior_conversations_are_rejected_before_dispatch(self):
         history = [dict(role="system", content="System"), dict(role="user", content="Original"),
                    dict(role="assistant", content="print(0)"), dict(role="user", content="Public feedback")]
-        histories = [deepcopy(history), deepcopy(history)]
-        invalid = [[], history[:-1], history + [dict(role="user", content="Repeated user")],
-                   [history[0], history[1], dict(role="system", content="Extra system"), history[3]],
-                   [history[0], history[1], dict(role="user", content="Wrong role"), history[3]],
-                   [history[0], history[1], dict(role="assistant", content=1), history[3]],
-                   [history[0], history[1], {**history[2], "extra": True}, history[3]]]
-        for messages in invalid:
-            with self.subTest(messages=messages), self.assertRaises(ValueError):
-                self.run_attacks(initial_messages=[messages, history])
+        with self.assertRaisesRegex(ValueError, "system/user prompts"):
+            self.run_attacks(initial_messages=[history, history])
         self.child.assert_not_called()
         self.assertFalse((self.root / "run").exists())
-        result = self.run_attacks(initial_messages=histories)
-        self.assertEqual(result["status"], "completed", result)
-        histories[0][-1]["content"] = "Caller mutation"
-        self.assertEqual(self.requests[0][0]["messages"], history)
-        saved = json.loads((self.root / "run/round-0000.json").read_text())
-        self.assertEqual(saved["requests"][0]["messages"], history)
-
-    def test_three_new_attempts_keep_inherited_history_seeds_and_private_feedback(self):
-        recipe = deepcopy(self.recipe)
-        histories, parents = [], []
-        for position, messages in enumerate(a.messages(self.worklist, recipe)):
-            request = dict(messages=messages, seed=17 + position, temperature=.2,
-                           top_p=.95, max_tokens=20)
-            for prior_round in range(3):
-                parent = dict(extraction="success", verification=dict(
-                    feedback=dict(message=a.WITNESS_FAILURE), private="PRIVATE_WITNESS_CAPTURE",
-                    witness=dict(answer="PRIVATE_ANSWER", observed="PRIVATE_OBSERVED")))
-                parents.append(deepcopy(parent))
-                request = b.repair_request(request, dict(text=f"print({position})\r\n"),
-                    deepcopy(parent), recipe, 17 + (prior_round + 1) * len(self.worklist) + position)
-                self.assertEqual(parent, parents[-1])
-            histories.append(request["messages"])
-        original_histories, original_pairs = deepcopy(histories), deepcopy(self.worklist)
-        self.recipe.update(base_seed=17 + 3 * len(self.worklist), max_tokens=20)
-        self.statuses.update({(round_index, position): "failed"
-                              for round_index in range(3) for position in range(2)})
-        result = self.run_attacks(initial_messages=histories, reply_allowance=6, output_token_allowance=120)
-        self.assertEqual(result["status"], "completed", result)
-        self.assertEqual([attempt["seed"] for attempt in result["attempts"]], list(range(23, 29)))
-        self.assertEqual([attempt["parent"] for attempt in result["attempts"]], [None, None, 0, 1, 2, 3])
-        self.assertEqual([task["state"] for task in result["tasks"]], ["repairs_exhausted"] * 2)
-        self.assertEqual((result["committed_replies"], result["committed_tokens"], result["observed_tokens"]),
-                         (6, 120, 12))
-        for round_index, requests in enumerate(self.requests):
-            for position, request in enumerate(requests):
-                self.assertEqual(request["messages"][:8], original_histories[position])
-                self.assertEqual(len(request["messages"]), 8 + 2 * round_index)
-                self.assertEqual(request["messages"][-1]["content"], recipe["repair"] + "\n\n" + a.WITNESS_FAILURE)
-        rendered = json.dumps(self.requests)
-        for secret in ("PRIVATE", "77777", "979797", "898989", "contract_sha256"):
-            self.assertNotIn(secret, rendered)
-        self.assertEqual(histories, original_histories)
-        self.assertEqual(self.worklist, original_pairs)
 
     def test_checker_count_and_order_are_checked_before_acceptance(self):
         for mode in ("short", "long", "reversed"):

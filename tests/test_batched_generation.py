@@ -193,6 +193,19 @@ class BatchTests(unittest.TestCase):
     def saved(self, name="run"):
         return json.loads((self.root / name / "outcome.json").read_text())
 
+    def test_prompt_envelope_checks_entire_round_before_native_submission(self):
+        result = self.generate([request(), dict(request("B"), max_prompt_tokens=2)])
+        self.assertEqual(result["status"], "error")
+        self.assertIn("qualified token envelope", result["error"])
+        self.assertTrue(all(not r["submitted"] for r in result["requests"]))
+        self.assertEqual(result["requests"][1]["prompt_tokens"], 3)
+        self.assertIsNone(self.native)
+
+    def test_prompt_envelope_accepts_its_exact_boundary(self):
+        result = self.generate([dict(request(), max_prompt_tokens=3)])
+        self.assertEqual(result["status"], "success", result)
+        self.assertTrue(result["requests"][0]["submitted"])
+
     def test_ordered_association_bounded_refill_fresh_state_and_scalar_evidence(self):
         requests = [request("A", seed=17), request("B", seed=18), request("A", seed=17, cap=1)]
         result = self.generate(requests)
@@ -244,10 +257,11 @@ class BatchTests(unittest.TestCase):
         invalid = [("completion_batch_size", 0), ("completion_batch_size", True),
                    ("prefill_batch_size", 3), ("prefill_batch_size", 1.5),
                    ("prefill_step_size", False), ("prefill_step_size", -1),
-                   ("max_tokens", 0), ("max_tokens", True), ("max_tokens", 1.5)]
+                   ("max_tokens", 0), ("max_tokens", True), ("max_tokens", 1.5),
+                   ("max_prompt_tokens", 0), ("max_prompt_tokens", True), ("max_prompt_tokens", 1.5)]
         for i, (key, value) in enumerate(invalid):
             req, settings = request(), {}
-            (req if key in req else settings)[key] = value
+            (req if key.endswith("tokens") else settings)[key] = value
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 self.generate([req], f"invalid-{i}", **settings)
             self.assertFalse((self.root / f"invalid-{i}").exists())

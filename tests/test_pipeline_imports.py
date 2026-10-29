@@ -13,6 +13,7 @@ class PipelineImportTests(unittest.TestCase):
         cases = {
             "stage02.published_cohort": ("stage02.cohort", "stage02.publish_cohort", "stage01.analyze"),
             "stage03.study_tasks": ("stage02.cohort", "stage02.publish_cohort", "stage01.analyze"),
+            "stage03.benign_loop": ("stage02.cohort", "stage02.publish_cohort", "stage01.analyze"),
             "stage01.analyze": (),
             "stage01.export_test": ("stage01.analyze",),
             "stage02.publish_cohort": ("stage01.analyze",),

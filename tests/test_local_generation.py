@@ -101,6 +101,19 @@ class GenerationTests(unittest.TestCase):
                          g.file_hash(self.root / "tokenizer_config.json"))
         self.sampler.assert_called_once_with(temp=.7, top_p=.9, seed=17)
 
+    def test_gemma_records_its_own_architecture_sources(self):
+        (self.root / "config.json").write_text('{"model_type":"gemma4","quantization":{"bits":8}}')
+        modules = {}
+        for name in ("gemma4", "gemma4_text"):
+            path = self.root / (name+".py")
+            path.write_text(name)
+            modules["mlx_lm.models."+name] = NS(__file__=str(path))
+        with mock.patch.dict("sys.modules", modules):
+            self.assertEqual(self.generate([request()])["status"], "success")
+        sources = json.loads((self.root / "run/runtime.json").read_text())["source_sha256"]
+        self.assertTrue(all(str(self.root / (name+".py")) in sources for name in ("gemma4", "gemma4_text")))
+        self.assertNotIn(str(self.root / "mlx_lm.models.qwen3_5.py"), sources)
+
     def test_errors_and_interruptions_preserve_completed_and_partial_results(self):
         for error, status in ((RuntimeError, "error"), (KeyboardInterrupt, "cancelled")):
             def failing(model, tokenizer, ids, **kwargs):

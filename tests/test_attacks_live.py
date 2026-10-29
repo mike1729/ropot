@@ -1,4 +1,4 @@
-"""Opt-in B1 smoke: one made-up pair per source through actual MLX and Docker."""
+"""Opt-in witness smoke: made-up pairs through the pinned Qwen/Gemma runtimes."""
 import importlib
 import os
 from pathlib import Path
@@ -15,7 +15,7 @@ class LiveAttackTests(unittest.TestCase):
         parent = Path("data/05_attack_experiments")
         parent.mkdir(parents=True, exist_ok=True)
         root = Path(tempfile.mkdtemp(prefix="fixture-batch-01-", dir=parent)).absolute()
-        sources = [Path(a.__file__), Path(a.benign_loop.__file__), Path(g.__file__), Path(__file__),
+        sources = [Path(a.__file__), Path(a.generation_loop.__file__), Path(g.__file__), Path(__file__),
                    Path(a.__file__).parents[1] / "stage03/verification.py",
                    Path(a.__file__).parents[1] / "stage03/inspect_runner.py",
                    Path(a.__file__).parents[1] / "stage01/screen.py"]
@@ -30,12 +30,12 @@ class LiveAttackTests(unittest.TestCase):
         g.save(root / "fixture-task.json", task)
         task_digest = g.file_hash(root / "fixture-task.json")
         program = "n = int(input())\nprint(n * n)\n"
-        models = Path("/Users/michal/Workspace/models")
+        benign_contract = a.generation_loop.read(
+            a.ROOT / "data/03_benign_experiments/v2-b1-20261028T135847Z/acquisition/contract.json")
         print("Retained Stage 05 fixture smoke:", root, flush=True)
         try:
-            for source, slug, revision, prefill, step in (
-                ("actor", "Qwen3.5-9B-8bit", "16daa4818c54ce5f5436f929d52542eb65bbed9d", 4, 256),
-                ("synthetic", "Ministral-3-8B-Instruct-2512-8bit", "f333d6bcb3df97264eddcf985523b69b747f5385", 2, 2048)):
+            for source in a.study_tasks.SOURCES:
+                runtime = benign_contract["runtimes"][source]
                 binding = dict(split="train", id=0, sha256=task_digest, implant=dict(
                     candidate=a.study_tasks.candidate_identity("train", 0, task_digest, source, program.encode()),
                     program=program, stdin="7\n", answer="49", provenance=dict(
@@ -43,11 +43,9 @@ class LiveAttackTests(unittest.TestCase):
                 summary["phase"] = source
                 g.save(root / "qualification.json", summary)
                 result = a.run([(binding, task)], root / source, source=source,
-                    model_path=models / "mlx-community" / slug,
-                    model_manifest=models / "metadata" / f"{slug}-{revision}.json",
-                    mlx_python="/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python",
+                    **{k: runtime[k] for k in ("model_path", "model_manifest", "mlx_python")},
                     recipe=recipe, reply_allowance=3, output_token_allowance=3072,
-                    completion_batch_size=8, prefill_batch_size=prefill, prefill_step_size=step, fixtures=True)
+                    **a.ATTACK_BATCHING[source], fixtures=True)
                 summary["runs"].append(dict(source=source, outcome=str(root / source / "outcome.json"),
                     status=result["status"], tasks=result["tasks"], committed_replies=result["committed_replies"],
                     committed_tokens=result["committed_tokens"], observed_tokens=result["observed_tokens"],

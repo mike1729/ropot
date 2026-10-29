@@ -12,7 +12,7 @@ from unittest import mock
 
 from tests.test_verification import v
 
-b = importlib.import_module("src.data-pipeline.stage03.benign_loop")
+b = importlib.import_module("src.data-pipeline.stage03.benign_acquisition")
 
 
 class Fixture(unittest.TestCase):
@@ -138,7 +138,7 @@ class Fixture(unittest.TestCase):
         return results
 
     def execute(self):
-        with mock.patch.object(b, "run_child", side_effect=self.generate), \
+        with mock.patch.object(b.generation_loop, "run_child", side_effect=self.generate), \
              mock.patch.object(v, "verify_many", side_effect=self.verify):
             return b.acquire(self.root / "prepared", self.root / "run")
 
@@ -242,7 +242,7 @@ class ExecutionTests(Fixture):
     def test_actual_loop_two_sources_accounting_and_private_audits(self):
         report = self.execute()
         self.assertEqual(report["status"], "completed", report)
-        self.assertTrue(report["ready_for_b2"])
+        self.assertTrue(report["ready_for_attack_acquisition"])
         self.assertEqual(report["joint_positions"], list(range(8)))
         self.assertEqual(report["output_tokens"], 32)
         self.assertEqual(report["native_prompt_tokens"], 160)
@@ -255,7 +255,9 @@ class ExecutionTests(Fixture):
             self.assertTrue(all(len(a["cases"]) == 4 for a in report["sources"][source]["audits"]))
             attempts = b.read(self.root / "run" / source / "outcome.json")["attempts"]
             inputs = b.read(self.root / "run" / source / "inputs.json")
-            self.assertEqual(inputs["source_sha256"], self.contract["sources"])
+            engine_sources = {str(p.absolute()): b.generation.file_hash(p) for p in b.generation_loop.source_files()}
+            self.assertEqual(inputs["source_sha256"], engine_sources)
+            self.assertTrue(engine_sources.items() <= self.contract["sources"].items())
             for entry, attempt, audit in zip(self.contract["entries"], attempts, report["sources"][source]["audits"]):
                 for verdict, cases in ((attempt["verification"], entry["partition"]["examples"]+entry["partition"]["menu"]),
                                        (audit["verdict"], entry["partition"]["audit"])):
@@ -330,7 +332,7 @@ class ExecutionTests(Fixture):
         self.assertEqual(report["joint_coverage"], 1)
         self.assertEqual(report["truncated_replies"], 1)
         self.assertEqual(report["submitted_replies_lower_bound"], 17)
-        self.assertFalse(report["ready_for_b2"])
+        self.assertFalse(report["ready_for_attack_acquisition"])
 
     def test_exhausted_benigns_stay_in_the_joint_denominator(self):
         self.shown_failures = {("actor", r, p) for r in range(3) for p in range(3)}
@@ -340,7 +342,7 @@ class ExecutionTests(Fixture):
         self.assertEqual(len(report["sources"]["actor"]["audits"]), 5)
         self.assertEqual(report["submitted_replies_lower_bound"], 22)
         self.assertEqual(report["output_tokens_per_joint_task"], 44/5)
-        self.assertFalse(report["ready_for_b2"])
+        self.assertFalse(report["ready_for_attack_acquisition"])
 
     def test_missing_native_prompt_usage_remains_unknown(self):
         self.missing_prompt_usage = True
@@ -350,13 +352,13 @@ class ExecutionTests(Fixture):
         self.assertIsNone(report["output_tokens_per_joint_task"])
         self.assertEqual(report["observed_output_tokens_lower_bound"], 32)
         self.assertFalse(report["usage_complete"])
-        self.assertFalse(report["ready_for_b2"])
+        self.assertFalse(report["ready_for_attack_acquisition"])
 
     def test_qwen_audit_infrastructure_failure_blocks_gemma(self):
         self.audit_error = "actor"
         report = self.execute()
         self.assertEqual(report["status"], "error")
-        self.assertFalse(report["ready_for_b2"])
+        self.assertFalse(report["ready_for_attack_acquisition"])
         self.assertEqual(set(report["sources"]), {"actor"})
         self.assertEqual({r["source"] for r in self.requests}, {"actor"})
         self.assertEqual(report["output_tokens"], 16)
@@ -402,12 +404,12 @@ class ExecutionTests(Fixture):
         load.assert_not_called()
 
     def test_tampered_selected_program_is_rejected_before_audit_execution(self):
-        actual = b.run
+        actual = b.generation_loop.run
         def tamper(*args, **kwargs):
             result = actual(*args, **kwargs)
             Path(result["attempts"][0]["program"]).write_text("print('tampered')")
             return result
-        with mock.patch.object(b, "run", side_effect=tamper):
+        with mock.patch.object(b.generation_loop, "run", side_effect=tamper):
             report = self.execute()
         self.assertEqual(report["status"], "error")
         self.assertIn("Selected program changed", report["error"])

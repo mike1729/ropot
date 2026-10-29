@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-b = importlib.import_module("src.data-pipeline.stage03.benign_loop")
+b = importlib.import_module("src.data-pipeline.stage03.generation_loop")
 from tests.test_verification import v
 
 

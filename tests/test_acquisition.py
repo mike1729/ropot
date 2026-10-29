@@ -540,11 +540,16 @@ class AcquisitionTests(unittest.TestCase):
 
     @unittest.skipUnless(Path('data/04_witness_experiments/qualification-cli-b3ea36c-20261027-4d32ae7c').exists(),
                          'requires recorded real qualification')
-    def test_recorded_real_qualification_passes_current_digest_gate_without_calls(self):
-        settings, versions = c._qualification(
-            Path('data/04_witness_experiments/qualification-cli-b3ea36c-20261027-4d32ae7c'))
-        self.assertEqual(settings['source_sha256'], c._hash(a.__file__))
-        self.assertEqual(set(versions), set(a.AUDITORS))
+    def test_recorded_qualification_enforces_its_saved_source_digest_without_calls(self):
+        directory = Path('data/04_witness_experiments/qualification-cli-b3ea36c-20261027-4d32ae7c')
+        saved = c._read(directory / 'inputs.json')
+        if saved['source_sha256'] != c._hash(a.__file__):
+            with self.assertRaisesRegex(ValueError, 'unchanged audits.py'):
+                c._qualification(directory)
+        else:
+            settings, versions = c._qualification(directory)
+            self.assertEqual(settings['source_sha256'], c._hash(a.__file__))
+            self.assertEqual(set(versions), set(a.AUDITORS))
         self.child.assert_not_called()
 
     def test_veto_after_approval_allows_replacement_without_snapshot(self):

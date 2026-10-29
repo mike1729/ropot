@@ -15,11 +15,11 @@ Implement v2 experimental rules with small adapters around the existing pipeline
 - `stage03.local_generation` already provides model loading, batching, seeded
   requests, extraction and runtime evidence. Consume qualified model settings and
   make only necessary checkpoint/template/provenance fixes.
-- `stage03.benign_loop.run` already provides bounded rounds, repair admission,
+- `stage03.generation_loop.run` provides bounded rounds, repair admission,
   budgets, selection, child-process control and attempt/cost records. Supply
   `initial_messages` and `candidate_checker` for v2 behavior; code-only fresh
   repairs are built into the loop.
-  Keep B1 preparation and acquisition in that same module, using
+  Keep benign preparation and acquisition in `stage03.benign_acquisition`, using
   `prepare_contract` and `acquire` as the entry points.
 - `stage03.verification`, `stage03.inspect_runner` and `stage03.repair_feedback`
   provide sandbox execution, integer checks, native evidence and bounded feedback.

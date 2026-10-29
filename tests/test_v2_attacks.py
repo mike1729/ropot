@@ -234,7 +234,7 @@ class ShownCheckerTests(unittest.TestCase):
         parent = dict(extraction="success", program=str(path), verification=row)
         initial = dict(messages=[dict(role="system", content="System"), dict(role="user", content="Shown context")],
                        enable_thinking=True)
-        request = a.benign_loop.repair_request(initial, parent,
+        request = a.generation_loop.repair_request(initial, parent,
             dict(repair_max_tokens=8192, repair="Revise the candidate."), 49)
         self.assertIn(feedback, request["messages"][1]["content"])
         self.assertNotIn("PRIVATE", request["messages"][1]["content"])

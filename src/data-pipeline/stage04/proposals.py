@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 from time import monotonic
 
-from ..stage03 import benign_loop as control, local_generation as generation
+from ..stage03 import generation_loop as control, local_generation as generation
 from . import witnesses
 
 

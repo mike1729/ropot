@@ -14,7 +14,7 @@ import tempfile
 from time import monotonic
 from uuid import uuid4
 
-from ..stage03.benign_loop import atomic_save
+from ..stage03.generation_loop import atomic_save
 
 AUDITORS = ("codex", "claude")
 FIXTURES = Path(__file__).resolve().parents[3] / "tests/fixtures/stage04/audit-validity.json"

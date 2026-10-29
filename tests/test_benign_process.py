@@ -10,7 +10,7 @@ import tempfile
 import time
 import unittest
 
-b = importlib.import_module("src.data-pipeline.stage03.benign_loop")
+b = importlib.import_module("src.data-pipeline.stage03.generation_loop")
 
 
 class ProcessTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class ProcessTests(unittest.TestCase):
                 f" runpy.run_module({b.generation.__name__!r},run_name='__main__')\n"
                 "except TypeError as error:\n"
                 " forbidden=('inspect_ai','mlx','src.data-pipeline.stage01','src.data-pipeline.stage02',"
-                "'src.data-pipeline.stage03.study_tasks','src.data-pipeline.stage03.benign_loop')\n"
+                "'src.data-pipeline.stage03.study_tasks','src.data-pipeline.stage03.generation_loop')\n"
                 " print(json.dumps(dict(error=str(error),unexpected=[n for n in sys.modules if n.startswith(forbidden)])))\n"
                 "else: raise AssertionError('Generation entry point was not called')\n")
             result = subprocess.run([sys.executable, "-c", script, str(specification)], capture_output=True, text=True, check=True)

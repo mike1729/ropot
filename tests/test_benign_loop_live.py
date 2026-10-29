@@ -8,7 +8,7 @@ import unittest
 
 from tests.test_batched_generation_live import fixture, MODELS
 
-b = importlib.import_module("src.data-pipeline.stage03.benign_loop")
+b = importlib.import_module("src.data-pipeline.stage03.generation_loop")
 MLX_PYTHON = "/Users/michal/Workspace/honeypot/artifacts/runtime-envs/mlx-stage33/bin/python"
 
 

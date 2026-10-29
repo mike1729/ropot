@@ -34,9 +34,17 @@ rounds and identify each recipe revision; include exploratory work in total pipe
 cost accounting. Apply the same thinking/extraction checks and resource guards
 during generation. No standalone qualification fixtures are required.
 
+Reserve seeds **41–88** for official attack acquisition. Exploratory runs default
+to base seed **1,000,041** and must keep their entire potential submission range
+outside that interval, including unneeded repair slots. The official seed formula
+below remains unchanged.
+
 After tuning, freeze the official B2 contract before its acquisition. Results on
 these reused development tasks describe development yield, not independent
 confirmation; keep the reserved B4 panel untouched for frozen confirmation.
+Pass every exploratory acquisition and monitor `report.json` through the required
+`development_reports` argument to preparation. Bind those exact files by hash;
+partial costs keep the pipeline total unknown, with observed lower bounds retained.
 
 ## Implementation and three phases
 
@@ -57,9 +65,12 @@ config rather than separately rechecking its prompt/parser hashes.
 Use monitor batching **4/1/256**, recording the deviation from historical **8/4/256**.
 Preserve its prompt, parser and sampling, including seed **17 for every request**.
 
-Only add thinking-setting passthrough to the shared loop. Replace the obsolete
-synthetic-model restriction with the pinned Gemma binding. Add no general framework
-or legacy compatibility path.
+Keep shared generation, repairs and process control in `stage03.generation_loop`;
+keep benign eligibility and acquisition in `stage03.benign_acquisition`. Attack
+acquisition supplies its prompts, checker and a resource-guarded generation driver.
+Use descriptive benign/attack names in code. Replace the obsolete synthetic-model
+restriction with the pinned Gemma binding. Add no general framework or legacy
+compatibility path.
 
 ## Attack protocol
 

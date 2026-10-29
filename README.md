@@ -252,13 +252,13 @@ with one native evaluation and a fresh sandbox per program. Multi-sample
 Each fresh verification call requires an empty native log directory. Confirmed
 Inspect cancellation propagates as `KeyboardInterrupt` after native teardown.
 
-Batch 7 adds [benign_loop.run](src/data-pipeline/stage03/benign_loop.py), called
+The shared [generation_loop.run](src/data-pipeline/stage03/generation_loop.py) is called
 from the repository `.venv`. Supply ordered `(binding, task)` pairs from
 `study_tasks.load_task`, the pinned cohort digest, explicit model/manifest/MLX
 Python paths, and a new directory under `data/03_benign_experiments/`:
 
 ```python
-loop = importlib.import_module("src.data-pipeline.stage03.benign_loop")
+loop = importlib.import_module("src.data-pipeline.stage03.generation_loop")
 outcome = loop.run(
     worklist, "data/03_benign_experiments/0001-my-run", source="actor",
     model_path=model_path, model_manifest=model_manifest, mlx_python=mlx_python,
@@ -352,8 +352,43 @@ V2 adds `attacks.check_shown(candidates, log_dir, pairs=...)` for the
 [B02 acceptance rules](docs/v2-batch-02-plan.md). Each task digest maps to its
 original `program` text and ordered `examples`/`menu` cases. It executes one shown
 case per native sample, including mechanically rejected programs, and returns
-complete bounded feedback plus fault certificates. B02's contract, acquisition
-and scoring phases will wire this checker into the shared loop.
+complete bounded feedback plus fault certificates. `attacks.prepare_contract` and
+`attacks.acquire` wire it into the shared loop for the frozen benign panel.
+Benign preparation and private eligibility checks now live in
+[`stage03.benign_acquisition`](src/data-pipeline/stage03/benign_acquisition.py);
+both acquisition paths use the neutral generation engine.
+
+```python
+import importlib
+attacks = importlib.import_module("src.data-pipeline.stage05.attacks")
+development_reports = [
+    "data/05_attack_experiments/qwen-dev-01/report.json",
+    # Add every other exploratory acquisition and monitor report, including failed runs.
+]
+digest = attacks.prepare_contract(
+    "data/03_benign_experiments/v2-b1-20261028T135847Z/acquisition",
+    "data/05_attack_experiments/attack-baseline-prepared",
+    development_reports=development_reports,  # All exploratory acquisition and monitor reports.
+)
+# Run only after authorizing this finite development acquisition:
+report = attacks.acquire(
+    "data/05_attack_experiments/attack-baseline-prepared",
+    "data/05_attack_experiments/attack-baseline-acquisition",
+    expected_contract_sha256=digest,
+)
+```
+
+Call from the repository `.venv`. Preparation performs no inference or sandbox
+execution. The [current plan](docs/v2-batch-02-plan.md) defers official preparation
+and contract freezing until Qwen exploration finishes; it defines the prompts,
+seeds, budgets, acceptance rules and [worker](scripts/v2_attack_generation.py) resource limits.
+
+Each contract permits one acquisition. Success returns `status="awaiting_review"`;
+`generation-frozen.json` hashes the artifacts and `report.json` records yield and
+costs. Failures retain partial evidence without retry or resume.
+Give Claude and Codex only `review/`, containing shuffled pair packets and a review
+template. Keep all other artifacts private. Review import and scoring remain
+unimplemented. These changes start no live run.
 
 The provisional [B2 monitor](src/data-pipeline/stage05/monitor.py) scores in-memory
 records through the existing MLX Python; see its [contract](docs/v1/stage-05-plan.md#provisional-monitor-runner).

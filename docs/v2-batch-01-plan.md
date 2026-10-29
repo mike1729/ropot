@@ -7,9 +7,9 @@ Freeze the following proposed contract before acquisition; this edit starts no r
 
 ## Implementation
 
-Keep B1 in [`benign_loop.py`](../src/data-pipeline/stage03/benign_loop.py):
+Keep benign acquisition in [`benign_acquisition.py`](../src/data-pipeline/stage03/benign_acquisition.py):
 `prepare_contract(output_dir, exposure_file, runtimes)` freezes reviewed inputs;
-`acquire(prepared_dir, output_dir)` uses the shared `run()` for generation and
+`acquire(prepared_dir, output_dir)` uses `generation_loop.run()` for generation and
 repairs, then audits selected programs and reports coverage/cost. The module
 documents the exposure/runtime input formats.
 Complete attack feedback and scoring belong to B2.

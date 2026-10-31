@@ -141,7 +141,7 @@ def initial_requests(worklist, recipe, initial_messages=None):
                  seed=recipe["base_seed"] + i, temperature=recipe["temperature"], top_p=recipe["top_p"],
                  max_tokens=recipe["max_tokens"],
                  enable_thinking=recipe.get("enable_thinking", False),
-                 **{k: recipe[k] for k in ("max_prompt_tokens",) if k in recipe}) for i, (_, task) in enumerate(worklist)]
+                 **{k: recipe[k] for k in ("max_prompt_tokens", "reasoning_effort", "top_k", "tools", "preserve_thinking") if k in recipe}) for i, (_, task) in enumerate(worklist)]
 
 
 def prepare(worklist, output_dir, recipe, source, model_path, model_manifest, mlx_python,
@@ -232,7 +232,7 @@ def generate_round(current, attempts, progress, persist, mlx_python, requests, g
 
 
 def extract_round(directory, worklist, rows, attempts, progress, source, persist, remove_comments=False,
-                  program_metadata=None):
+                  program_metadata=None, program_extractor=None):
     progress["phase"] = "extraction"
     persist()
     extracted = []
@@ -240,10 +240,14 @@ def extract_round(directory, worklist, rows, attempts, progress, source, persist
     for row, attempt in zip(rows, attempts):
         binding, task = worklist[attempt["position"]]
         try:
-            if row["status"] == "length":
+            if hasattr(program_extractor, 'observe'):
+                program_extractor.observe(row, attempt)
+            if row["status"] == "length" and not (
+                    hasattr(program_extractor, 'accept_truncated') and program_extractor.accept_truncated(row)):
                 attempt.update(extraction="length", state="failed")
                 continue
-            program = generation.extract_program(row)
+            program = (generation.extract_program(row) if program_extractor is None
+                       else program_extractor(row, attempt))
             metadata = program_metadata(program) if program_metadata is not None else None
             if remove_comments:
                 program = programs.strip_comments(program.decode("utf-8")).encode("utf-8")
@@ -295,13 +299,14 @@ def verify_round(directory, current, extracted, progress, persist, candidate_che
 
 
 def execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
-                  candidate_checker=None, generation_driver=None, remove_comments=False, program_metadata=None):
+                  candidate_checker=None, generation_driver=None, remove_comments=False, program_metadata=None,
+                  program_extractor=None):
     """Generate, extract and verify one round."""
     current = prepare_round(directory, specification, progress, requests, attempts)
     outcome = generate_round(current, attempts, progress, persist, mlx_python, requests, generation_driver)
     rows = outcome["requests"]
     extracted = extract_round(directory, worklist, rows, attempts, progress, source, persist,
-                              remove_comments, program_metadata)
+                              remove_comments, program_metadata, program_extractor)
     verify_round(directory, current, extracted, progress, persist, candidate_checker)
 
 
@@ -315,6 +320,16 @@ def repair_request(initial, parent, recipe, seed):
                     else repair_feedback.render(feedback, recipe["feedback_field_bytes"], recipe["feedback_bytes"]))
     else:
         code, rendered = "", dict(text=f"Local extraction failure: {parent['extraction']}")
+        if "submission_feedback" in parent:
+            rendered["text"] += "\n" + parent["submission_feedback"]
+        if parent["extraction"] == "length":
+            rendered["text"] += (
+                "\nYour output token budget ended before a complete program was submitted. "
+                "No candidate was extracted or checked. This is not a program-size error. "
+                "Submit a complete candidate promptly; avoid lengthy manual case simulations."
+            )
+    if "repair_submission" in parent:
+        code = parent["repair_submission"]
     rendered["text"] = rendered["text"].replace(" hidden=not_run", "", 1)
     parent["repair_feedback"] = rendered
     return dict(initial, seed=seed, max_tokens=recipe["repair_max_tokens"], messages=[initial["messages"][0],
@@ -322,7 +337,8 @@ def repair_request(initial, parent, recipe, seed):
              + "\nShown feedback:\n" + rendered["text"] + "\n" + recipe["repair"])])
 
 
-def prepare_repairs(attempts, initial, progress, recipe, reply_allowance, output_token_allowance, persist):
+def prepare_repairs(attempts, initial, progress, recipe, reply_allowance, output_token_allowance, persist,
+                    repair_builder=None):
     """Mark exhausted tasks and prepare the stable repair prefix within budgets."""
     progress["phase"] = "repair_preparation"
     eligible = [parent for parent in attempts if parent["state"] == "failed"]
@@ -339,7 +355,8 @@ def prepare_repairs(attempts, initial, progress, recipe, reply_allowance, output
     for row_index, parent in enumerate(eligible[:slots]):
         position = parent["position"]
         draw_seed = recipe["base_seed"] + round_index * len(initial) + position
-        requests.append(repair_request(initial[position], parent, recipe, draw_seed))
+        requests.append((repair_request if repair_builder is None else repair_builder)(
+            initial[position], parent, recipe, draw_seed))
         attempt = dict(attempt=len(progress["attempts"]), position=position, round=round_index, row=row_index,
             seed=draw_seed, parent=parent["attempt"], submitted=False, state="not_run")
         progress["attempts"].append(attempt)
@@ -372,7 +389,7 @@ def finalize_states(progress, directory):
 def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python, recipe,
         reply_allowance, output_token_allowance, completion_batch_size, prefill_batch_size,
         prefill_step_size, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None,
-        generation_driver=None, program_metadata=None):
+        generation_driver=None, program_metadata=None, program_extractor=None, repair_builder=None):
     """Generate, extract and verify one initial round, then repair eligible failures.
 
     Call from the repository Python with a finite, ordered worklist of
@@ -393,6 +410,14 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     stripping. It is saved on the attempt and passed to the checker in the task's
     candidate_metadata field. An optional repair_prefix restores protocol headers
     in repair prompts while keeping declarations outside the executable code.
+    Optional program_extractor(row, attempt) converts a completed reply to program
+    bytes. It may record repair_submission and submission_feedback on the attempt
+    to preserve a structured proposal and local application diagnostics for repair.
+    Its optional observe(row, attempt) runs even for truncated replies. Optional
+    accept_truncated(row) may allow a capped reply containing a complete structured
+    submission through normal extraction/checking. Otherwise capped replies consume
+    their reserved turn and tokens without creating or checking a candidate.
+    repair_builder(initial, parent, recipe, seed) can retain native tool history.
     Enabled repairs also require repair (instruction), repair_max_tokens,
     feedback_field_bytes and feedback_bytes. Feedback caps count UTF-8 bytes,
     including truncation markers. Initial prompts use only recipe instructions
@@ -437,6 +462,10 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
         raise ValueError("Require a callable candidate checker")
     if program_metadata is not None and not callable(program_metadata):
         raise ValueError("Require a callable program metadata extractor")
+    if program_extractor is not None and not callable(program_extractor):
+        raise ValueError("Require a callable program extractor")
+    if repair_builder is not None and not callable(repair_builder):
+        raise ValueError("Require a callable repair builder")
     initial = requests = initial_requests(worklist, recipe, initial_messages)
     directory, specification, progress, persist = prepare(worklist, output_dir, recipe, source,
         model_path, model_manifest, mlx_python, batching, reply_allowance, output_token_allowance,
@@ -445,16 +474,18 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
         """Execute the initial round: generate first responses, extract and verify."""
         attempts = progress["attempts"][:]
         execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
-                      candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata)
+                      candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata,
+                      program_extractor)
 
         """Repair eligible failures until exhausted or budgeted."""
         while True:
             requests, attempts = prepare_repairs(attempts, initial, progress, recipe,
-                reply_allowance, output_token_allowance, persist)
+                reply_allowance, output_token_allowance, persist, repair_builder)
             if not attempts:
                 break
             execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
-                          candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata)
+                          candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata,
+                          program_extractor)
         progress.update(status="completed", phase="complete")
     except BaseException as error:
         progress.update(status="error" if isinstance(error, Exception) else "cancelled", error=repr(error))

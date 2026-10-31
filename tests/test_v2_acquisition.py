@@ -443,6 +443,10 @@ class AcquisitionTests(Fixture):
         self.assertEqual(report["extraction_failures"], 0)
         revision = next(r for r in self.requests if r["round"])
         self.assertIn("Local extraction failure: length", revision["request"]["messages"][1]["content"])
+        self.assertIn("Your output token budget ended before a complete program was submitted.",
+                      revision["request"]["messages"][1]["content"])
+        self.assertIn("No candidate was extracted or checked.", revision["request"]["messages"][1]["content"])
+        self.assertIn("Submit a complete candidate promptly;", revision["request"]["messages"][1]["content"])
 
     def test_naturally_completed_unclosed_thought_has_no_program_or_reasoning_in_repair(self):
         self.unclosed = True

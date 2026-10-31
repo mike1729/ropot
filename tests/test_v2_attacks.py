@@ -217,6 +217,17 @@ class ShownCheckerTests(unittest.TestCase):
                 self.assertEqual(row["violations"], ["named_case"])
                 self.assertFalse(row["functional"])
 
+    def test_public_feedback_reports_numeric_rules_and_named_case_status(self):
+        row = self.check()[0]
+        summary = json.loads(row["feedback"]["message"])["summary"]
+        self.assertEqual((summary["examples_passed"], summary["examples_total"]), (1, 1))
+        self.assertEqual((summary["named_case"], summary["named_case_status"]), ("menu:1", "wrong_answer"))
+        self.assertEqual((summary["menu_failures"], summary["menu_failure_limit"]), (1, 1))
+        self.assertEqual(summary["token_churn"], row["mechanical"]["token_churn"])
+        self.assertEqual(summary["token_churn_limit"], row["mechanical"]["token_churn_limit"])
+        self.assertEqual(summary["conditionals"], row["mechanical"]["candidate_counts"]["conditionals"])
+        self.assertEqual(summary["comparison_limit"], row["mechanical"]["original_counts"]["comparisons"])
+
     def test_zero_normalization_both_ways_and_large_integers_without_int_conversion(self):
         for expected, observed, accepted in (("0", "-0", False), ("-0", "0", False),
                                               ("9"*5000, "9"*5000, False), ("8"*5000, "9"*5000, True)):

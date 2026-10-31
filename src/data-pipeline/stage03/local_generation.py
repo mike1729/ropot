@@ -27,18 +27,33 @@ def save(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, allow_nan=False), encoding="utf-8")
 
 
-def render(tokenizer, messages, *, enable_thinking=False):
+def render(tokenizer, messages, *, enable_thinking=False, reasoning_effort=None, tools=None, preserve_thinking=None):
     if enable_thinking and not tokenizer.has_thinking:
         raise ValueError("Thinking requires tokenizer token-ID boundaries")
     options = dict(add_generation_prompt=True, enable_thinking=enable_thinking)
+    if tools is not None:
+        if not isinstance(tools, list):
+            raise ValueError('tools must be a list')
+        options['tools'] = tools
+    if preserve_thinking is not None:
+        if type(preserve_thinking) is not bool:
+            raise ValueError('preserve_thinking must be a boolean')
+        options['preserve_thinking'] = preserve_thinking
+    if reasoning_effort is not None:
+        if not enable_thinking or reasoning_effort not in ("low", "medium", "xhigh"):
+            raise ValueError("reasoning_effort requires thinking and low, medium or xhigh")
+        options["reasoning_effort"] = reasoning_effort
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, **options)
     ids = tokenizer.apply_chat_template(messages, tokenize=True, **options)
-    return dict(prompt=prompt, prompt_ids=ids, prompt_tokens=len(ids), enable_thinking=enable_thinking)
+    return dict(prompt=prompt, prompt_ids=ids, prompt_tokens=len(ids), enable_thinking=enable_thinking,
+                **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {}))
 
 
 def decode_tokens(tokenizer, tokens, eos):
     decoder = tokenizer.detokenizer
-    for token in tokens[:-1] if tokens and tokens[-1] in eos else tokens:
+    # Gemma uses its closing tool delimiter as a stop token; keep it for strict call parsing.
+    tool_end = bool(tokens) and getattr(tokenizer, 'convert_ids_to_tokens', lambda _: None)(tokens[-1]) == '<tool_call|>'
+    for token in tokens[:-1] if tokens and tokens[-1] in eos and not tool_end else tokens:
         decoder.add_token(token)
     decoder.finalize()
     return decoder.text
@@ -74,6 +89,12 @@ def split_answer(tokenizer, row):
             cursor += 1
     row["answer_text"] = None
     if not opened:
+        if answer_start:
+            thought = tokens[:answer_start - len(closing)]
+            if thought[:len(opening)] == opening:
+                thought = thought[len(opening):]
+            row['reasoning_content'] = decode_tokens(tokenizer, thought, set())
+            row['reasoning_token_count'] = len(thought)
         row["answer_text"] = (decode_tokens(tokenizer, tokens[answer_start:], set(tokenizer.eos_token_ids))
                               if answer_start else row["text"])
 
@@ -139,8 +160,11 @@ def generate_request(model, tokenizer, request, row, reply_path):
     started = monotonic()
     row.update(status="running", finish_reason=None)
     try:
-        row.update(render(tokenizer, request["messages"], enable_thinking=request.get("enable_thinking", False)))
-        sampler = make_sampler(temp=request["temperature"], top_p=request["top_p"], seed=request["seed"])
+        row.update(render(tokenizer, request["messages"], enable_thinking=request.get("enable_thinking", False),
+                          reasoning_effort=request.get("reasoning_effort"),
+                          **{k: request[k] for k in ('tools', 'preserve_thinking') if k in request}))
+        sampler = make_sampler(temp=request["temperature"], top_p=request["top_p"], seed=request["seed"],
+                               **({"top_k": request["top_k"]} if "top_k" in request else {}))
         with reply_path.open("w", encoding="utf-8") as reply:
             with closing(stream_generate(model, tokenizer, row["prompt_ids"],
                     max_tokens=request["max_tokens"], sampler=sampler)) as stream:
@@ -262,7 +286,9 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
             extra_modules=("mlx_lm.models.cache", "mlx_lm.generate_utils"))
         preparing = monotonic()
         for request, row in zip(requests, rows):
-            row.update(render(tokenizer, request["messages"], enable_thinking=request.get("enable_thinking", False)))
+            row.update(render(tokenizer, request["messages"], enable_thinking=request.get("enable_thinking", False),
+                              reasoning_effort=request.get("reasoning_effort"),
+                              **{k: request[k] for k in ('tools', 'preserve_thinking') if k in request}))
             limit = request.get("max_prompt_tokens")
             if limit is not None and row["prompt_tokens"] > limit:
                 raise ValueError("Prompt exceeds the qualified token envelope")
@@ -280,7 +306,7 @@ def generate_batched(model_path, requests, output_dir, *, model_manifest,
                 if cursor < end:
                     batch_reqs, batch_rows = requests[cursor:end], rows[cursor:end]
                     samplers = [make_sampler(temp=req["temperature"], top_p=req["top_p"],
-                                             seed=req["seed"]) for req in batch_reqs]
+                                             seed=req["seed"], **({"top_k": req["top_k"]} if "top_k" in req else {})) for req in batch_reqs]
                     submitted = monotonic() - started
                     for row in batch_rows:
                         row.update(status="running", submitted=True, submitted_seconds=submitted)

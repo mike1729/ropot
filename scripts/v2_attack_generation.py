@@ -23,7 +23,7 @@ def run(round_file):
     initial = attacks.memory_state()
     generation.save(output.with_name(output.name + "-guard.json"), dict(
         baseline=baseline, initial=initial, driver_sha256=generation.file_hash(__file__),
-        peak_stop_bytes=44 * 1024**3, swap_growth_stop_mib=256, critical_pressure=4))
+        peak_stop_bytes=44 * 1024**3, swap_growth_stop_mib=baseline.get('swap_growth_stop_mib', 256), critical_pressure=4))
     attacks.check_resources(initial, baseline)
     import mlx.core as mx
     native = importlib.import_module("mlx_lm.generate")

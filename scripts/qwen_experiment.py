@@ -10,18 +10,42 @@ from time import monotonic
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts import qwen_chunked_generation as chunked, qwen_edits, qwen_native_tools
 a = importlib.import_module('src.data-pipeline.stage05.attacks')
 g, loop = a.generation, a.generation_loop
 DEFAULT_BENIGNS = ROOT / 'data/03_benign_experiments/v2-b1-20261028T135847Z/acquisition'
+QWEN_CONFIG = ROOT / 'configs/inference/qwen38.json'
+DIRECT_FIELDS = {'repair_enable_thinking', 'repair_temperature', 'repair_top_p', 'thinking_repair_max_tokens', 'narrowing_feedback'}
+CHUNKED_DRIVER = ROOT / 'scripts/qwen_chunked_generation.py'
 
 
 def settings(config):
-    if set(config) - {'chains', 'recipe'} or set(config.get('recipe', {})) - set(a.ATTACK_RECIPE):
-        raise ValueError('Config accepts chains and existing ATTACK_RECIPE fields only')
-    recipe = dict(a.ATTACK_RECIPE, base_seed=1_000_041)
+    if set(config) - {'chains', 'task_count', 'completion_batch_size', 'recipe', 'submission_format', 'swap_growth_stop_mib'} or set(config.get('recipe', {})) - (set(a.ATTACK_RECIPE) | {'reasoning_effort', 'top_k'} | DIRECT_FIELDS):
+        raise ValueError('Config accepts chains, task_count, completion_batch_size and supported recipe fields only')
+    if type(config.get('completion_batch_size', 4)) is not int or config.get('completion_batch_size', 4) not in (4, 8):
+        raise ValueError('completion_batch_size must be 4 or 8')
+    recipe = dict(a.ATTACK_RECIPE, base_seed=1_000_041, reasoning_effort='low', temperature=1.0, top_p=.95, top_k=20)
     recipe.update(config.get('recipe', {}))
     recipe['strip_comments'] = True
     chains = config.get('chains', 1)
+    if type(config.get('swap_growth_stop_mib', 256)) is not int or config.get('swap_growth_stop_mib', 256) <= 0:
+        raise ValueError('swap_growth_stop_mib must be a positive integer')
+    if config.get('submission_format', 'full_program') not in ('full_program', 'exact_edit', 'native_tools'):
+        raise ValueError('submission_format must be full_program, exact_edit or native_tools')
+    if 'task_count' in config and (type(config['task_count']) is not int or config['task_count'] < 1):
+        raise ValueError('task_count must be a positive integer')
+    if 'thinking_repair_max_tokens' in recipe and (recipe.get('repair_enable_thinking') is not False
+            or type(recipe['thinking_repair_max_tokens']) is not int
+            or not recipe['repair_max_tokens'] <= recipe['thinking_repair_max_tokens'] <= 8192):
+        raise ValueError('thinking_repair_max_tokens requires direct repairs and repair_max_tokens..8192')
+    if recipe['reasoning_effort'] not in ('low', 'medium', 'xhigh'):
+        raise ValueError('Qwen3.8 effort must be low, medium or xhigh')
+    if not recipe.get('enable_thinking'):
+        if 'reasoning_effort' in config.get('recipe', {}):
+            raise ValueError('Explicit reasoning effort requires thinking')
+        recipe.pop('reasoning_effort')
+    if type(recipe['top_k']) is not int or recipe['top_k'] < 0:
+        raise ValueError('top_k must be a nonnegative integer')
     if type(chains) is not int or chains < 1:
         raise ValueError('chains must be a positive integer')
     for key in ('max_tokens', 'repair_max_tokens', 'max_prompt_tokens'):
@@ -30,11 +54,39 @@ def settings(config):
             raise ValueError(f'{key} exceeds the existing runtime envelope')
     if any(not isinstance(recipe[k], str) or not recipe[k] for k in ('system', 'initial', 'repair')):
         raise ValueError('Scaffold fields must be nonempty strings')
-    for key, low, high in (('temperature', 0, math.inf), ('top_p', 0, 1)):
+    if set(recipe) & DIRECT_FIELDS and config.get('submission_format') != 'native_tools':
+        raise ValueError('Direct repair settings require native_tools')
+    if type(recipe.get('narrowing_feedback', False)) is not bool:
+        raise ValueError('narrowing_feedback must be a boolean')
+    if type(recipe.get('repair_enable_thinking', True)) is not bool:
+        raise ValueError('repair_enable_thinking must be a boolean')
+    for key, low, high in (('temperature', 0, math.inf), ('top_p', 0, 1),
+                           ('repair_temperature', 0, math.inf), ('repair_top_p', 0, 1)):
+        if key not in recipe:
+            continue
         value = recipe[key]
-        if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high or key == 'top_p' and value == 0:
+        if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high or key.endswith('top_p') and value == 0:
             raise ValueError(f'Invalid {key}')
     return chains, recipe
+
+
+def qwen38_checkpoint(files):
+    """Bind the verified Qwen3.8 checkpoint files into the run inputs."""
+    active = loop.read(QWEN_CONFIG)
+    manifest = Path(active['model_manifest'])
+    if g.file_hash(manifest) != active['model_manifest_sha256']:
+        raise ValueError('Qwen3.8 manifest differs from the verified checkpoint')
+    pinned = loop.read(manifest)
+    if pinned['revision'] != active['revision'] or pinned['local_path'] != active['model_path']:
+        raise ValueError('Qwen3.8 checkpoint binding differs')
+    for item in pinned['files']:
+        path = Path(active['model_path']) / item['path']
+        if not path.is_file() or path.stat().st_size != item['bytes']:
+            raise ValueError(f'Missing or changed checkpoint file: {path}')
+        if path.suffix != '.safetensors':
+            files[str(path)] = item['sha256']
+    files.update({str(QWEN_CONFIG): g.file_hash(QWEN_CONFIG), str(manifest): active['model_manifest_sha256']})
+    return active, manifest
 
 
 def load_panel(directory):
@@ -59,12 +111,72 @@ def load_panel(directory):
         worklist.append((binding, dict(question=task['question'], cases=[dict(c, visible=True)
                          for group in shown.values() for c in group])))
         public.append(dict(binding=binding, partition=shown, benigns={'actor': entry['benigns']['actor']}))
+    active, manifest = qwen38_checkpoint(files)
+    loop.check_files(files)
+    runtime = dict(runtime, model_path=active['model_path'], model_manifest=str(manifest),
+                   benign_model_manifest_sha256=contract['runtimes']['actor']['qualification']['model_manifest_sha256'])
     return public, worklist, runtime, files
+
+
+def load_dev_panel(root):
+    """Exploratory dev-50 panel: only audit-passing, case-eligible Qwen3.8 benigns qualify."""
+    contract, report = loop.read(root / 'contract.json'), loop.read(root / 'acquisition/report.json')
+    if (contract['kind'] not in ('qwen38-development-benigns', 'qwen38-construction-benigns',
+                                'qwen38-development-task291-recovery', 'qwen38-construction-case-recovery')
+            or contract['cohort_sha256'] != a.study_tasks.COHORT_SHA256
+            or report['status'] != 'completed' or report['contract_sha256'] != g.file_hash(root / 'contract.json')):
+        raise ValueError('Require a completed development benign acquisition bound to its contract')
+    selected = {item['task_id']: item for item in report['selected']}
+    audited = {item['task_id']: item for item in report['audit_verified'] if item['verdict']['status'] == 'passed'}
+    files = {str(root / name): g.file_hash(root / name) for name in ('contract.json', 'acquisition/report.json')}
+    if contract['kind'] == 'qwen38-development-task291-recovery':
+        from scripts import recover_task291
+        files.update(recover_task291.validate(root, contract, report))
+    if contract['kind'] == 'qwen38-construction-case-recovery':
+        from scripts import recover_construction_cases
+        files.update(recover_construction_cases.validate(root, contract, report))
+    cohort, entries, worklist = a.study_tasks.load_cohort(), [], []
+    for item in contract['entries']:
+        binding = item['binding']
+        if not item['attack_case_eligible'] or binding['id'] not in audited:
+            continue
+        path = Path(audited[binding['id']]['program']).resolve()
+        raw = path.read_bytes()
+        if (not path.is_relative_to(root) or selected[binding['id']]['program'] != audited[binding['id']]['program']
+                or selected[binding['id']]['candidate'] != a.study_tasks.candidate_identity(
+                    binding['split'], binding['id'], binding['sha256'], 'actor', raw)
+                or a.study_tasks.load_task(cohort, binding['id'])[0] != binding):
+            raise ValueError(f"Selected benign or task binding differs for task {binding['id']}")
+        task = a.study_tasks.load_task(cohort, binding['id'])[1]
+        shown = {k: item['partition'][k] for k in ('examples', 'menu')}
+        program = a.programs.strip_comments(raw.decode('utf-8'))
+        entries.append(dict(binding=binding, partition=shown, benigns={'actor': dict(
+            candidate=selected[binding['id']]['candidate'], program=program, path=str(path))}))
+        worklist.append((binding, dict(question=task['question'], cases=[dict(c, visible=True)
+                         for group in shown.values() for c in group])))
+        files[str(path)] = g.file_hash(path)
+    active, manifest = qwen38_checkpoint(files)
+    if contract['runtime']['model_manifest'] != str(manifest):
+        raise ValueError('Development benigns used a different Qwen3.8 manifest')
+    loop.check_files(files)
+    runtime = {k: contract['runtime'][k] for k in ('model_path', 'model_manifest', 'mlx_python')}
+    return entries, worklist, dict(runtime, benign_model_manifest_sha256=g.file_hash(manifest)), files
 
 
 def summarize(report, record, directory, started):
     a._summarize_acquisition(report, dict(prior_costs=[]), started)
     report['yield'] = report['yield']['actor']
+    # The formal B2 summarizer projects only eight positions; exploratory panels can be larger.
+    for kind in ('functional', 'accepted'):
+        positions = set()
+        for run in report['runs']:
+            path = Path(run['directory']) / 'outcome.json'
+            if path.exists():
+                positions.update(v['position'] for v in loop.read(path)['attempts']
+                    if v.get('verification', {}).get('functional' if kind == 'functional' else 'status')
+                    == (True if kind == 'functional' else 'passed'))
+        report['yield'][kind + '_positions'] = sorted(positions)
+    report['yield']['denominator'] = len(record['entries'])
     for kind in ('functional', 'accepted'):
         count = len(report['yield'][kind + '_positions'])
         report['yield'][kind + '_tasks'] = count
@@ -77,17 +189,50 @@ def summarize(report, record, directory, started):
                 reasons.update(attempt.get('verification', {}).get('violations', []))
     report['rule_violations'] = dict(reasons)
     report['yield']['reviewed'] = False
+    if record.get('submission_format') in ('exact_edit', 'native_tools'):
+        attempt_groups = [loop.read(Path(run['directory']) / 'outcome.json')['attempts']
+                          for run in report['runs'] if (Path(run['directory']) / 'outcome.json').exists()]
+        attempts = [attempt for group in attempt_groups for attempt in group]
+        report['repeated_program_submissions'] = report['duplicate_submissions']
+        report['duplicate_submissions'] = qwen_edits.duplicate_submissions(attempt_groups)
+        report['repair_decisions'] = qwen_edits.repair_metrics(attempt_groups)
+        if record.get('submission_format') == 'native_tools':
+            report['native_tools'] = qwen_native_tools.metrics(attempt_groups, record['recipe']['max_repairs'])
+        report['edit_funnel'] = dict(
+            valid_json=sum(bool(v.get('edit_json_valid')) for v in attempts),
+            valid_schema=sum('edit' in v for v in attempts),
+            applicable=sum(bool(v.get('edit_applicable')) for v in attempts),
+            duplicates=report['duplicate_submissions'],
+            repeated_edits=sum(bool(v.get('edit_duplicate')) for v in attempts),
+            executed=sum('verification' in v and not v['verification'].get('execution_reused') for v in attempts),
+            reused=sum(bool(v.get('verification', {}).get('execution_reused')) for v in attempts),
+            automatically_accepted=sum(v.get('verification', {}).get('status') == 'passed' for v in attempts),
+            semantic_accepted=None, semantic_rejection_rate=None)
     loop.atomic_save(directory / 'report.json', report)
 
 
-def run(output, config, benigns=DEFAULT_BENIGNS, monitor=False):
+def run(output, config, benigns=DEFAULT_BENIGNS, monitor=False, panel_loader=None):
     chains, recipe = settings(config)
-    entries, worklist, runtime, files = load_panel(Path(benigns).resolve())
+    native_tools = config.get('submission_format') == 'native_tools'
+    exact_edits = config.get('submission_format') in ('exact_edit', 'native_tools')
+    if exact_edits:
+        (qwen_native_tools if native_tools else qwen_edits).configure(recipe)
+    panel = Path(benigns).resolve()
+    entries, worklist, runtime, files = (panel_loader or (load_dev_panel if (panel / 'acquisition/report.json').is_file()
+                                         else load_panel))(panel)
+    if runtime.get('model_family') == 'gemma4':
+        recipe.pop('reasoning_effort', None)
+    if config.get('task_count', len(entries)) > len(entries):
+        raise ValueError(f'task_count exceeds the {len(entries)} qualified panel tasks')
+    entries, worklist = entries[:config.get('task_count')], worklist[:config.get('task_count')]
     n = len(entries)
     stride = n * (recipe['max_repairs'] + 1)
     replies = stride
-    tokens = n * (recipe['max_tokens'] + recipe['max_repairs'] * recipe['repair_max_tokens'])
-    batching = a.ATTACK_BATCHING['actor']
+    tokens = n * (recipe['max_tokens'] + recipe['max_repairs'] * recipe['repair_max_tokens']
+                  + recipe.get('thinking_repair_max_tokens', recipe['repair_max_tokens']) - recipe['repair_max_tokens'])
+    batch = config.get('completion_batch_size', 4)
+    driver = CHUNKED_DRIVER if n > chunked.REQUEST_LIMIT else a.DRIVER
+    batching = dict(completion_batch_size=batch, prefill_batch_size=2 if batch == 8 else 1, prefill_step_size=256)
     for chain in range(chains):
         loop.validate(worklist, dict(recipe, base_seed=recipe['base_seed'] + stride * chain),
                       'actor', replies, tokens, batching, False, a.study_tasks.COHORT_SHA256)
@@ -95,44 +240,85 @@ def run(output, config, benigns=DEFAULT_BENIGNS, monitor=False):
         raise ValueError('Development seeds must avoid the official range 41..88')
     initial = [a.attack_messages(task, entry, 'actor', recipe=recipe)
                for (_, task), entry in zip(worklist, entries)]
+    if exact_edits:
+        initial = [qwen_native_tools.messages(messages, recipe) if native_tools else qwen_edits.messages(messages)
+                   for messages in initial]
+    if runtime.get('model_family') == 'gemma4' and native_tools:
+        initial = [qwen_native_tools.gemma_messages(m) for m in initial]
     directory = Path(output).resolve()
     directory.mkdir(parents=True, exist_ok=False)
     started = monotonic()
     record = dict(kind='qwen-development', entries=entries, runtime=runtime, recipe=recipe, chains=chains,
+        submission_format=config.get('submission_format', 'full_program'),
+        resource_guard=dict(swap_growth_stop_mib=config.get('swap_growth_stop_mib', 256),
+                            peak_stop_bytes=44 * 1024**3, critical_pressure=4),
         batching=batching, reply_limit=chains * replies, output_token_limit=chains * tokens,
         shown_case_limit=chains * (recipe['max_repairs'] + 1) * sum(
             len(e['partition']['examples']) + len(e['partition']['menu']) for e in entries),
-        inputs=files, sources=dict(a.acquisition_sources(), **{str(Path(__file__).resolve()): g.file_hash(__file__)}))
+        inputs=files, sources=dict(a.acquisition_sources(), **{str(Path(__file__).resolve()): g.file_hash(__file__),
+            str(Path(qwen_edits.__file__).resolve()): g.file_hash(qwen_edits.__file__),
+            str(Path(qwen_native_tools.__file__).resolve()): g.file_hash(qwen_native_tools.__file__),
+            str(CHUNKED_DRIVER): g.file_hash(CHUNKED_DRIVER)}), panel=str(panel), generation_driver=str(driver))
     g.save(directory / 'experiment.json', record)
+    g.save(directory / 'initial-prompts.json', [dict(task_id=entry['binding']['id'], messages=messages)
+        for entry, messages in zip(entries, initial)])
+    (directory / 'initial-prompts.txt').write_text('\n\n'.join(
+        f"===== TASK {entry['binding']['id']} =====\n" + '\n\n'.join(
+            message['role'].upper() + ':\n' + message['content'] for message in messages)
+        for entry, messages in zip(entries, initial)), encoding='utf-8')
     report = dict(status='running', runs=[], shown_case_requests_committed=0, shown_case_results_known=0)
     pairs = {e['binding']['sha256']: dict(program=e['benigns']['actor']['program'], **e['partition']) for e in entries}
+    cache = {}
     def checker(candidates, log_dir, **kwargs):
-        count = sum(len(pairs[h]['examples']) + len(pairs[h]['menu']) for _, h, _ in candidates)
+        keys = [(h, a.sha256(program).hexdigest()) for _, h, program in candidates]
+        fresh = [candidate for candidate, key in zip(candidates, keys) if not exact_edits or key not in cache]
+        count = sum(len(pairs[h]['examples']) + len(pairs[h]['menu']) for _, h, _ in fresh)
         if report['shown_case_requests_committed'] + count > record['shown_case_limit']:
             raise RuntimeError('Shown-case budget exhausted')
         report['shown_case_requests_committed'] += count
         summarize(report, record, directory, started)
-        results = a.check_shown(candidates, log_dir, pairs=pairs, **kwargs)
-        report['shown_case_results_known'] += sum(len(r['cases']) for r in results)
+        measured = a.check_shown(fresh, log_dir, pairs=pairs, **kwargs) if fresh else []
+        report['shown_case_results_known'] += sum(len(r['cases']) for r in measured)
+        if not exact_edits:
+            return measured
+        fresh_keys = [(h, a.sha256(program).hexdigest()) for _, h, program in fresh]
+        reused = set(keys) - set(fresh_keys)
+        cache.update((key, dict(cases=v['cases'], evidence=v.get('evidence', [])))
+                     for key, v in zip(fresh_keys, measured))
+        fresh_verdicts = dict(zip(fresh_keys, measured))
+        results = []
+        for (task, h, program), key in zip(candidates, keys):
+            verdict = fresh_verdicts.get(key)
+            if key in reused:
+                pair = pairs[h]
+                rules = a.mechanical(pair['program'].encode('utf-8'), program, len(pair['menu']),
+                                     metadata=task.get('candidate_metadata'))
+                verdict = a.shown_verdict(h, program, pair, rules, cache[key]['cases'], cache[key]['evidence'])
+                verdict.update(execution_reused=True, reused_from=verdict['evidence'])
+            results.append(qwen_edits.repair_guidance(verdict, recipe.get('narrowing_feedback', False)))
         return results
     try:
         summarize(report, record, directory, started)
-        baseline = a.memory_state()
+        baseline = dict(a.memory_state(), swap_growth_stop_mib=record['resource_guard']['swap_growth_stop_mib'])
         g.save(directory / 'resource-baseline.json', baseline)
         if baseline['pressure'] != 1:
             raise RuntimeError('Require normal initial memory pressure')
         for chain in range(chains):
+            cache.clear()
             loop.check_files(record['sources'])
             loop.check_files(files)
             a.check_resources(a.memory_state(), baseline)
             target = directory / f'actor-chain-{chain}'
+            extractor = (qwen_native_tools.Extractor(entries, initial, loop) if native_tools else
+                         qwen_edits.Extractor(entries) if exact_edits else None)
             report['runs'].append(dict(source='actor', chain=chain, directory=str(target), status='running'))
             result = loop.run(worklist, target, source='actor', **{k: runtime[k] for k in
                 ('model_path', 'model_manifest', 'mlx_python')}, **batching,
                 recipe=dict(recipe, base_seed=recipe['base_seed'] + stride * chain),
                 reply_allowance=replies, output_token_allowance=tokens, cohort_sha256=a.study_tasks.COHORT_SHA256,
-                initial_messages=initial, candidate_checker=checker, generation_driver=a.DRIVER,
-                program_metadata=a.attack_metadata)
+                initial_messages=initial, candidate_checker=checker, generation_driver=driver,
+                program_metadata=a.attack_metadata,
+                program_extractor=extractor, repair_builder=extractor.repair if native_tools else None)
             if result['status'] != 'completed':
                 raise RuntimeError(f"Qwen chain {chain}: {result.get('error', result['status'])}")
         report['status'] = 'completed'

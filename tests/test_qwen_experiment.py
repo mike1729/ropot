@@ -515,7 +515,9 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(len(prompts), 8)
         for item, request in zip(prompts, self.requests[:8]):
             self.assertEqual(item['messages'], request['messages'])
-            self.assertIn('max_token_churn', item['messages'][1]['content'])
+            self.assertIn('"max_menu_failures": 2', item['messages'][1]['content'])
+            for obsolete in ('max_token_churn', 'max_conditionals', 'max_comparisons'):
+                self.assertNotIn(obsolete, item['messages'][1]['content'])
             self.assertIn('Do not manually enumerate lexer tokens', item['messages'][1]['content'])
 
     def test_monitor_uses_frozen_baseline_and_first_accepted_per_task(self):

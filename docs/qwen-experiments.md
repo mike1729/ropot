@@ -63,14 +63,23 @@ Acquisition and monitor reports are saved before dispatch. A report still marked
 `running` (or missing a terminal status) contributes only a cost lower bound;
 its saved token count cannot establish a complete pipeline total.
 
-Initial prompts include computed mechanical limits and ask for a prompt submission
-instead of manual token counting or exhaustive case simulation. Checker feedback
-adds numeric example, named-case, menu-failure and mechanical summaries alongside
-the existing complete shown-case records. Truncation feedback explicitly states
+From 31 October, new runs use the [relaxed acceptance rules](v2-batch-02-plan.md):
+at most `floor(menu_size/2)` menu failures, with structural counts and token churn
+as diagnostics only. Initial prompts include the menu size and failure limit;
+feedback reports original/candidate structural counts without cap fields. It also
+includes example, named-case and complete shown-case results. Saved experiments
+retain their original prompt, checks and outcomes. Truncation feedback explicitly states
 that the output budget ended before a complete program was submitted and that
 no candidate was extracted or checked.
 `initial-prompts.json` and `initial-prompts.txt` expose the exact initial messages.
 Every `actor-chain-*/round-*.json` stores exact requests, including repair prompts.
+
+The opt-in `native_multi_edit` format uses the [multi-edit scaffold](qwen-native-tools.md#native-multi-edit-mode)
+and `configs/inference/native-multi-edit.json`. It starts with 1024-token thinking,
+permits one 2048-token reasoning repair after measured failure, uses 1024-token
+direct requests otherwise, and certifies menu witnesses
+automatically. The canonical prompt and parser are included in source provenance.
+The existing full-program, exact-edit and native-tools formats retain nomination.
 
 ## Direct exact-edit experiment
 

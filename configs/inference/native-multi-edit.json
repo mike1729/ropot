@@ -1,0 +1,18 @@
+{
+  "submission_format": "native_multi_edit",
+  "task_count": 8,
+  "chains": 2,
+  "recipe": {
+    "enable_thinking": true,
+    "reasoning_effort": "low",
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 20,
+    "max_tokens": 1024,
+    "max_repairs": 4,
+    "repair_enable_thinking": false,
+    "repair_max_tokens": 1024,
+    "thinking_repair_max_tokens": 2048,
+    "thinking_repair_effort": "low"
+  }
+}

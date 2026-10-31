@@ -338,7 +338,7 @@ def repair_request(initial, parent, recipe, seed):
 
 
 def prepare_repairs(attempts, initial, progress, recipe, reply_allowance, output_token_allowance, persist,
-                    repair_builder=None):
+                    repair_builder=None, repair_cost=None):
     """Mark exhausted tasks and prepare the stable repair prefix within budgets."""
     progress["phase"] = "repair_preparation"
     eligible = [parent for parent in attempts if parent["state"] == "failed"]
@@ -346,8 +346,17 @@ def prepare_repairs(attempts, initial, progress, recipe, reply_allowance, output
         for parent in eligible:
             parent["state"] = "repairs_exhausted"
         return [], []
-    slots = min(reply_allowance - progress["committed_replies"],
-                (output_token_allowance - progress["committed_tokens"]) // recipe["repair_max_tokens"])
+    remaining = output_token_allowance - progress["committed_tokens"]
+    limits = []
+    for parent in eligible[:reply_allowance - progress["committed_replies"]]:
+        limit = recipe["repair_max_tokens"] if repair_cost is None else repair_cost(parent, recipe)
+        if type(limit) is not int or limit <= 0:
+            raise ValueError("Repair cost must be a positive token allowance")
+        if limit > remaining:
+            break
+        remaining -= limit
+        limits.append(limit)
+    slots = len(limits)
     for parent in eligible[slots:]:
         parent["state"] = "budget_exhausted"
     round_index = attempts[0]["round"] + 1
@@ -355,8 +364,11 @@ def prepare_repairs(attempts, initial, progress, recipe, reply_allowance, output
     for row_index, parent in enumerate(eligible[:slots]):
         position = parent["position"]
         draw_seed = recipe["base_seed"] + round_index * len(initial) + position
-        requests.append((repair_request if repair_builder is None else repair_builder)(
-            initial[position], parent, recipe, draw_seed))
+        request = (repair_request if repair_builder is None else repair_builder)(
+            initial[position], parent, recipe, draw_seed)
+        if repair_cost is not None and request["max_tokens"] != limits[row_index]:
+            raise ValueError("Constructed repair allowance differs from its admitted cost")
+        requests.append(request)
         attempt = dict(attempt=len(progress["attempts"]), position=position, round=round_index, row=row_index,
             seed=draw_seed, parent=parent["attempt"], submitted=False, state="not_run")
         progress["attempts"].append(attempt)
@@ -389,7 +401,7 @@ def finalize_states(progress, directory):
 def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python, recipe,
         reply_allowance, output_token_allowance, completion_batch_size, prefill_batch_size,
         prefill_step_size, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None,
-        generation_driver=None, program_metadata=None, program_extractor=None, repair_builder=None):
+        generation_driver=None, program_metadata=None, program_extractor=None, repair_builder=None, repair_cost=None):
     """Generate, extract and verify one initial round, then repair eligible failures.
 
     Call from the repository Python with a finite, ordered worklist of
@@ -418,6 +430,8 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     submission through normal extraction/checking. Otherwise capped replies consume
     their reserved turn and tokens without creating or checking a candidate.
     repair_builder(initial, parent, recipe, seed) can retain native tool history.
+    repair_cost(parent, recipe) must be pure and previews variable allowances before
+    stable-prefix admission; denied requests never invoke the repair builder.
     Enabled repairs also require repair (instruction), repair_max_tokens,
     feedback_field_bytes and feedback_bytes. Feedback caps count UTF-8 bytes,
     including truncation markers. Initial prompts use only recipe instructions
@@ -466,6 +480,8 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
         raise ValueError("Require a callable program extractor")
     if repair_builder is not None and not callable(repair_builder):
         raise ValueError("Require a callable repair builder")
+    if repair_cost is not None and not callable(repair_cost):
+        raise ValueError("Require a callable repair cost preview")
     initial = requests = initial_requests(worklist, recipe, initial_messages)
     directory, specification, progress, persist = prepare(worklist, output_dir, recipe, source,
         model_path, model_manifest, mlx_python, batching, reply_allowance, output_token_allowance,
@@ -480,7 +496,7 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
         """Repair eligible failures until exhausted or budgeted."""
         while True:
             requests, attempts = prepare_repairs(attempts, initial, progress, recipe,
-                reply_allowance, output_token_allowance, persist, repair_builder)
+                reply_allowance, output_token_allowance, persist, repair_builder, repair_cost)
             if not attempts:
                 break
             execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,

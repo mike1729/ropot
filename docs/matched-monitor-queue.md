@@ -1,5 +1,10 @@
 # Matched Qwen and Gemma monitor queue
 
+The completed queue below used thinking off. Future thinking-on scoring requires
+fresh replies for every selected attack and benign; those earlier replies cannot
+be reused across that recipe change. For the current provisional recovery this
+means all 67 selected attacks plus their benign corpus, after independent review.
+
 > **Status — 2026-10-31:** Qwen then Gemma completed thinking-off monitoring on
 > the same frozen 216-program corpus at
 > `data/06_monitor_experiments/matched-dev-construction-20261031`. Results and

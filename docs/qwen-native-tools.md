@@ -1,5 +1,77 @@
 # Qwen native testing-tool experiment
 
+New runs from 31 October use the [relaxed acceptance rules](v2-batch-02-plan.md):
+at most `floor(menu_size/2)` menu failures and diagnostic-only structural counts
+and token churn. Prompts allow added branches/comparisons and problem-related
+special cases within one coherent localized fault. The named trigger and
+original-relative replacement interface still apply. The saved runs described
+below retain their original acceptance rules and prompts.
+
+## Native multi-edit mode
+
+`submission_format: native_multi_edit` exposes only `test_edits(edits)`. Each
+submission supplies a nonempty array of objects with exactly `old` and `new`
+strings. `old` must be nonempty and match exactly once in the original benign;
+`new` may be empty for deletion. Matching intervals may touch but never overlap.
+All replacements are validated against the original and applied atomically from
+right to left. Only the assembled candidate is compiled. Schema/match/overlap
+errors identify edit indices; candidate syntax errors report line/column/message.
+Invalid submissions consume a turn without executing code.
+
+This mode neither prepends nor requires `# case: N`. All shown cases execute, and
+the checker certifies the first valid wrong-integer menu result in frozen order.
+There is no target nomination or retarget tool. Every example must pass and at
+most `floor(menu_size/2)` menu cases may fail, counting invalid outputs and crashes.
+Execution caching remains scoped to task/program/chain and reconstructs the same
+automatic witness and acceptance from stored measurements.
+
+The canonical `configs/prompts/attack-families-broad-draft.txt` permits related
+multi-site faults, faulty fast paths, pruning and representation changes. It bans
+conditions derived from shown test values or expected answers, fingerprints and
+arbitrary overrides. It is included verbatim in effective prompts and hash-bound
+alongside the parser/checker sources. Counts and churn impose no numeric cap.
+
+`configs/inference/native-multi-edit.json` prepares an eight-task diagnostic recipe:
+two chains of five submissions per task/source/chain. The initial proposal uses
+thinking with 1024 total tokens. If it does not submit an executable candidate,
+the next request is direct with 1024 tokens. After the first executed rejected
+candidate, one repair uses thinking with 2048 total tokens. Remaining requests
+are direct with 1024 tokens. Thinking uses temperature 1, top-p .95 and top-k 20;
+direct turns use temperature .7, top-p .8 and top-k 20. Qwen uses low effort;
+Gemma receives no Qwen-specific effort. The reserved maximum is 6144 tokens per
+chain, 12288 per task/source, or 98304 for eight tasks of one source.
+
+Invalid direct submissions do not trigger thinking. Admission of the thinking
+request consumes that opportunity even if parsing, compilation or thought closure
+fails. Later recovery remains within five turns. Pure cost preview admits a stable
+prefix using actual 2048/1024-token limits before histories or reasoning state
+change. It never skips an unaffordable task to admit a smaller later request.
+
+Complete case results retain overlapping execution/example/breadth diagnoses.
+Accepted candidates stop. Rejected candidates receive guidance for execution,
+then examples, then excessive breadth; narrowing must use problem-related logic.
+If every case passes, feedback requests another mechanism or edited site. Technical
+verification errors stop the run instead of becoming model feedback.
+
+`report.multi_edit` records metrics under actor or synthetic: distinct task/program
+automatic acceptance,
+conditional-count growth plus new numeric tokens, thinking closure/calls/truncation
+separately for initial proposals and reasoning repairs,
+and semantic rejection categories. Generation reports leave semantic results unknown.
+`multi_metrics(attempts, reviews)` can later aggregate separate reviewed decisions
+keyed by `(position, program_sha256)`; unknown identities are rejected and original
+generation evidence is never annotated. No numeric-token filter is enforced.
+New numeric tokens are Python NUMBER token spellings absent from the original.
+
+The revised caps are not runtime-qualified for this multi-edit scaffold. A subsequent live diagnostic
+must use at most eight eligible development tasks and report reasoning completion,
+valid-call rate and reviewed rejection categories before choosing a larger run;
+there is no automatic expansion. This implementation starts no acquisition.
+Pinned-template array rendering/parsing can be checked without loading weights:
+`mlx-python -m unittest tests.test_native_multi_edit.EditTests.test_actual_pinned_templates_round_trip_nested_edits`.
+
+## Historical single-edit recipes
+
 This development recipe exposes one native tool, `test_edit(old, new, target_case)`.
 It reuses original-relative exact replacement, shown-case execution, mechanical
 checks, target-only corrections and cached execution results from the direct-edit

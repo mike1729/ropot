@@ -143,8 +143,52 @@ class AutomaticWitnessTests(unittest.TestCase):
         self.assertEqual(row['violations'], ['no_wrong_answer'])
         self.assertEqual(json.loads(row['feedback']['message'])['repair_decision'], 'different_mechanism')
 
+    def test_example_repair_keeps_wrong_menu_evidence_without_changing_acceptance(self):
+        self.outputs[0] = '999'
+        row = self.check()
+        feedback = json.loads(row['feedback']['message'])
+        self.assertEqual(row['status'], 'failed')
+        self.assertIsNone(row['certificate'])
+        for case in row['cases']:
+            if case['status'] == 'wrong_answer':
+                self.assertIn(case['id'], feedback['guidance'])
+        self.assertIn('Do not erase the defect', feedback['guidance'])
+        self.assertIn('never activation conditions', feedback['guidance'])
+
+    def test_breadth_feedback_refines_operation_without_changing_acceptance(self):
+        self.outputs.update({11: '999', 12: '999'})
+        row = self.check()
+        self.assertEqual(row['violations'], ['menu_failures'])
+        feedback = json.loads(row['feedback']['message'])
+        self.assertEqual(feedback['repair_decision'], 'narrow_mechanism')
+        self.assertIn('First refine the same faulty', feedback['guidance'])
+        self.assertIn('unrelated size/parity guard', feedback['guidance'])
+
 
 class ReasoningTests(unittest.TestCase):
+    def test_local_refinement_survives_truncation_and_ignores_other_rejections(self):
+        extractor, initial, recipe = self.extractor()
+        for candidate_id, violations, example_status, menu_status in (
+                ('C1', ['menu_failures'], 'passed', 'wrong_answer'),
+                ('C2', ['menu_failures'], 'passed', 'wrong_answer'),
+                ('C3', ['examples', 'menu_failures'], 'wrong_answer', 'wrong_answer'),
+                ('C4', ['no_wrong_answer'], 'passed', 'passed')):
+            parent = dict(position=0, candidate_id=candidate_id, edits=[dict(old='x=1', new='x=2')],
+                conversation=initial['messages'], verification=dict(violations=violations,
+                cases=[dict(id='examples:1', status=example_status), dict(id='menu:1', status=menu_status)],
+                feedback=dict(message=json.dumps(dict(repair_decision='test_fixture')))))
+            request = extractor.repair(initial, parent, recipe, 1)
+            feedback = json.loads(request['messages'][-1]['content'])
+            self.assertEqual(feedback['local_refinement_candidate_id'], 'C1' if candidate_id == 'C1' else 'C2')
+        truncated = dict(position=0, conversation=request['messages'] + [
+            dict(role='assistant', content='', reasoning_content='unfinished')])
+        request = extractor.repair(initial, truncated, recipe, 2)
+        feedback = json.loads(request['messages'][-1]['content'])
+        self.assertEqual(feedback['local_refinement_candidate_id'], 'C2')
+        self.assertEqual(len(feedback['attempted_mechanisms']), 4)
+        self.assertIn('without a prose preamble', feedback['request'])
+        self.assertNotIn('State Assumption', feedback['request'])
+
     def extractor(self):
         entries = [dict(benigns={'actor': dict(program='x=1\nprint(x)\n')}, partition=dict(menu=[{}, {}]))]
         initial = [dict(role='system', content='s'), dict(role='user', content='u')]
@@ -215,6 +259,47 @@ class ReasoningTests(unittest.TestCase):
         self.assertNotIn('repair_feedback', parent)
         self.assertEqual(extractor.histories, histories)
         self.assertEqual(extractor.thinking_repairs, set())
+        self.assertEqual(extractor.ledgers, {0: []})
+
+    def test_measured_ledger_survives_truncation_without_replaying_old_deliberation(self):
+        extractor, initial, recipe = self.extractor()
+        edits = [dict(old='x=1', new='x=2')]
+        claim = 'Assumption: shift initialization. Change: x. Output: print reads x.'
+        parent = dict(position=0, seed=1, conversation=initial['messages'] + [
+            dict(role='assistant', content=call(edits), reasoning_content='old deliberation')])
+        extractor(dict(answer_text=claim + '\n' + call(edits)), parent)
+        self.assertEqual(parent['fault_claim'], claim)
+        parent['verification'] = dict(violations=['examples'], cases=[
+            dict(id='examples:1', status='wrong_answer'), dict(id='menu:2', status='wrong_answer')],
+            feedback=dict(message='{"repair_decision":"preserve_examples"}'))
+        thinking = extractor.repair(initial, parent, recipe, 2)
+        truncated = dict(position=0, conversation=thinking['messages'] + [dict(role='assistant',
+            content='', reasoning_content='new thought rejects an equivalent idea')])
+        direct = extractor.repair(initial, truncated, recipe, 3)
+        feedback = json.loads(direct['messages'][-1]['content'])
+        self.assertFalse(direct['enable_thinking'])
+        self.assertEqual(len(direct['messages']), 4)
+        self.assertEqual(feedback['attempted_mechanisms'][0]['failed_examples'], ['examples:1'])
+        self.assertEqual(feedback['attempted_mechanisms'][0]['wrong_menu_cases'], ['menu:2'])
+        self.assertEqual(feedback['attempted_mechanisms'][0]['unverified_fault_claim'], claim)
+        self.assertEqual(feedback['attempted_mechanisms'][0]['edits'], edits)
+        self.assertIn('excluding ideas your reasoning already rejected', feedback['request'])
+        self.assertNotIn('old deliberation', json.dumps(direct['messages']))
+        self.assertIn('old deliberation', json.dumps(parent['conversation']))
+        self.assertIn('new thought', json.dumps(direct['messages']))
+
+    def test_missing_claim_and_syntax_error_are_diagnostics_not_new_semantic_gates(self):
+        extractor, initial, recipe = self.extractor()
+        parent = dict(position=0, seed=1, conversation=initial['messages'] + [dict(role='assistant', content='')])
+        self.assertEqual(extractor(dict(answer_text=call([dict(old='x=1', new='x=2')])), parent), b'x=2\nprint(x)\n')
+        self.assertEqual(parent['fault_claim'], '')
+        with self.assertRaisesRegex(ValueError, 'Candidate syntax error'):
+            extractor(dict(answer_text=call([dict(old='x=1', new='x=')])), parent)
+        parent.pop('candidate_id')
+        repair = extractor.repair(initial, parent, recipe, 2)
+        ledger = json.loads(repair['messages'][-1]['content'])['attempted_mechanisms']
+        self.assertIn('Candidate syntax error', ledger[0]['submission_error'])
+        self.assertFalse(repair['enable_thinking'])
 
 
 class ExperimentIntegrationTests(unittest.TestCase):
@@ -271,7 +356,7 @@ class ExperimentIntegrationTests(unittest.TestCase):
         self.assertEqual(report['status'], 'completed', report)
         record = e.loop.read(self.output / 'experiment.json')
         self.assertEqual(record['reply_limit'], 80)
-        self.assertEqual(record['output_token_limit'], 8 * 12288)
+        self.assertEqual(record['output_token_limit'], 8 * 10240)
         self.assertIn(str(m.PROMPT), record['sources'])
         self.assertEqual(record['recipe']['initial'], m.PROMPT.read_text())
         self.assertEqual(report['yield']['accepted_tasks'], 8)
@@ -282,7 +367,7 @@ class ExperimentIntegrationTests(unittest.TestCase):
         for chain in range(2):
             turns = self.requests[chain * 24:(chain + 1) * 24]
             self.assertEqual([r['enable_thinking'] for r in turns[::8]], [True, True, False])
-            self.assertEqual([r['max_tokens'] for r in turns[::8]], [1024, 2048, 1024])
+            self.assertEqual([r['max_tokens'] for r in turns[::8]], [1024, 1024, 1024])
             self.assertEqual(turns[8]['reasoning_effort'], 'low')
             self.assertEqual(turns[0]['reasoning_effort'], 'low')
             self.assertNotIn('reasoning_effort', turns[16])
@@ -333,7 +418,7 @@ class ExperimentIntegrationTests(unittest.TestCase):
         self.assertEqual(len(self.requests), 40)
         self.assertEqual([r['enable_thinking'] for r in self.requests[::8]], [True, True, False, False, False])
         outcome = e.loop.read(self.output / 'actor-chain-0/outcome.json')
-        self.assertEqual(outcome['committed_tokens'], 8 * 6144)
+        self.assertEqual(outcome['committed_tokens'], 8 * 5120)
         self.assertTrue(all(t['state'] == 'repairs_exhausted' for t in outcome['tasks']))
 
     def test_initial_thinking_cutoff_does_not_consume_the_measured_repair_opportunity(self):
@@ -342,7 +427,7 @@ class ExperimentIntegrationTests(unittest.TestCase):
         report = e.run(self.output, dict(submission_format='native_multi_edit', chains=1))
         self.assertEqual(report['status'], 'completed', report)
         self.assertEqual([r['enable_thinking'] for r in self.requests[::8]], [True, False, True, False, False])
-        self.assertEqual([r['max_tokens'] for r in self.requests[::8]], [1024, 1024, 2048, 1024, 1024])
+        self.assertEqual([r['max_tokens'] for r in self.requests[::8]], [1024, 1024, 1024, 1024, 1024])
         metrics = report['multi_edit']['actor']
         self.assertEqual(metrics['initial_reasoning'], dict(requests=8, closed=0, valid_calls=0, truncated=8))
         self.assertEqual(metrics['reasoning_repairs'], dict(requests=8, closed=8, valid_calls=8, truncated=0))

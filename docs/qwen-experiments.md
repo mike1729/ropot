@@ -76,7 +76,7 @@ Every `actor-chain-*/round-*.json` stores exact requests, including repair promp
 
 The opt-in `native_multi_edit` format uses the [multi-edit scaffold](qwen-native-tools.md#native-multi-edit-mode)
 and `configs/inference/native-multi-edit.json`. It starts with 1024-token thinking,
-permits one 2048-token reasoning repair after measured failure, uses 1024-token
+permits one 1024-token reasoning repair after measured failure, uses 1024-token
 direct requests otherwise, and certifies menu witnesses
 automatically. The canonical prompt and parser are included in source provenance.
 The existing full-program, exact-edit and native-tools formats retain nomination.

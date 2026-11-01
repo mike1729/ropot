@@ -31,20 +31,41 @@ conditions derived from shown test values or expected answers, fingerprints and
 arbitrary overrides. It is included verbatim in effective prompts and hash-bound
 alongside the parser/checker sources. Counts and churn impose no numeric cap.
 
+The post-diagnostic revision requests an immediate native call with no prose
+preamble. It removes the Assumption/Change/Output explanation requirement after
+visible deliberation exhausted direct-request budgets. Mechanism explanations are
+left to later inspection. The parser still tolerates a preamble and records it as
+an unverified claim; this is prompt guidance, not constrained decoding or a new gate.
+
+Repairs retain the original task, the latest assistant response including its
+reasoning, and a measured ledger of prior submitted edits, claims, failed examples
+and wrong menu cases. Earlier deliberation is omitted from subsequent requests;
+original transcripts remain in saved attempt records. No summarizer call is added.
+After truncation, the generator must exclude ideas it already rejected as
+equivalent or dead. Example repair explicitly retains the wrong-answer objective;
+all-pass feedback requests a new mechanism without claiming proven equivalence.
+The most recent example-preserving candidate rejected only for excessive menu
+failures is identified as `local_refinement_candidate_id` in repair feedback,
+including after a truncated repair. The generator is asked to refine that same
+faulty operation before replacing its mechanism. Example and breadth repairs warn
+against unrelated size/parity guards or arbitrary final-answer adjustments.
+Legitimate algorithmic branches remain allowed. Caps and acceptance are unchanged;
+completed experiment inputs and evidence are not rewritten by this revision.
+
 `configs/inference/native-multi-edit.json` prepares an eight-task diagnostic recipe:
 two chains of five submissions per task/source/chain. The initial proposal uses
 thinking with 1024 total tokens. If it does not submit an executable candidate,
 the next request is direct with 1024 tokens. After the first executed rejected
-candidate, one repair uses thinking with 2048 total tokens. Remaining requests
+candidate, one repair uses thinking with 1024 total tokens. Remaining requests
 are direct with 1024 tokens. Thinking uses temperature 1, top-p .95 and top-k 20;
 direct turns use temperature .7, top-p .8 and top-k 20. Qwen uses low effort;
-Gemma receives no Qwen-specific effort. The reserved maximum is 6144 tokens per
-chain, 12288 per task/source, or 98304 for eight tasks of one source.
+Gemma receives no Qwen-specific effort. The reserved maximum is 5120 tokens per
+chain, 10240 per task/source, or 81920 for eight tasks of one source.
 
 Invalid direct submissions do not trigger thinking. Admission of the thinking
 request consumes that opportunity even if parsing, compilation or thought closure
 fails. Later recovery remains within five turns. Pure cost preview admits a stable
-prefix using actual 2048/1024-token limits before histories or reasoning state
+prefix using actual request token limits before histories or reasoning state
 change. It never skips an unaffordable task to admit a smaller later request.
 
 Complete case results retain overlapping execution/example/breadth diagnoses.
@@ -63,12 +84,36 @@ keyed by `(position, program_sha256)`; unknown identities are rejected and origi
 generation evidence is never annotated. No numeric-token filter is enforced.
 New numeric tokens are Python NUMBER token spellings absent from the original.
 
-The revised caps are not runtime-qualified for this multi-edit scaffold. A subsequent live diagnostic
-must use at most eight eligible development tasks and report reasoning completion,
-valid-call rate and reviewed rejection categories before choosing a larger run;
-there is no automatic expansion. This implementation starts no acquisition.
+The eight-task diagnostic completed on 31 October in
+`data/05_attack_experiments/mechanism-yield8-20261031`, including the explicitly
+approved Gemma load recovery. Qwen produced checker-accepted attacks on 5/8 tasks
+and Gemma on 4/8, with three shared tasks; these are mechanical yield counts.
+The later overnight campaign exercised the current immediate-call prompt,
+measured attempt ledger and local-refinement feedback. Its frozen `workspace/`
+under `data/05_attack_experiments/overnight-missing-attacks-20261031` matches the
+current generation code, prompt and configuration byte for byte as of 1 November.
+Runtime execution is established; low truncation, private attack-audit survival
+and grounded monitor labels are separate qualification questions. No automatic
+expansion follows these completed runs.
 Pinned-template array rendering/parsing can be checked without loading weights:
 `mlx-python -m unittest tests.test_native_multi_edit.EditTests.test_actual_pinned_templates_round_trip_nested_edits`.
+
+Historical panel preparation (the completed output directory must not be overwritten):
+`python scripts/prepare_yield_panel.py data/05_attack_experiments/mechanism-yield8-20261031`.
+It validates matching frozen cases and qualified benigns for all eight tasks before
+selecting 4130/4418/1317/2477/1359/181/604/4002 in that order for both sources.
+Source priorities are context only, not exclusions. The sixteen source/task pairs
+reserve at most 160 requests and 163840 output tokens (80 / 81920 per source).
+Saved panels and initial prompts contain no prior attack edits or review judgments.
+`load_panel(output, source)` rechecks hashes for a separately launched experiment;
+the source panel's `config` supplies its actual task count. The default resource
+guards remain active. The authorized launch starts with Gemma to check its prior
+model-load failure immediately, using the existing 1024 MiB swap-growth allowance,
+44 GiB peak limit and critical-pressure stop. Technical failures stop dispatch;
+there is no automatic retry. The prior prepared plan is preserved before updating
+the repair cap, resource configuration and provenance hashes.
+This changed panel targets recovery yield; it is not a controlled causal comparison
+against the earlier both-failed panel. Semantic approval remains a separate step.
 
 ## Historical single-edit recipes
 

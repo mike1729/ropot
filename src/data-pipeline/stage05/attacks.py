@@ -184,6 +184,8 @@ def automatic_guidance(violations, examples, menu):
     example_failure = any(r["status"] != "passed" for r in examples)
     broad = "menu_failures" in violations
     ineffective = all(r["status"] == "passed" for r in rows)
+    failed_examples = [r["id"] for r in examples if r["status"] != "passed"]
+    wrong_menu = [r["id"] for r in menu if r["status"] == "wrong_answer"]
     diagnoses = [name for name, present in (("execution_failure", execution),
         ("examples_failed", example_failure), ("too_broad", broad), ("no_observed_effect", ineffective),
         ("no_wrong_answer", not any(r["status"] == "wrong_answer" for r in menu))) if present]
@@ -192,12 +194,24 @@ def automatic_guidance(violations, examples, menu):
     elif execution:
         decision, guidance = "repair_execution", "Repair execution/output validity using the measured case results."
     elif example_failure:
-        decision, guidance = "preserve_examples", "Revise the fault while preserving every statement example."
+        decision, guidance = "preserve_examples", (
+            f"Repair failed examples {failed_examples}. Observed wrong menu answers: {wrong_menu}. "
+            "Preserve a real algorithmic defect while fixing examples and meeting the menu-failure ceiling. "
+            "Do not erase the defect. Repair the faulty operation itself, not by adding an unrelated "
+            "size/parity guard or adjusting an already computed answer. If that mechanism cannot work without recognizing test values, "
+            "abandon it and choose another. Case IDs are evidence, never activation conditions.")
     elif broad:
         decision, guidance = "narrow_mechanism", (
-            "Narrow activation through problem-related logic, never by recognizing particular test values.")
+            "Every example passes and valid wrong menu answers exist. First refine the same faulty "
+            "transition, boundary or state update locally; retain the mechanism while reducing its error. "
+            "Do not replace it immediately or wrap it in an unrelated size/parity guard to spare tests. "
+            "Any branch must have a computational role; never recognize particular test values or adjust "
+            "an already computed answer merely to force a failure.")
     elif ineffective or "no_wrong_answer" in violations:
-        decision, guidance = "different_mechanism", "Try another mechanism or edited site; no valid wrong menu answer was observed."
+        decision, guidance = "different_mechanism", (
+            "No valid wrong menu answer was observed; this does not prove equivalence. Check whether the "
+            "changed computation can reach the output. Choose a different assumption or output-relevant "
+            "operation, not a cosmetic variant of an ineffective edit or an idea already rejected as equivalent.")
     else:
         decision, guidance = "repair_violations", "Correct the listed checker violations while preserving the fault objective."
     return dict(diagnoses=diagnoses, repair_decision=decision, guidance=guidance)

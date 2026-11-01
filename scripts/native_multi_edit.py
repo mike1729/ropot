@@ -137,7 +137,8 @@ def apply_edits(original, edits):
 
 
 def configure(recipe):
-    recipe.update(system='You test Python programs using test_edits. Every call consumes one proposal turn.',
+    recipe.update(system=('You test Python programs using test_edits. Submit the native call immediately, '
+                          'without a prose preamble. Every call consumes one proposal turn.'),
                   initial=PROMPT.read_text(), repair='Revise one coherent fault using the measured results.',
                   tools=TOOLS, preserve_thinking=True)
 
@@ -149,11 +150,15 @@ def messages(original, recipe):
 
 
 class Extractor(qwen_native_tools.Extractor):
+    def __init__(self, entries, initial, loop):
+        super().__init__(entries, initial, loop)
+        self.ledgers = {position: [] for position in range(len(entries))}
+
     def __call__(self, row, attempt):
         try:
             prefix, edits = parse_call(row.get('answer_text'))
             attempt.update(native_tool_call=True, call_id=f"call-{attempt['seed']}", tool_name='test_edits',
-                           edits=edits, edit_json_valid=True)
+                           edits=edits, edit_json_valid=True, fault_claim=prefix.strip())
             attempt['edit_schema_valid'] = all(isinstance(e, dict) and set(e) == {'old', 'new'}
                 and isinstance(e['old'], str) and bool(e['old']) and isinstance(e['new'], str) for e in edits)
             attempt['conversation'][-1].update(content=prefix, tool_calls=[dict(id=attempt['call_id'],
@@ -188,12 +193,44 @@ class Extractor(qwen_native_tools.Extractor):
             result = json.loads(parent['verification']['feedback']['message'])
         else:
             result = dict(protocol_status='no_checked_candidate', message=parent.get('submission_feedback',
-                'No complete call was extracted; use your previous hypothesis to submit a complete call.'))
-        result['request'] = 'Submit one test_edits call against the ORIGINAL program.'
+                'No complete call was extracted. Reasoning may contain rejected ideas; do not submit those ideas.'))
+        ledger = self.ledgers[parent['position']]
+        if 'edits' in parent:
+            item = dict(candidate_id=parent.get('candidate_id'), edits=parent['edits'],
+                        unverified_fault_claim=parent.get('fault_claim', '')[:1600])
+            if 'verification' in parent:
+                measured = parent['verification']
+                item.update(repair_decision=result['repair_decision'], violations=measured['violations'],
+                    failed_examples=[r['id'] for r in measured['cases']
+                                     if r['id'].startswith('examples:') and r['status'] != 'passed'],
+                    wrong_menu_cases=[r['id'] for r in measured['cases']
+                                      if r['id'].startswith('menu:') and r['status'] == 'wrong_answer'])
+            else:
+                item['submission_error'] = result['message']
+            ledger.append(item)
+        result['attempted_mechanisms'] = ledger
+        promising = next((item for item in reversed(ledger)
+            if item.get('candidate_id') and item.get('violations') == ['menu_failures']
+            and not item['failed_examples'] and item['wrong_menu_cases']), None)
+        if promising:
+            result['local_refinement_candidate_id'] = promising['candidate_id']
+        result['request'] = (
+            'Submit one test_edits call immediately against the ORIGINAL program, without a prose preamble. '
+            'Select one concrete mechanism, excluding ideas your reasoning already rejected as equivalent or dead. '
+            'Use the measured attempt ledger; claims are unverified and all-pass does not prove equivalence. '
+            'If local_refinement_candidate_id is present, first refine that candidate\'s faulty operation locally: '
+            'it passed the examples and produced wrong menu answers but was too broad. '
+            'Retain a real defect when fixing examples; otherwise change mechanism. '
+            'Repair the transition, boundary or state update itself; do not rescue it with unrelated size/parity '
+            'guards or adjustments to an already computed answer. Branches need a computational role. '
+            'Case IDs describe evidence, never conditions to add to the code.')
         response = dict(role='tool' if parent.get('native_tool_call') else 'user', content=json.dumps(result))
         if parent.get('native_tool_call'):
             response['tool_call_id'] = parent['call_id']
-        history = parent['conversation'] + [response]
+        # Keep the latest response (including its thought), but summarize earlier attempts.
+        # Original transcripts remain in outcome.json; no additional summarizer/model call.
+        last = parent['conversation'][-1]
+        history = list(initial['messages']) + ([dict(last)] if last['role'] == 'assistant' else []) + [response]
         self.histories[parent['position']] = history
         parent['repair_feedback'] = dict(text=response['content'])
         request = dict(initial, messages=history, seed=seed, max_tokens=limit, enable_thinking=thinking,

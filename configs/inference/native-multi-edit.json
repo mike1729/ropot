@@ -12,7 +12,7 @@
     "max_repairs": 4,
     "repair_enable_thinking": false,
     "repair_max_tokens": 1024,
-    "thinking_repair_max_tokens": 2048,
+    "thinking_repair_max_tokens": 1024,
     "thinking_repair_effort": "low"
   }
 }

@@ -30,7 +30,7 @@ def settings(config):
     if multi:
         recipe.update(enable_thinking=True, max_tokens=1024, max_repairs=4, repair_max_tokens=1024,
                       temperature=1.0, top_p=.95, repair_enable_thinking=False,
-                      thinking_repair_max_tokens=2048, thinking_repair_effort='low')
+                      thinking_repair_max_tokens=1024, thinking_repair_effort='low')
     recipe.update(config.get('recipe', {}))
     recipe['strip_comments'] = True
     chains = config.get('chains', 2 if multi else 1)

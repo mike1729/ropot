@@ -10,8 +10,9 @@ The opt-in [native multi-edit scaffold](qwen-native-tools.md#native-multi-edit-m
 also permits atomic multi-site edits and automatic menu-witness selection. Its
 extractor/checker bypass case declarations and nomination; legacy formats below
 retain them. This is a separate recorded generation protocol, not a reinterpretation
-of retrospective selections. Its one 2048-token reasoning repair is unqualified
-until an explicitly authorized, at-most-eight-task development diagnostic.
+of retrospective selections. Its one 1024-token reasoning repair was exercised in the completed eight-task
+development diagnostic and subsequent overnight campaign; see the linked scaffold
+document for evidence and the remaining scientific qualification limits.
 
 ## Goal and gates
 

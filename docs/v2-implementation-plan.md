@@ -68,11 +68,15 @@ admitting pairs to attack generation.
 
 ## Attack loop and review
 
-Enable thinking and match submission opportunities across sources, with model-specific
-completion ceilings qualified for low truncation. Run two independent chains of at
-most three submissions per source/task, each starting from that source's benign.
-Count duplicates, refusals and truncations as submissions; retain technical failures
-without automatic replacement slots.
+The [1 November qualification](frozen-corpus-qualification.md) freezes the tested
+two-chain recipes, including the current five reserved turns per chain and
+1,024-token turn caps. This prospectively replaces the low-truncation requirement;
+330/808 capped submissions still fail the historical ≤5% threshold. Every turn,
+including duplicates, refusals and truncations, consumes its reserved slot.
+Incomplete calls and unclosed reasoning cannot be accepted; complete calls still
+require the existing extractor/checker. No extra attempts are automatic. Report
+capped turns, extraction failures, exhausted chains, yield and tokens separately.
+Historical recipes and their different limits remain labelled in the frozen corpus.
 
 Make every revision a fresh single-turn request containing the statement, original
 benign, shown cases, previous candidate, chosen trigger and its feedback. Include no

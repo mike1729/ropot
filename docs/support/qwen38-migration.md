@@ -1,5 +1,10 @@
 # Qwen3.8 actor and monitor migration — 29 October 2026
 
+This records the checkpoint transition at that date. Runtime wiring and the data
+campaign subsequently completed; see the [qualification record](../frozen-corpus-qualification.md)
+for accepted results and the recipe seal. Pending-work statements below preserve
+the migration's original scope.
+
 Qwen3.8-27B MLX 8-bit replaces Qwen3.6-27B as both the actor and monitor.
 Gemma-4-31B-it remains the synthetic source. This records the selected model and
 required runtime transition; it does not claim that all callers have been rewired
@@ -10,7 +15,7 @@ or that Qwen3.8 generation and monitoring have already been qualified.
 - Repository: [`mlx-community/Qwen3.8-27B-8bit`](https://huggingface.co/mlx-community/Qwen3.8-27B-8bit).
 - Revision: `815b83c0df8ffd1d1b5244cf75fd6ef14fca9ef9`.
 - Existing local directory: `/Users/michal/Models/mlx/Qwen3.8-27B-8bit`.
-- Manifest: [`model-manifest.json`](../data/03_generation_checks/qwen38-monitor-20261029/model-manifest.json).
+- Manifest: [`model-manifest.json`](../../data/03_generation_checks/qwen38-monitor-20261029/model-manifest.json).
 - Manifest SHA-256: `188f70ff7d6ec54277eed0e573ae0a33329968f891a931afbe9987f09c9e799f`.
 - Verified 19 files, 29,531,521,322 bytes; weight shards match the pinned
   repository's published LFS SHA-256 hashes. A complete local copy was reused.
@@ -18,7 +23,7 @@ or that Qwen3.8 generation and monitoring have already been qualified.
 Qwen3.6 weight shards were removed at the user's request: 13 files across the
 27B 8-bit, 27B 4-bit and 35B-A3B 4-bit directories, freeing approximately 61.43 GiB.
 Small configuration/tokenizer files, manifests and historical run artifacts remain.
-The [removal record](../data/03_generation_checks/qwen38-monitor-20261029/removed-qwen36-weights.json)
+The [removal record](../../data/03_generation_checks/qwen38-monitor-20261029/removed-qwen36-weights.json)
 lists the exact files. Those historical paths no longer identify runnable weights.
 
 ## Thinking and sampling

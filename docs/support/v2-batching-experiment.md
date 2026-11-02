@@ -9,8 +9,8 @@ qualification; they do not establish a global optimum or generation quality.
 
 ## Selected settings and conclusions
 
-The [machine-readable profiles](../configs/inference/v2-batching.json) are consumed
-by [the benchmark script](../scripts/batching_probe.py) by default.
+The [machine-readable profiles](../../configs/inference/v2-batching.json) are consumed
+by [the benchmark script](../../scripts/batching_probe.py) by default.
 
 | Profile | Completion batch | Prefill batch | Prefill chunk | Scope |
 | --- | ---: | ---: | ---: | --- |

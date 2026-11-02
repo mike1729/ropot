@@ -1,13 +1,17 @@
 # V2 batch 1 implementation plan
 
+This is the completed campaign's benign-acquisition plan. See the
+[qualification record](../frozen-corpus-qualification.md) for the final corpus,
+accepted user decisions and next-stage limitations.
+
 Acquire verified own-source benigns for eight development tasks. Use the
 [existing components](v2-implementation-plan.md#reuse-existing-components),
-[pipeline contract](data-pipeline-overview.md) and [review rules](AGENTS.md).
+[pipeline contract](../data-pipeline-overview.md) and [review rules](../AGENTS.md).
 Freeze the following proposed contract before acquisition; this edit starts no runs.
 
 ## Implementation
 
-Keep benign acquisition in [`benign_acquisition.py`](../src/data-pipeline/stage03/benign_acquisition.py):
+Keep benign acquisition in [`benign_acquisition.py`](../../src/data-pipeline/stage03/benign_acquisition.py):
 `prepare_contract(output_dir, exposure_file, runtimes)` freezes reviewed inputs;
 `acquire(prepared_dir, output_dir)` uses `generation_loop.run()` for generation and
 repairs, then audits selected programs and reports coverage/cost. The module
@@ -59,7 +63,7 @@ with known exposure history. Record the exact checked files and hashes from:
 ## Models and budget
 
 For new acquisition use the [verified Qwen3.8 actor checkpoint](qwen38-migration.md)
-and [Gemma synthetic manifest](../data/05_attack_experiments/batch-03-gemma4-capability-20261027T192449Z/model-manifest.json).
+and [Gemma synthetic manifest](../../data/05_attack_experiments/batch-03-gemma4-capability-20261027T192449Z/model-manifest.json).
 The completed 28 October B1 run used Qwen3.6. Preserve that provenance and acquire
 fresh Qwen3.8 benigns before claiming own-source eligibility for the official run.
 Run Qwen then Gemma, one model at a time. Generate fresh benigns from the statement

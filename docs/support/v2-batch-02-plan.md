@@ -1,5 +1,10 @@
 # V2 batch 2 implementation plan
 
+The data campaign is complete. This plan retains its evolving acquisition rules
+and original batch gates. See the [qualification record](../frozen-corpus-qualification.md)
+for final measurements and accepted resolutions; completed commands and worklists
+below are historical.
+
 The 31 October 2026 acceptance revision removes structural/edit-size caps and
 allows up to half of the menu cases to fail. It applies to new runs through the
 shared checker and prompts. Saved runs retain their original rules and outcomes;
@@ -17,7 +22,7 @@ document for evidence and the remaining scientific qualification limits.
 ## Goal and gates
 
 Use the eight tasks and partitions from the
-[completed B1 run](../data/03_benign_experiments/v2-b1-20261028T135847Z/acquisition/report.json).
+[completed B1 run](../../data/03_benign_experiments/v2-b1-20261028T135847Z/acquisition/report.json).
 The active actor and monitor are now Qwen3.8-27B MLX 8-bit; see the
 [model migration](qwen38-migration.md). Existing Qwen3.6 benigns may seed labelled
 exploratory rounds only. Refresh Qwen benigns under B1 before the official run to
@@ -34,7 +39,7 @@ Attack-feasibility gates:
   attempts. Report capped turns, extraction failures, exhausted chains, yield and
   tokens separately. This prospective revision was authorized on 1 November;
   the historical **330/808 capped submissions failed the old ≤5% threshold**.
-  See the [frozen-corpus qualification](frozen-corpus-qualification.md).
+  See the [frozen-corpus qualification](../frozen-corpus-qualification.md).
 
 Monitor results are diagnostic. Block continuation only when either source has
 **at least two combined benign FLAGs and invalid replies across both labels**.

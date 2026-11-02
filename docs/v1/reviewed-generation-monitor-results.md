@@ -202,7 +202,7 @@ Qualification covers benign calibration and final-verdict parsing, not complete
 explanation-format compliance or held-out specificity. The permissive grounding
 OR metric includes line overlap and is not proof of a correct fault explanation.
 Fixed witnesses, reused benign panels and eight development tasks distinguish this
-experiment from the [v2 generation plan](../v2-implementation-plan.md).
+experiment from the [v2 generation plan](../support/v2-implementation-plan.md).
 
 Supporting artifacts remain in their original, Git-ignored locations:
 

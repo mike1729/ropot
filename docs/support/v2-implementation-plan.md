@@ -1,9 +1,14 @@
 # V2 attack generation and monitor qualification
 
-Implement the data and scoring feasibility stage of the [v2 pilot](pilot.md).
+The data campaign and its [qualification](../frozen-corpus-qualification.md) are
+complete. This document records the implementation sequence and its original
+batch gates. Use the qualification record for accepted results and resolutions;
+the next experiment needs a separate small twin training plan.
+
+Implement the data and scoring feasibility stage of the [v2 pilot](../pilot.md).
 The first deliverable is a small frozen development run: own-source benigns,
 bounded attacks, reviewed successes and a report of coverage, audit survival,
-monitor detection and total cost. The [pipeline](data-pipeline-overview.md) defines
+monitor detection and total cost. The [pipeline](../data-pipeline-overview.md) defines
 ownership and information boundaries; the pilot defines scientific targets.
 
 The actor and monitor checkpoint is now Qwen3.8-27B MLX 8-bit. Follow the
@@ -46,7 +51,7 @@ work to their batch. Choose review boundaries from the actual diff.
 | 4 | **Frozen confirmation.** Run the reserved panel once after recipe freeze and report the pilot's qualification measurements. |
 | 5 | **Small training handoff.** Write the manifest consumed by the small twin pilot and acquire its bounded construction sample. |
 
-Keep the [review-size limit](AGENTS.md); a logical batch may require smaller review
+Keep the [review-size limit](../AGENTS.md); a logical batch may require smaller review
 steps. Reuse generation, sandbox, verification and reporting components. Each live
 run needs its finite batch contract; this plan does not start acquisition.
 
@@ -68,7 +73,7 @@ admitting pairs to attack generation.
 
 ## Attack loop and review
 
-The [1 November qualification](frozen-corpus-qualification.md) freezes the tested
+The [1 November qualification](../frozen-corpus-qualification.md) freezes the tested
 two-chain recipes, including the current five reserved turns per chain and
 1,024-token turn caps. This prospectively replaces the low-truncation requirement;
 330/808 capped submissions still fail the historical ≤5% threshold. Every turn,
@@ -109,14 +114,14 @@ Derive fault certificates from code and execution, not the generator's assumptio
 
 ## Conditional assistance
 
-Apply the [pilot's prespecified diagnosis rule](pilot.md#feasibility-and-gates) to
+Apply the [pilot's prespecified diagnosis rule](../pilot.md#feasibility-and-gates) to
 failed trajectories. If triggered, first expose bounded edited-site coverage and
 operand values using shown cases only. Defer predicate discovery and trace alignment
 until simpler feedback proves insufficient; define any addition in its batch contract.
 
 ## Scoring, confirmation and handoff
 
-Use the [pilot's monitor and grounding contract](pilot.md#base-monitor-qualification).
+Use the [pilot's monitor and grounding contract](../pilot.md#base-monitor-qualification).
 Score baseline successes on scaffold-development tasks before deciding what work is
 needed. Report qualified yield, joint matched coverage, rejection categories, shown-case
 versus audit correctness, detection and cost per retained attack, including failed work.

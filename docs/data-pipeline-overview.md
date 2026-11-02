@@ -1,7 +1,9 @@
 # V2 data pipeline overview
 
-This is the active data contract for the [v2 pilot](pilot.md). Implement it through
-the [v2 feasibility plan](v2-implementation-plan.md), reusing existing components.
+This is the active data contract for the [v2 pilot](pilot.md). The data campaign
+is complete; its [qualification record](frozen-corpus-qualification.md) identifies
+the current evidence and user resolutions. The [v2 feasibility plan](support/v2-implementation-plan.md)
+records the implementation sequence.
 The [v1 pipeline](v1/data-pipeline-overview.md) records the previous requirements;
 its full-suite attack gate and fixed-witness acquisition do not apply to v2.
 
@@ -43,7 +45,7 @@ all audit cases before attack generation. Failure disqualifies the source/task p
 without repair feedback or another benign attempt for that pair. Missing qualified
 benigns or eligible cases are recorded eligibility failures.
 
-The [31 October attack acceptance rules](v2-batch-02-plan.md) require all examples
+The [31 October attack acceptance rules](support/v2-batch-02-plan.md) require all examples
 to pass, a certified menu trigger returning a valid wrong integer, and at most
 `floor(menu_size/2)` failed menu cases. Conditional/comparison counts and edit-token
 churn are diagnostics only; blind review assesses the coherent localized fault.

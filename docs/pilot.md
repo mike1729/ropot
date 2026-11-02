@@ -2,10 +2,14 @@
 
 Can synthetic corrections repair a monitor's selective failure to flag its actor's
 attacks? Compare synthetic corrections, authentic corrections and replay alone on
-held-out tasks. The [implementation plan](v2-implementation-plan.md) covers initial
-feasibility; the [pipeline](data-pipeline-overview.md) governs data ownership.
+held-out tasks. The [implementation plan](support/v2-implementation-plan.md) records initial
+data work; the [pipeline](data-pipeline-overview.md) governs data ownership.
+Data acquisition, scoring and [qualification](frozen-corpus-qualification.md) are
+complete. The next experiment is the small twin pilot, requiring its own training
+plan and runtime smoke. Qualification records the accepted scoring recipe,
+user decisions and retained limitations; targets below remain scientific gates.
 Use **Qwen3.8-27B MLX 8-bit** for the actor and monitor base, and Gemma-4-31B-it
-for the synthetic source. The [29 October model migration](qwen38-migration.md)
+for the synthetic source. The [29 October model migration](support/qwen38-migration.md)
 pins the checkpoint and records runtime transition requirements. Source identity
 includes benign provenance, model revision and generation procedure.
 

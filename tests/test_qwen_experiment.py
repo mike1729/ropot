@@ -194,9 +194,12 @@ class ExperimentTests(unittest.TestCase):
         self.assertFalse(report['yield']['reviewed'])
         for request in self.requests:
             content = json.dumps(request['messages'])
+            self.assertEqual(len(request['messages']), 2)
             self.assertIn('Custom instruction', content)
             self.assertEqual(request['messages'][0]['content'], 'Custom system')
             self.assertNotIn('PRIVATE_REASONING', content)
+        second_chain = next(request for request in self.requests if request['seed'] == 117)
+        self.assertNotIn('Previous candidate:', second_chain['messages'][1]['content'])
         record = e.loop.read(self.output / 'experiment.json')
         outcome = e.loop.read(self.output / 'actor-chain-0/outcome.json')
         for attempt in outcome['attempts']:

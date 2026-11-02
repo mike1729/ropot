@@ -77,7 +77,7 @@ record the completed v2 campaign's effective settings.
 | Program execution | `stage03.inspect_runner.run`, `stage03.verification.verify`, `reuse` | [Execution contract](v1/stage-03-plan.md#inspect-execution-contract) |
 | Local generation | `stage03.local_generation.generate`, `generate_batched` | [Generation and extraction](v1/stage-03-batch-06-plan.md) |
 | Benign acquisition | `stage03.benign_acquisition.prepare_contract`, `acquire` | [B1 contract](support/v2-batch-01-plan.md) |
-| Attack acquisition | `stage05.attacks.prepare_contract`, `acquire` | [B2 acceptance](support/v2-batch-02-plan.md) |
+| Attack acquisition | `scripts/qwen_experiment.py` (`run`, `score_monitor`) | [Experiment driver and bounded settings](support/qwen-experiments.md) |
 | Comment normalization | `stage05.monitor.strip_comments` | [Monitor inputs](data-pipeline-overview.md#monitor-inputs-and-retained-evidence) |
 
 Because the package name contains a hyphen, Python callers load it with
@@ -90,6 +90,10 @@ The v1 benign publication and witness acquisition chain is preserved with its
 tests on an [archive branch](v1/archive.md). Its frozen outputs remain under
 `data/03_benigns/v1` and `data/04_witnesses/v2`. `stage04.audits` remains available
 for qualification review dispatch.
+
+The unused official B2 controller is [archived separately](support/b2-orchestration-archive.md).
+The completed campaign used the experiment driver and its queue/recovery callers;
+its shown-case checks and accounting helpers remain in `stage05.attacks`.
 
 ## Validation
 

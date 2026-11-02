@@ -5,6 +5,10 @@ and original batch gates. See the [qualification record](../frozen-corpus-qualif
 for final measurements and accepted resolutions; completed commands and worklists
 below are historical.
 
+The unused official controller and its contract tests are now
+[archived](b2-orchestration-archive.md). The completed campaign used the
+[experiment driver](qwen-experiments.md) and its queue/recovery callers.
+
 The 31 October 2026 acceptance revision removes structural/edit-size caps and
 allows up to half of the menu cases to fail. It applies to new runs through the
 shared checker and prompts. Saved runs retain their original rules and outcomes;

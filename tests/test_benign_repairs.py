@@ -115,6 +115,37 @@ class RepairTests(initial.LoopFixture):
         self.assertEqual(Path(attempt["program"]).read_bytes(), b"print('answer only')\n")
         self.assertEqual(result["observed_tokens"], 6)
 
+    def test_metadata_precedes_comment_stripping_and_returns_in_repair_context(self):
+        self.recipe["strip_comments"] = True
+        self.verdicts[0, 0] = "failed"
+        for round_index, position in ((0, 0), (0, 1), (1, 0)):
+            self.draws[round_index, position] = "stop", f"# case: 1\nprint({round_index + position}) # note\n"
+        def metadata(program):
+            return dict(repair_prefix=program.decode().splitlines()[0] + "\n")
+        def check(candidates, directory, **settings):
+            for task, _, program in candidates:
+                self.assertEqual(task["candidate_metadata"], dict(repair_prefix="# case: 1\n"))
+                self.assertNotIn(b"#", program)
+            return self.verify(candidates, directory, **settings)
+        result = self.run_loop(program_metadata=metadata, candidate_checker=check)
+        self.assertEqual(result["status"], "completed", result)
+        for attempt in result["attempts"]:
+            self.assertEqual(attempt["metadata"], dict(repair_prefix="# case: 1\n"))
+            self.assertEqual(attempt["candidate"]["program_sha256"], b.generation.file_hash(attempt["program"]))
+        self.assertIn("Previous candidate:\n# case: 1\nprint(0)", self.requests[1][0]["messages"][1]["content"])
+        self.assertNotIn("# note", self.requests[1][0]["messages"][1]["content"])
+        self.assertIn("# note", (self.root / "run/generation-0000/reply-0000.txt").read_text())
+
+    def test_checker_infrastructure_exception_stops_without_repairing_candidates(self):
+        checker = mock.Mock(side_effect=ValueError("native infrastructure"))
+        result = self.run_loop(candidate_checker=checker)
+        self.assertEqual(result["status"], "error", result)
+        self.assertIn("native infrastructure", result["error"])
+        self.assertTrue(all("verification" not in attempt for attempt in result["attempts"]))
+        self.assertEqual(result["committed_replies"], 2)
+        self.child.assert_called_once()
+        checker.assert_called_once()
+
     def test_unclosed_thought_consumes_attempt_and_never_enters_repair(self):
         self.recipe["enable_thinking"] = True
         self.draws[0, 0] = "stop", "PRIVATE_REASONING\n```python\nprint(999)\n```"
@@ -162,6 +193,9 @@ class RepairTests(initial.LoopFixture):
                 self.assertEqual(len(messages), 2)
                 self.assertNotIn(text, messages[1]["content"])
                 self.assertIn(f"Local extraction failure: {category}", messages[1]["content"])
+                if category == "length":
+                    self.assertIn("Your output token budget ended before a complete program was submitted.",
+                                  messages[1]["content"])
                 self.assertNotIn("Traceback", messages[1]["content"])
                 self.assertEqual([t["state"] for t in result["tasks"]], ["passed", "passed"])
                 shutil.rmtree(self.root / "run")

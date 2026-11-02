@@ -19,10 +19,11 @@ The snapshot preserves the chain's eight test modules, containing 122 test cases
 and the witness attack adapter's three test modules, containing 20 test cases.
 Three shared-loop cases covering prompts and verdict alignment remain active in
 `tests/test_benign_loop.py`.
-`stage04.audits` and its validity fixture remain active: v2 qualification uses
-the audit dispatcher. The MLX generation loop, benign acquisition, attack
-acquisition, task reader and execution verifier remain active as well.
-Current attack acquisition uses the shown-case checker and its separate recipe.
+The audit dispatcher and its validity fixture were later
+[archived with the sealed v2 qualification drivers](../support/qualification-drivers-archive.md).
+The MLX generation loop, benign acquisition, task reader and execution verifier
+remain active. Current attack experiments use the shown-case checker and its
+separate recipe.
 `stage05.monitor` stays byte-frozen because the monitor configuration pins its
 whole module, including the historical scoring helpers beside the normalizer.
 

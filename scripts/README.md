@@ -60,14 +60,12 @@ These retain fixed task panels, dates, accepted exceptions and retry ceilings.
 Completed work is reused under their saved rules; existing calls must not be
 redispatched as part of cleanup.
 
-## Qualification phases
+## Qualification status and archived drivers
 
-`qualification/` contains the campaign-specific freeze, audits, exposure
-provenance, recipe seal, independent reviews, witnesses, accounting, reporting
-and user-resolution adapters. The complete phase map and their saved inputs are
-in the [qualification guide](../docs/frozen-corpus-qualification.md).
-
-Use `status.py` to inspect the completed campaign. Other phase drivers create
-new evidence, execute checks or dispatch reviewers; they are not status commands.
-`adjudicate.py` and `resolve_monitor_scoring.py` encode decisions already made
-for this corpus and are retained as provenance.
+`qualification/status.py` verifies the completed campaign from the current tree.
+The sealed freeze, execution, review, accounting and resolution drivers are
+[archived with their audit dispatcher](../docs/support/qualification-drivers-archive.md).
+That note preserves the phase map and recovery commands. Reproduction requires
+the sealing checkout and private evidence at their original paths; the
+[qualification guide](../docs/frozen-corpus-qualification.md) records the accepted
+results and limitations.

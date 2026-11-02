@@ -67,9 +67,9 @@ Keep exact selected program bytes, native logs, failed/interrupted attempts,
 reviewer decisions, exposure records and costs. Some records use absolute paths
 and bind source files by hash; renaming a run or rewriting its manifest breaks
 those bindings. Preserve the Git history containing the sealing commit as well as
-the private evidence. The completed phase drivers' `freeze.load` still checks live
-source paths; use the status command to inspect historical evidence during
-refactoring. A twin handoff reader must use explicit historical source bindings
+the private evidence. The [archived phase drivers](support/qualification-drivers-archive.md)
+checked live source paths; use the status command to inspect historical evidence
+during refactoring. A twin handoff reader must use explicit historical source bindings
 rather than import those campaign drivers. A stage refactor needs new evidence
 for changed execution; historical hashes and outcomes stay as recorded.
 

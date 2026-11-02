@@ -33,4 +33,5 @@ its consumers:
 
 Tests for the removed controller's contract freeze, claim marker and review-packet
 format remain in the archive with that controller. Private evidence and the
-hash-pinned execution, monitor and audit modules remain unchanged.
+hash-pinned execution and monitor modules remain unchanged. The audit dispatcher
+was later [archived with the sealed qualification drivers](qualification-drivers-archive.md).

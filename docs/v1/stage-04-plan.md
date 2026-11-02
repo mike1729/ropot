@@ -46,7 +46,8 @@ Test duplicate rejection and audit isolation on fixtures. Qualify auditors'
 validity judgments on stored valid inputs and known-invalid variants, including
 broken implicit guarantees such as distinctness, connectivity and existence of a
 solution. Assess validity separately from novelty.
-Include the [real task-1179 negative fixture](../../tests/fixtures/stage04/audit-validity.json):
+Include the real task-1179 negative fixture (now
+[archived with the audit dispatcher](../support/qualification-drivers-archive.md)):
 `n=3, k=7` violates the bound `k <= 6`. Auditors receive only its statement,
 stdin and published inputs; expected decisions, reasons and provenance stay in
 the qualification harness. No auditor has been qualified by saving this fixture.

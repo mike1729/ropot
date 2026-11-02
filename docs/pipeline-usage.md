@@ -88,8 +88,9 @@ retains all bounded attempts, raw replies, partial failures and costs.
 
 The v1 benign publication and witness acquisition chain is preserved with its
 tests on an [archive branch](v1/archive.md). Its frozen outputs remain under
-`data/03_benigns/v1` and `data/04_witnesses/v2`. `stage04.audits` remains available
-for qualification review dispatch.
+`data/03_benigns/v1` and `data/04_witnesses/v2`. The audit dispatcher and completed
+qualification phase drivers are [archived together](support/qualification-drivers-archive.md).
+Use `scripts/qualification/status.py` to verify their saved evidence.
 
 The unused official B2 controller is [archived separately](support/b2-orchestration-archive.md).
 The completed campaign used the experiment driver and its queue/recovery callers;

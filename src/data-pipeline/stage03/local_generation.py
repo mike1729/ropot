@@ -1,4 +1,4 @@
-"""Direct serial and batched MLX generation. See docs/stage-03-batch-06-plan.md.
+"""Direct serial and batched MLX generation. See docs/v1/stage-03-batch-06-plan.md.
 
 Call from the pinned MLX Python with caller-constructed requests. The artifact
 manifest must describe the supplied, unchanged model files; hashes are recorded,

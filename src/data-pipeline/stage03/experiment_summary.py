@@ -1,13 +1,14 @@
 """Batch 8: summarize trusted coordinator JSON, without reading execution evidence.
 
 Call summarize(root) on immediate NNNN-lowercase-hyphenated experiment directories.
-Save its JSON-serializable result outside root. See docs/stage-03-batch-08-plan.md.
+Save its JSON-serializable result outside root. See docs/v1/stage-03-batch-08-plan.md.
 """
-from collections import Counter
-from hashlib import sha256
+from collections import Counter, defaultdict
 import json
 from pathlib import Path
 import re
+
+from ..artifacts import sha256
 
 
 COUNTERS = ("committed_replies", "committed_tokens", "known_submissions",
@@ -24,7 +25,7 @@ def read_record(path, problems):
         if not isinstance(value, dict):
             raise ValueError("Expected a JSON object")
         json.dumps(value, allow_nan=False)
-        return value, False, sha256(raw).hexdigest()
+        return value, False, sha256(raw)
     except FileNotFoundError:
         problems.append(dict(file=path.name, error="absent"))
         return None, True, None
@@ -110,11 +111,15 @@ def summarize(root):
         experiments.append(record)
         if input_ok:
             states = {t["position"]: t["state"] for t in data["tasks"]} if outcome_ok else {}
+            attempts_by_position = defaultdict(list)
+            if outcome_ok:
+                for attempt in data["attempts"]:
+                    attempts_by_position[attempt["position"]].append(attempt)
             for position, item in enumerate(worklist):
                 binding = item["binding"]
                 key = record["source"], binding["split"], binding["id"], binding["sha256"]
                 cell = cells.setdefault(key, dict(source=key[0], split=key[1], id=key[2], sha256=key[3], experiments=[], passes=[]))
-                attempts = [a for a in data["attempts"] if a["position"] == position] if outcome_ok else []
+                attempts = attempts_by_position[position]
                 state = "not_run" if absent else states.get(position, "unresolved") if terminal else "unresolved"
                 cell["experiments"].append(dict(experiment=directory.name, binding=binding, state=state,
                     recorded_state=states.get(position), attempts=attempts))

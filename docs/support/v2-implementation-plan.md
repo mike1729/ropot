@@ -19,7 +19,7 @@ benigns retain their historical labels and do not qualify the new checkpoint.
 
 Implement v2 experimental rules with small adapters around the existing pipeline:
 
-- `stage03.study_tasks` and `stage02.published_cohort` already provide restricted
+- `stage03.study_tasks` provides restricted
   loading, pinned task identities and ownership. Prepare case views over those tasks.
 - `stage03.local_generation` already provides model loading, batching, seeded
   requests, extraction and runtime evidence. Consume qualified model settings and

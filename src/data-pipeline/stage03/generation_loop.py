@@ -20,7 +20,7 @@ def source_files():
     root = Path(__file__).resolve().parents[1]
     return (Path(__file__).resolve(), Path(generation.__file__), Path(study_tasks.__file__),
             root / "stage03/verification.py", root / "stage03/inspect_runner.py",
-            root / "artifacts.py", root / "paths.py", root / "stage02/published_cohort.py",
+            root / "artifacts.py", root / "paths.py",
             root / "stage01/screen.py", root / "stage02/cohort.py", Path(repair_feedback.__file__),
             Path(programs.__file__))
 

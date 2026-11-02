@@ -1,11 +1,9 @@
 """Publish first verified passes from numbered study runs; saved evidence only."""
-from hashlib import sha256
 import json
 from pathlib import Path
 import re
-import shutil
-import tempfile
 
+from ..artifacts import publication_directory, sha256
 from . import experiment_summary, study_tasks
 
 
@@ -88,7 +86,7 @@ def publish(root, version):
                 recipe = experiment["recipe"]
                 record = dict(binding=binding, label=groups[identifier], source=source, experiment=name,
                     attempt=number, repair_depth=attempt["round"], parent=attempt["parent"], recipe=recipe,
-                    recipe_sha256=sha256(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+                    recipe_sha256=sha256(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()),
                     model_manifest_sha256=experiment["model_manifest_sha256"], candidate=candidate,
                     verification={k: verdict[k] for k in ("key", "log", "sample_id")},
                     program=f"programs/{source}-{binding['split']}-{identifier}.py",
@@ -110,16 +108,10 @@ def publish(root, version):
         experiments=[{k: e[k] for k in ("experiment", "inputs_sha256", "outcome_sha256")} for e in experiments.values()],
         selections=[choices[key][0] for key in sorted(choices)])
     report = dict(groups=coverage, summary={k: summary[k] for k in ("experiments", "totals")})
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix=f".{version}-", dir=target.parent))
-    try:
+    with publication_directory(target) as temporary:
         (temporary / "programs").mkdir()
         for record, program in choices.values():
             (temporary / record["program"]).write_bytes(program)
         for name, value in (("manifest.json", manifest), ("report.json", report)):
             (temporary / name).write_text(json.dumps(value, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-        temporary.rename(target)
-    finally:
-        if temporary.exists():
-            shutil.rmtree(temporary)
     return target / "manifest.json"

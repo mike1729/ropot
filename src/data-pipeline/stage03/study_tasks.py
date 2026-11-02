@@ -1,6 +1,6 @@
 """Load reviewed cohort tasks for Stage 03 experiments without executing programs.
 
-See docs/stage-03-plan.md. The reviewed cohort manifest is pinned by SHA-256; the
+See docs/v1/stage-03-plan.md. The reviewed cohort manifest is pinned by SHA-256; the
 file bytes of every loaded task must match its recorded digest.
 Stage 02 saves every group once; this module can read only construction and
 development tasks. Bindings are shared read-only metadata. Budgets, persistence
@@ -13,7 +13,6 @@ import re
 
 from ..artifacts import sha256
 from ..paths import COHORT as OUTPUT
-from ..stage02.published_cohort import load_cohort as load_published_cohort
 
 
 COHORT_SHA256 = "63f1df94a21fff53eee8e7665bff8b1bee1aeb91bbefdd83d504eb32845e1492"
@@ -25,10 +24,24 @@ def load_cohort(cohort_dir=OUTPUT, task_dir=None):
     """Load only Stage 02's saved construction/development groups and task index.
 
     Initial and reserve blocks are available in their saved order. Deferred tasks
-    remain unavailable. Treat the returned metadata and index as read-only.
+    remain unavailable. ``task_dir`` can relocate the published task files; paths
+    and bytes are checked when each task is read. Treat metadata as read-only.
     """
-    return load_published_cohort(cohort_dir, task_dir, expected_sha256=COHORT_SHA256,
-                                 owners=("construction", "development"))
+    raw = (Path(cohort_dir) / "manifest.json").read_bytes()
+    digest = sha256(raw)
+    if digest != COHORT_SHA256:
+        raise ValueError("Cohort manifest differs from the reviewed publication")
+    cohort = json.loads(raw)
+    records = {record["id"]: record for record in cohort["tasks"]}
+    groups = {owner: {block: cohort["groups"][owner][block] for block in ("initial", "reserve")}
+              for owner in ("construction", "development")}
+    tasks = {identifier: records[identifier] for blocks in groups.values()
+             for identifiers in blocks.values() for identifier in identifiers}
+    phases = {phase: {block: blocks[block] for block in ("initial", "reserve")}
+              for phase, blocks in cohort["construction_phases"].items()}
+    return {"sha256": digest, "test_pool_manifest_sha256": cohort["provenance"]["input_manifest_sha256"],
+            "groups": groups, "construction_phases": phases,
+            "task_dir": Path(cohort_dir if task_dir is None else task_dir), "tasks_by_id": tasks}
 
 
 def load_task(loaded, task_id):

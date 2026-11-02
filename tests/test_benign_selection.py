@@ -198,6 +198,19 @@ class SelectionTests(initial.LoopFixture):
         self.assertFalse(self.target.exists())
         self.assertEqual(list(self.target.parent.iterdir()), [])
 
+    def test_destination_appearing_during_publication_is_preserved(self):
+        self.make()
+        write_text = Path.write_text
+        def create_destination(path, value, **kwargs):
+            result = write_text(path, value, **kwargs)
+            if path.name == "report.json":
+                self.target.mkdir()
+            return result
+        with mock.patch.object(Path, "write_text", create_destination), self.assertRaises(FileExistsError):
+            self.publish()
+        self.assertEqual(list(self.target.iterdir()), [])
+        self.assertEqual(list(self.target.parent.iterdir()), [self.target])
+
 
 if __name__ == "__main__":
     unittest.main()

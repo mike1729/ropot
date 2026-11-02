@@ -1,4 +1,4 @@
-"""Own-source benign acquisition over the shared generation loop; see docs/v2-batch-01-plan.md.
+"""Own-source benign acquisition over the shared generation loop; see docs/support/v2-batch-01-plan.md.
 
 prepare_contract(output_dir, exposure_file, runtimes) freezes eight published tasks.
 acquire(prepared_dir, output_dir) consumes that contract, one source at a time.

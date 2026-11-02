@@ -13,17 +13,28 @@ retired together so the active tree does not retain part of the old chain.
 | `stage03.experiment_summary`, `stage03.benign_selection` | Summarize numbered study runs and publish `data/03_benigns/v1` |
 | `stage04.witnesses`, `proposals`, `acquisition`, `witness_selection` | Propose, verify, review and publish `data/04_witnesses/v2` |
 | `stage05.approved_pairs` | Load the jointly approved v1 development panel |
+| `stage05.attacks.run`, `messages`, `check_many` | Generate attacks with the historical full-suite and fixed-witness gate |
 
-The snapshot also preserves their eight test modules, containing 122 test cases.
+The snapshot preserves the chain's eight test modules, containing 122 test cases,
+and the witness attack adapter's three test modules, containing 20 test cases.
+Three shared-loop cases covering prompts and verdict alignment remain active in
+`tests/test_benign_loop.py`.
 `stage04.audits` and its validity fixture remain active: v2 qualification uses
 the audit dispatcher. The MLX generation loop, benign acquisition, attack
 acquisition, task reader and execution verifier remain active as well.
+Current attack acquisition uses the shown-case checker and its separate recipe.
+`stage05.monitor` stays byte-frozen because the monitor configuration pins its
+whole module, including the historical scoring helpers beside the normalizer.
 
 Inspect an archived file without changing the current checkout:
 
 ```sh
-git show codex/archive-v1-acquisition-20261102:src/data-pipeline/stage03/benign_selection.py
+git show 2842c8a:src/data-pipeline/stage03/benign_selection.py
 ```
+
+The commit is in main's history; its hash also works in clones without the local
+archive branch. Inspect `src/data-pipeline/stage05/attacks.py` at the same commit
+to recover the witness adapter alongside the v2 code present at that snapshot.
 
 For a rerun, use a separate checkout of the snapshot with the private data and
 required runtime dependencies. Keep the original destination and no-redispatch

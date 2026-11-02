@@ -1,1 +1,1 @@
-"""Implant attacks around approved witnesses; see docs/stage-05-plan.md."""
+"""Shown-case attack acquisition and monitor scoring; see docs/data-pipeline-overview.md."""

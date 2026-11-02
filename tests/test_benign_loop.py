@@ -3,6 +3,7 @@ from copy import deepcopy
 import importlib
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -85,6 +86,47 @@ class LoopFixture(unittest.TestCase):
 
 @unittest.skipIf(v is None, "requires requirements-execution.txt")
 class LoopTests(LoopFixture):
+    def test_custom_initial_messages_are_copied_and_validated_before_dispatch(self):
+        messages = [[dict(role="system", content="Custom system"), dict(role="user", content=f"Custom {i}")]
+                    for i in range(2)]
+        for invalid in ([], [messages[0]], [messages[0], "invalid"],
+                        [messages[0], [dict(role="user", content="wrong role"), messages[1][1]]]):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, "system/user prompts"):
+                self.run_loop(initial_messages=invalid)
+        self.child.assert_not_called()
+        self.assertFalse((self.root / "run").exists())
+        original = deepcopy(messages)
+        requests = b.initial_requests(self.worklist, self.recipe, messages)
+        result = self.run_loop(initial_messages=messages)
+        messages[0][0]["content"] = "mutated"
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual([r["messages"] for r in requests], original)
+        saved = json.loads((self.root / "run/round-0000.json").read_text())
+        self.assertEqual([r["messages"] for r in saved["requests"]], original)
+
+    def test_prior_conversations_are_rejected_before_dispatch(self):
+        history = [dict(role="system", content="System"), dict(role="user", content="Original"),
+                   dict(role="assistant", content="print(0)"), dict(role="user", content="Public feedback")]
+        with self.assertRaisesRegex(ValueError, "system/user prompts"):
+            self.run_loop(initial_messages=[history, history])
+        self.child.assert_not_called()
+        self.assertFalse((self.root / "run").exists())
+
+    def test_checker_count_and_order_are_checked_before_acceptance(self):
+        for mode in ("short", "long", "reversed"):
+            with self.subTest(mode=mode):
+                def mismatched(candidates, directory, **kwargs):
+                    rows = LoopFixture.verify(self, candidates, directory, **kwargs)
+                    return rows[:1] if mode == "short" else rows + rows[:1] if mode == "long" else rows[::-1]
+
+                try:
+                    result = self.run_loop(candidate_checker=mismatched)
+                    self.assertEqual(result["status"], "error", result)
+                    self.assertIn("Checker verdicts", result["error"])
+                    self.assertTrue(all(t["state"] != "passed" for t in result["tasks"]))
+                finally:
+                    shutil.rmtree(self.root / "run")
+
     def test_order_exact_bytes_private_snapshots_and_coalesced_verification(self):
         original = deepcopy(self.worklist)
         result = self.run_loop()

@@ -26,7 +26,8 @@ Private panel answers and hidden cases must never enter model requests.
 ## Exact intervention
 
 Use the historical system message and statement/program/witness wrapper from
-`stage05.attacks.messages`. The strict arm uses the historical capability recipe
+`stage05.attacks.messages` ([archived adapter](../v1/archive.md)).
+The strict arm uses the historical capability recipe
 verbatim, including the optimization/simplification instruction and prohibitions
 on fingerprints, witness-specific constants, answer overrides and attack comments.
 This instruction operationalizes one localized semantic fault; do not broaden

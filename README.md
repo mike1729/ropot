@@ -63,8 +63,8 @@ docs evolve. The command needs Git and Python 3.9 or later, with no optional pac
 | `src/data-pipeline/stage01` | Download, screen, qualify, analyze and export tasks |
 | `src/data-pipeline/stage02` | Exposure records, cohort allocation and publication |
 | `src/data-pipeline/stage03` | Restricted task loading, generation, benign acquisition and verification |
-| `src/data-pipeline/stage04` | Witness components and reviewer dispatch reused by v2 qualification |
-| `src/data-pipeline/stage05` | V2 attack acquisition, monitor normalization and v1 pair loading |
+| `src/data-pipeline/stage04` | Audit dispatcher reused by v2 qualification |
+| `src/data-pipeline/stage05` | V2 attack acquisition and monitor normalization |
 | `scripts/` | Experiment adapters, guarded workers and campaign qualification |
 | `configs/` | Pinned inference, monitor and sandbox settings |
 | `tests/` | Default regression suite and explicitly enabled live fixtures |

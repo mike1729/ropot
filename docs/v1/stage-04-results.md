@@ -103,7 +103,8 @@ No Stage 05 code, configuration or artifacts were modified.
 
 ## Publication contract and checks
 
-[stage04.witness_selection.publish(run_dirs, output_dir, exclusions=())](../../src/data-pipeline/stage04/witness_selection.py)
+`stage04.witness_selection.publish(run_dirs, output_dir, exclusions=())`
+([archived source](archive.md))
 reads explicit saved histories, rereads current audits/vetoes and publishes by
 staging-directory rename. Existing destinations, including symlinks, are refused.
 It makes no model calls and replays no programs or native logs. Inputs must remain

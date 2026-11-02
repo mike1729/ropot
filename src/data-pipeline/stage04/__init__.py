@@ -1,1 +1,1 @@
-"""Propose and check witnesses for selected benign programs."""
+"""Independent audit dispatch used by pipeline qualification."""

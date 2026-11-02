@@ -42,4 +42,6 @@ record historical contracts, including the superseded full-suite attack gate.
 
 Additional Stage 03 callers, tests and plans are preserved in
 [the experiment archive](../archive/stage03/README.md). The complete v1 code is
-also retained on the archive branch linked from the repository README.
+also retained on the archive branch linked from the repository README. The
+remaining v1 acquisition chain and its tests have a separate
+[archive snapshot and reproduction guide](v1/archive.md).

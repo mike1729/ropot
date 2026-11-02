@@ -79,13 +79,17 @@ record the completed v2 campaign's effective settings.
 | Benign acquisition | `stage03.benign_acquisition.prepare_contract`, `acquire` | [B1 contract](support/v2-batch-01-plan.md) |
 | Attack acquisition | `stage05.attacks.prepare_contract`, `acquire` | [B2 acceptance](support/v2-batch-02-plan.md) |
 | Comment normalization | `stage05.monitor.strip_comments` | [Monitor inputs](data-pipeline-overview.md#monitor-inputs-and-retained-evidence) |
-| Historical witness acquisition | `stage04.acquisition.acquire` | [V1 witness contract](v1/stage-04-batch-02-plan.md) |
 
 Because the package name contains a hyphen, Python callers load it with
 `importlib.import_module("src.data-pipeline.stage03.study_tasks")`.
 Only shown-case feedback can enter repairs. Private audits and monitor verdicts
 cannot select replacements or enter generator feedback. The generation loop
 retains all bounded attempts, raw replies, partial failures and costs.
+
+The v1 benign publication and witness acquisition chain is preserved with its
+tests on an [archive branch](v1/archive.md). Its frozen outputs remain under
+`data/03_benigns/v1` and `data/04_witnesses/v2`. `stage04.audits` remains available
+for qualification review dispatch.
 
 ## Validation
 

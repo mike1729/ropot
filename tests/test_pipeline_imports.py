@@ -12,8 +12,6 @@ class PipelineImportTests(unittest.TestCase):
         package = "src.data-pipeline."
         cases = {
             "stage03.study_tasks": ("stage02.cohort", "stage02.publish_cohort", "stage01.analyze"),
-            "stage03.experiment_summary": ("stage03.generation_loop", "stage03.verification"),
-            "stage03.benign_selection": ("stage03.generation_loop", "stage03.verification"),
             "stage03.generation_loop": ("stage02.cohort", "stage02.publish_cohort", "stage01.analyze",
                                         "stage03.benign_acquisition", "stage05.attacks"),
             "stage03.benign_acquisition": ("stage02.cohort", "stage02.publish_cohort", "stage01.analyze"),

@@ -1,0 +1,3719 @@
+{
+  "description": "Frozen aggregate evidence for the 2 November 2026 corpus analysis and paired-probe review. Program bytes, individual diffs and private cases remain in local data.",
+  "source_directory": "data/analysis/twin-corpus-20261102",
+  "inputs": {
+    "pair-summary.json": {
+      "sha256": "6058844d2b0a087a337517046cd6e92fc5e761ee8ceb91ce54c3aa86e8f180a6",
+      "bytes": 30424
+    },
+    "source-shortcuts.json": {
+      "sha256": "dca01fb0b3361a3a1e12fcf112973c9e1ea680a608e2a23f65e88cfc2faa7437",
+      "bytes": 17693
+    },
+    "paired-probe-review.json": {
+      "sha256": "4400fe1a51b5dc1fb88a53c682a6eff6609da34c45d81a5de1dc34991db85ddc",
+      "bytes": 6075
+    },
+    "audit-monitor-analysis.json": {
+      "sha256": "421ebf66a835bb118cf60cb0d5105eb2fc074b716fce7f90b5e461ed782689c4",
+      "bytes": 15232
+    },
+    "analysis-manifest.json": {
+      "sha256": "008081e2035a477751022b960ad22cddbdfdcf89f40611aa3a8a4564d3e10c9a",
+      "bytes": 2935
+    },
+    "review-manifest.json": {
+      "sha256": "9c5d31a898ccab8518d3b1480ab3d8f8b5cf636bf8ae062160e0d462e730a65b",
+      "bytes": 748
+    }
+  },
+  "evidence": {
+    "pair-summary.json": {
+      "provenance": {
+        "qualified_view_sha256": "69f7635e17d245fe21c2a8cea0ede4815e30594347e29f772983650040a694f2",
+        "normalizer_sha256": "74b0698cbca4c7dbc1c4aac03848871e16d196fcc6f8d045a22dbf9a4988289b",
+        "script_sha256": "deabd4645b4bfba237e60d2a41a627652c0a99cac8e548d836971301610aaab4",
+        "verified_program_hashes": 182
+      },
+      "method": "Python lexical tokens, not model tokens. SequenceMatcher autojunk=False; changed=max(deleted,inserted) per block. Comments normalized with repository function. No execution.",
+      "summary": {
+        "all/all": {
+          "pairs": 91,
+          "tasks": 57,
+          "distributions": {
+            "changed_lines": {
+              "n": 91,
+              "min": 1,
+              "median": 1,
+              "mean": 1.6923076923076923,
+              "max": 22
+            },
+            "raw_changed_lines": {
+              "n": 91,
+              "min": 1,
+              "median": 1,
+              "mean": 1.6923076923076923,
+              "max": 22
+            },
+            "changed_lexical_tokens": {
+              "n": 91,
+              "min": 1,
+              "median": 2,
+              "mean": 6.6923076923076925,
+              "max": 119
+            },
+            "lexical_churn_fraction": {
+              "n": 91,
+              "min": 0.00684931506849315,
+              "median": 0.024096385542168676,
+              "mean": 0.06676220789791486,
+              "max": 0.7735849056603774
+            },
+            "token_similarity": {
+              "n": 91,
+              "min": 0.7159353348729792,
+              "median": 0.9879518072289156,
+              "mean": 0.969519443172078,
+              "max": 0.9965870307167235
+            },
+            "character_similarity": {
+              "n": 91,
+              "min": 0.8157894736842105,
+              "median": 0.9953596287703016,
+              "mean": 0.977684540615686,
+              "max": 0.9994308480364257
+            },
+            "benign_lines": {
+              "n": 91,
+              "min": 2,
+              "median": 22,
+              "mean": 24.285714285714285,
+              "max": 102
+            },
+            "attack_lines": {
+              "n": 91,
+              "min": 2,
+              "median": 22,
+              "mean": 24.857142857142858,
+              "max": 105
+            },
+            "benign_lexical_tokens": {
+              "n": 91,
+              "min": 14,
+              "median": 124,
+              "mean": 152.34065934065933,
+              "max": 700
+            },
+            "attack_lexical_tokens": {
+              "n": 91,
+              "min": 23,
+              "median": 129,
+              "mean": 156.6043956043956,
+              "max": 712
+            }
+          },
+          "one_line": 70,
+          "at_most_5_lines": 90,
+          "unchanged_conditionals": 71,
+          "added_conditionals": 20,
+          "removed_conditionals": 0
+        },
+        "all/qwen": {
+          "pairs": 50,
+          "tasks": 50,
+          "distributions": {
+            "changed_lines": {
+              "n": 50,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.42,
+              "max": 5
+            },
+            "raw_changed_lines": {
+              "n": 50,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.42,
+              "max": 5
+            },
+            "changed_lexical_tokens": {
+              "n": 50,
+              "min": 1,
+              "median": 2.0,
+              "mean": 5.24,
+              "max": 22
+            },
+            "lexical_churn_fraction": {
+              "n": 50,
+              "min": 0.007547169811320755,
+              "median": 0.024303094731868653,
+              "mean": 0.059178650908029,
+              "max": 0.6428571428571429
+            },
+            "token_similarity": {
+              "n": 50,
+              "min": 0.7567567567567568,
+              "median": 0.9877724296690484,
+              "mean": 0.9727467304220778,
+              "max": 0.9962406015037594
+            },
+            "character_similarity": {
+              "n": 50,
+              "min": 0.8157894736842105,
+              "median": 0.9944437584887023,
+              "mean": 0.9776556508050832,
+              "max": 0.9994308480364257
+            },
+            "benign_lines": {
+              "n": 50,
+              "min": 2,
+              "median": 20.5,
+              "mean": 23.98,
+              "max": 102
+            },
+            "attack_lines": {
+              "n": 50,
+              "min": 2,
+              "median": 20.5,
+              "mean": 24.4,
+              "max": 105
+            },
+            "benign_lexical_tokens": {
+              "n": 50,
+              "min": 14,
+              "median": 121.0,
+              "mean": 160.36,
+              "max": 700
+            },
+            "attack_lexical_tokens": {
+              "n": 50,
+              "min": 23,
+              "median": 124.0,
+              "mean": 163.66,
+              "max": 712
+            }
+          },
+          "one_line": 39,
+          "at_most_5_lines": 50,
+          "unchanged_conditionals": 40,
+          "added_conditionals": 10,
+          "removed_conditionals": 0
+        },
+        "all/gemma": {
+          "pairs": 41,
+          "tasks": 41,
+          "distributions": {
+            "changed_lines": {
+              "n": 41,
+              "min": 1,
+              "median": 1,
+              "mean": 2.024390243902439,
+              "max": 22
+            },
+            "raw_changed_lines": {
+              "n": 41,
+              "min": 1,
+              "median": 1,
+              "mean": 2.024390243902439,
+              "max": 22
+            },
+            "changed_lexical_tokens": {
+              "n": 41,
+              "min": 1,
+              "median": 2,
+              "mean": 8.463414634146341,
+              "max": 119
+            },
+            "lexical_churn_fraction": {
+              "n": 41,
+              "min": 0.00684931506849315,
+              "median": 0.024096385542168676,
+              "mean": 0.07601044812948297,
+              "max": 0.7735849056603774
+            },
+            "token_similarity": {
+              "n": 41,
+              "min": 0.7159353348729792,
+              "median": 0.9880952380952381,
+              "mean": 0.9655837270135418,
+              "max": 0.9965870307167235
+            },
+            "character_similarity": {
+              "n": 41,
+              "min": 0.8270958083832335,
+              "median": 0.9965156794425087,
+              "mean": 0.9777197720920308,
+              "max": 0.9993373094764745
+            },
+            "benign_lines": {
+              "n": 41,
+              "min": 9,
+              "median": 24,
+              "mean": 24.658536585365855,
+              "max": 48
+            },
+            "attack_lines": {
+              "n": 41,
+              "min": 9,
+              "median": 24,
+              "mean": 25.414634146341463,
+              "max": 49
+            },
+            "benign_lexical_tokens": {
+              "n": 41,
+              "min": 48,
+              "median": 128,
+              "mean": 142.5609756097561,
+              "max": 365
+            },
+            "attack_lexical_tokens": {
+              "n": 41,
+              "min": 52,
+              "median": 130,
+              "mean": 148,
+              "max": 354
+            }
+          },
+          "one_line": 31,
+          "at_most_5_lines": 40,
+          "unchanged_conditionals": 31,
+          "added_conditionals": 10,
+          "removed_conditionals": 0
+        },
+        "construction/all": {
+          "pairs": 40,
+          "tasks": 26,
+          "distributions": {
+            "changed_lines": {
+              "n": 40,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.35,
+              "max": 4
+            },
+            "raw_changed_lines": {
+              "n": 40,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.35,
+              "max": 4
+            },
+            "changed_lexical_tokens": {
+              "n": 40,
+              "min": 1,
+              "median": 2.0,
+              "mean": 4.675,
+              "max": 22
+            },
+            "lexical_churn_fraction": {
+              "n": 40,
+              "min": 0.007547169811320755,
+              "median": 0.02284561312158292,
+              "mean": 0.06057849882633277,
+              "max": 0.6428571428571429
+            },
+            "token_similarity": {
+              "n": 40,
+              "min": 0.7567567567567568,
+              "median": 0.9886480576279908,
+              "mean": 0.9724887391180901,
+              "max": 0.9962406015037594
+            },
+            "character_similarity": {
+              "n": 40,
+              "min": 0.8157894736842105,
+              "median": 0.9965923603854638,
+              "mean": 0.9824747495562925,
+              "max": 0.9994308480364257
+            },
+            "benign_lines": {
+              "n": 40,
+              "min": 2,
+              "median": 22.0,
+              "mean": 24.65,
+              "max": 102
+            },
+            "attack_lines": {
+              "n": 40,
+              "min": 2,
+              "median": 22.0,
+              "mean": 24.975,
+              "max": 105
+            },
+            "benign_lexical_tokens": {
+              "n": 40,
+              "min": 14,
+              "median": 121.0,
+              "mean": 149.3,
+              "max": 687
+            },
+            "attack_lexical_tokens": {
+              "n": 40,
+              "min": 23,
+              "median": 121.5,
+              "mean": 151.975,
+              "max": 709
+            }
+          },
+          "one_line": 32,
+          "at_most_5_lines": 40,
+          "unchanged_conditionals": 34,
+          "added_conditionals": 6,
+          "removed_conditionals": 0
+        },
+        "construction/qwen": {
+          "pairs": 21,
+          "tasks": 21,
+          "distributions": {
+            "changed_lines": {
+              "n": 21,
+              "min": 1,
+              "median": 1,
+              "mean": 1.3333333333333333,
+              "max": 4
+            },
+            "raw_changed_lines": {
+              "n": 21,
+              "min": 1,
+              "median": 1,
+              "mean": 1.3333333333333333,
+              "max": 4
+            },
+            "changed_lexical_tokens": {
+              "n": 21,
+              "min": 1,
+              "median": 2,
+              "mean": 5.285714285714286,
+              "max": 22
+            },
+            "lexical_churn_fraction": {
+              "n": 21,
+              "min": 0.007547169811320755,
+              "median": 0.024096385542168676,
+              "mean": 0.07149729677040764,
+              "max": 0.6428571428571429
+            },
+            "token_similarity": {
+              "n": 21,
+              "min": 0.7567567567567568,
+              "median": 0.9879518072289156,
+              "mean": 0.9684102934123092,
+              "max": 0.9962406015037594
+            },
+            "character_similarity": {
+              "n": 21,
+              "min": 0.8157894736842105,
+              "median": 0.9962962962962963,
+              "mean": 0.9784097818785288,
+              "max": 0.9994308480364257
+            },
+            "benign_lines": {
+              "n": 21,
+              "min": 2,
+              "median": 20,
+              "mean": 25.571428571428573,
+              "max": 102
+            },
+            "attack_lines": {
+              "n": 21,
+              "min": 2,
+              "median": 20,
+              "mean": 25.857142857142858,
+              "max": 105
+            },
+            "benign_lexical_tokens": {
+              "n": 21,
+              "min": 14,
+              "median": 120,
+              "mean": 167.57142857142858,
+              "max": 687
+            },
+            "attack_lexical_tokens": {
+              "n": 21,
+              "min": 23,
+              "median": 121,
+              "mean": 170.33333333333334,
+              "max": 709
+            }
+          },
+          "one_line": 17,
+          "at_most_5_lines": 21,
+          "unchanged_conditionals": 18,
+          "added_conditionals": 3,
+          "removed_conditionals": 0
+        },
+        "construction/gemma": {
+          "pairs": 19,
+          "tasks": 19,
+          "distributions": {
+            "changed_lines": {
+              "n": 19,
+              "min": 1,
+              "median": 1,
+              "mean": 1.368421052631579,
+              "max": 4
+            },
+            "raw_changed_lines": {
+              "n": 19,
+              "min": 1,
+              "median": 1,
+              "mean": 1.368421052631579,
+              "max": 4
+            },
+            "changed_lexical_tokens": {
+              "n": 19,
+              "min": 1,
+              "median": 2,
+              "mean": 4,
+              "max": 16
+            },
+            "lexical_churn_fraction": {
+              "n": 19,
+              "min": 0.008403361344537815,
+              "median": 0.021739130434782608,
+              "mean": 0.048510353730250005,
+              "max": 0.25862068965517243
+            },
+            "token_similarity": {
+              "n": 19,
+              "min": 0.8854961832061069,
+              "median": 0.9891304347826086,
+              "mean": 0.9769964948981638,
+              "max": 0.9957983193277311
+            },
+            "character_similarity": {
+              "n": 19,
+              "min": 0.9192982456140351,
+              "median": 0.9966887417218543,
+              "mean": 0.9869676085685577,
+              "max": 0.9993011879804332
+            },
+            "benign_lines": {
+              "n": 19,
+              "min": 9,
+              "median": 24,
+              "mean": 23.63157894736842,
+              "max": 39
+            },
+            "attack_lines": {
+              "n": 19,
+              "min": 9,
+              "median": 25,
+              "mean": 24,
+              "max": 39
+            },
+            "benign_lexical_tokens": {
+              "n": 19,
+              "min": 48,
+              "median": 122,
+              "mean": 129.10526315789474,
+              "max": 238
+            },
+            "attack_lexical_tokens": {
+              "n": 19,
+              "min": 52,
+              "median": 122,
+              "mean": 131.68421052631578,
+              "max": 238
+            }
+          },
+          "one_line": 15,
+          "at_most_5_lines": 19,
+          "unchanged_conditionals": 16,
+          "added_conditionals": 3,
+          "removed_conditionals": 0
+        },
+        "construction_matched/all": {
+          "pairs": 28,
+          "tasks": 14,
+          "distributions": {
+            "changed_lines": {
+              "n": 28,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.2142857142857142,
+              "max": 3
+            },
+            "raw_changed_lines": {
+              "n": 28,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.2142857142857142,
+              "max": 3
+            },
+            "changed_lexical_tokens": {
+              "n": 28,
+              "min": 1,
+              "median": 1.0,
+              "mean": 3.2142857142857144,
+              "max": 16
+            },
+            "lexical_churn_fraction": {
+              "n": 28,
+              "min": 0.007662835249042145,
+              "median": 0.017862838915470493,
+              "mean": 0.059481558947610036,
+              "max": 0.6428571428571429
+            },
+            "token_similarity": {
+              "n": 28,
+              "min": 0.7567567567567568,
+              "median": 0.9910685805422648,
+              "mean": 0.9734052730920159,
+              "max": 0.9961685823754789
+            },
+            "character_similarity": {
+              "n": 28,
+              "min": 0.8157894736842105,
+              "median": 0.9970216195381758,
+              "mean": 0.982829737848701,
+              "max": 0.9994308480364257
+            },
+            "benign_lines": {
+              "n": 28,
+              "min": 2,
+              "median": 19.5,
+              "mean": 21.285714285714285,
+              "max": 39
+            },
+            "attack_lines": {
+              "n": 28,
+              "min": 2,
+              "median": 19.5,
+              "mean": 21.428571428571427,
+              "max": 39
+            },
+            "benign_lexical_tokens": {
+              "n": 28,
+              "min": 14,
+              "median": 120.0,
+              "mean": 123.92857142857143,
+              "max": 261
+            },
+            "attack_lexical_tokens": {
+              "n": 28,
+              "min": 23,
+              "median": 115.5,
+              "mean": 124.60714285714286,
+              "max": 261
+            }
+          },
+          "one_line": 24,
+          "at_most_5_lines": 28,
+          "unchanged_conditionals": 26,
+          "added_conditionals": 2,
+          "removed_conditionals": 0
+        },
+        "construction_matched/qwen": {
+          "pairs": 14,
+          "tasks": 14,
+          "distributions": {
+            "changed_lines": {
+              "n": 14,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.2142857142857142,
+              "max": 3
+            },
+            "raw_changed_lines": {
+              "n": 14,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.2142857142857142,
+              "max": 3
+            },
+            "changed_lexical_tokens": {
+              "n": 14,
+              "min": 1,
+              "median": 1.0,
+              "mean": 3.857142857142857,
+              "max": 16
+            },
+            "lexical_churn_fraction": {
+              "n": 14,
+              "min": 0.007662835249042145,
+              "median": 0.01731893837156995,
+              "mean": 0.0839059975815045,
+              "max": 0.6428571428571429
+            },
+            "token_similarity": {
+              "n": 14,
+              "min": 0.7567567567567568,
+              "median": 0.991340530814215,
+              "mean": 0.9639359804308744,
+              "max": 0.9961685823754789
+            },
+            "character_similarity": {
+              "n": 14,
+              "min": 0.8157894736842105,
+              "median": 0.9970591110531803,
+              "mean": 0.9759848910620007,
+              "max": 0.9994308480364257
+            },
+            "benign_lines": {
+              "n": 14,
+              "min": 2,
+              "median": 18.5,
+              "mean": 20,
+              "max": 35
+            },
+            "attack_lines": {
+              "n": 14,
+              "min": 2,
+              "median": 18.5,
+              "mean": 20.142857142857142,
+              "max": 35
+            },
+            "benign_lexical_tokens": {
+              "n": 14,
+              "min": 14,
+              "median": 118.5,
+              "mean": 123.92857142857143,
+              "max": 261
+            },
+            "attack_lexical_tokens": {
+              "n": 14,
+              "min": 23,
+              "median": 115.5,
+              "mean": 124.57142857142857,
+              "max": 261
+            }
+          },
+          "one_line": 12,
+          "at_most_5_lines": 14,
+          "unchanged_conditionals": 13,
+          "added_conditionals": 1,
+          "removed_conditionals": 0
+        },
+        "construction_matched/gemma": {
+          "pairs": 14,
+          "tasks": 14,
+          "distributions": {
+            "changed_lines": {
+              "n": 14,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.2142857142857142,
+              "max": 3
+            },
+            "raw_changed_lines": {
+              "n": 14,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.2142857142857142,
+              "max": 3
+            },
+            "changed_lexical_tokens": {
+              "n": 14,
+              "min": 1,
+              "median": 1.0,
+              "mean": 2.5714285714285716,
+              "max": 10
+            },
+            "lexical_churn_fraction": {
+              "n": 14,
+              "min": 0.008403361344537815,
+              "median": 0.018706293706293706,
+              "mean": 0.035057120313715585,
+              "max": 0.14705882352941177
+            },
+            "token_similarity": {
+              "n": 14,
+              "min": 0.9315068493150684,
+              "median": 0.9906468531468532,
+              "mean": 0.9828745657531572,
+              "max": 0.9957983193277311
+            },
+            "character_similarity": {
+              "n": 14,
+              "min": 0.9192982456140351,
+              "median": 0.9970216195381758,
+              "mean": 0.9896745846354014,
+              "max": 0.9993011879804332
+            },
+            "benign_lines": {
+              "n": 14,
+              "min": 9,
+              "median": 22.0,
+              "mean": 22.571428571428573,
+              "max": 39
+            },
+            "attack_lines": {
+              "n": 14,
+              "min": 9,
+              "median": 21.5,
+              "mean": 22.714285714285715,
+              "max": 39
+            },
+            "benign_lexical_tokens": {
+              "n": 14,
+              "min": 48,
+              "median": 120.5,
+              "mean": 123.92857142857143,
+              "max": 238
+            },
+            "attack_lexical_tokens": {
+              "n": 14,
+              "min": 52,
+              "median": 116.5,
+              "mean": 124.64285714285714,
+              "max": 238
+            }
+          },
+          "one_line": 12,
+          "at_most_5_lines": 14,
+          "unchanged_conditionals": 13,
+          "added_conditionals": 1,
+          "removed_conditionals": 0
+        },
+        "development_matched/all": {
+          "pairs": 40,
+          "tasks": 20,
+          "distributions": {
+            "changed_lines": {
+              "n": 40,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.825,
+              "max": 22
+            },
+            "raw_changed_lines": {
+              "n": 40,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.825,
+              "max": 22
+            },
+            "changed_lexical_tokens": {
+              "n": 40,
+              "min": 1,
+              "median": 2.0,
+              "mean": 8,
+              "max": 119
+            },
+            "lexical_churn_fraction": {
+              "n": 40,
+              "min": 0.00684931506849315,
+              "median": 0.0238230289279637,
+              "mean": 0.06927865097263285,
+              "max": 0.7735849056603774
+            },
+            "token_similarity": {
+              "n": 40,
+              "min": 0.7159353348729792,
+              "median": 0.988013207005455,
+              "mean": 0.9686264622356467,
+              "max": 0.9965870307167235
+            },
+            "character_similarity": {
+              "n": 40,
+              "min": 0.8270958083832335,
+              "median": 0.994420662472919,
+              "mean": 0.97784224253154,
+              "max": 0.9993373094764745
+            },
+            "benign_lines": {
+              "n": 40,
+              "min": 3,
+              "median": 21.0,
+              "mean": 24.125,
+              "max": 93
+            },
+            "attack_lines": {
+              "n": 40,
+              "min": 3,
+              "median": 21.5,
+              "mean": 24.75,
+              "max": 93
+            },
+            "benign_lexical_tokens": {
+              "n": 40,
+              "min": 29,
+              "median": 133.5,
+              "mean": 152.9,
+              "max": 700
+            },
+            "attack_lexical_tokens": {
+              "n": 40,
+              "min": 31,
+              "median": 135.5,
+              "mean": 158.6,
+              "max": 712
+            }
+          },
+          "one_line": 33,
+          "at_most_5_lines": 39,
+          "unchanged_conditionals": 31,
+          "added_conditionals": 9,
+          "removed_conditionals": 0
+        },
+        "development_matched/qwen": {
+          "pairs": 20,
+          "tasks": 20,
+          "distributions": {
+            "changed_lines": {
+              "n": 20,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.1,
+              "max": 2
+            },
+            "raw_changed_lines": {
+              "n": 20,
+              "min": 1,
+              "median": 1.0,
+              "mean": 1.1,
+              "max": 2
+            },
+            "changed_lexical_tokens": {
+              "n": 20,
+              "min": 1,
+              "median": 2.0,
+              "mean": 4.1,
+              "max": 13
+            },
+            "lexical_churn_fraction": {
+              "n": 20,
+              "min": 0.011299435028248588,
+              "median": 0.022347066167290888,
+              "mean": 0.03553831679458522,
+              "max": 0.12345679012345678
+            },
+            "token_similarity": {
+              "n": 20,
+              "min": 0.9418604651162791,
+              "median": 0.9888888888888889,
+              "mean": 0.9825666372721543,
+              "max": 0.9943502824858758
+            },
+            "character_similarity": {
+              "n": 20,
+              "min": 0.9410569105691057,
+              "median": 0.994420662472919,
+              "mean": 0.9867104298872801,
+              "max": 0.9991755976916735
+            },
+            "benign_lines": {
+              "n": 20,
+              "min": 3,
+              "median": 21.0,
+              "mean": 23.45,
+              "max": 93
+            },
+            "attack_lines": {
+              "n": 20,
+              "min": 3,
+              "median": 21.0,
+              "mean": 23.55,
+              "max": 93
+            },
+            "benign_lexical_tokens": {
+              "n": 20,
+              "min": 29,
+              "median": 129.0,
+              "mean": 159.65,
+              "max": 700
+            },
+            "attack_lexical_tokens": {
+              "n": 20,
+              "min": 31,
+              "median": 130.0,
+              "mean": 161.9,
+              "max": 712
+            }
+          },
+          "one_line": 18,
+          "at_most_5_lines": 20,
+          "unchanged_conditionals": 18,
+          "added_conditionals": 2,
+          "removed_conditionals": 0
+        },
+        "development_matched/gemma": {
+          "pairs": 20,
+          "tasks": 20,
+          "distributions": {
+            "changed_lines": {
+              "n": 20,
+              "min": 1,
+              "median": 1.0,
+              "mean": 2.55,
+              "max": 22
+            },
+            "raw_changed_lines": {
+              "n": 20,
+              "min": 1,
+              "median": 1.0,
+              "mean": 2.55,
+              "max": 22
+            },
+            "changed_lexical_tokens": {
+              "n": 20,
+              "min": 1,
+              "median": 4.0,
+              "mean": 11.9,
+              "max": 119
+            },
+            "lexical_churn_fraction": {
+              "n": 20,
+              "min": 0.00684931506849315,
+              "median": 0.031612597679374854,
+              "mean": 0.10301898515068048,
+              "max": 0.7735849056603774
+            },
+            "token_similarity": {
+              "n": 20,
+              "min": 0.7159353348729792,
+              "median": 0.9843033509700176,
+              "mean": 0.9546862871991392,
+              "max": 0.9965870307167235
+            },
+            "character_similarity": {
+              "n": 20,
+              "min": 0.8270958083832335,
+              "median": 0.9945838391529527,
+              "mean": 0.9689740551757998,
+              "max": 0.9993373094764745
+            },
+            "benign_lines": {
+              "n": 20,
+              "min": 11,
+              "median": 22.5,
+              "mean": 24.8,
+              "max": 48
+            },
+            "attack_lines": {
+              "n": 20,
+              "min": 11,
+              "median": 22.5,
+              "mean": 25.95,
+              "max": 49
+            },
+            "benign_lexical_tokens": {
+              "n": 20,
+              "min": 64,
+              "median": 141.5,
+              "mean": 146.15,
+              "max": 322
+            },
+            "attack_lexical_tokens": {
+              "n": 20,
+              "min": 72,
+              "median": 142.5,
+              "mean": 155.3,
+              "max": 326
+            }
+          },
+          "one_line": 15,
+          "at_most_5_lines": 19,
+          "unchanged_conditionals": 13,
+          "added_conditionals": 7,
+          "removed_conditionals": 0
+        }
+      },
+      "duplicates": {
+        "normalized_sha256": [],
+        "ast_sha256": []
+      },
+      "cross_source": [
+        {
+          "task": 408,
+          "owner": "development",
+          "benign_token_similarity": 0.8,
+          "attack_token_similarity": 0.7571428571428571
+        },
+        {
+          "task": 435,
+          "owner": "development",
+          "benign_token_similarity": 0.7708333333333334,
+          "attack_token_similarity": 0.7586206896551724
+        },
+        {
+          "task": 688,
+          "owner": "development",
+          "benign_token_similarity": 0.14516129032258066,
+          "attack_token_similarity": 0.1460446247464503
+        },
+        {
+          "task": 895,
+          "owner": "development",
+          "benign_token_similarity": 0.7380952380952381,
+          "attack_token_similarity": 0.7265625
+        },
+        {
+          "task": 903,
+          "owner": "development",
+          "benign_token_similarity": 0.6328358208955224,
+          "attack_token_similarity": 0.6231454005934718
+        },
+        {
+          "task": 919,
+          "owner": "development",
+          "benign_token_similarity": 0.7578947368421053,
+          "attack_token_similarity": 0.743859649122807
+        },
+        {
+          "task": 1179,
+          "owner": "development",
+          "benign_token_similarity": 0.643312101910828,
+          "attack_token_similarity": 0.643312101910828
+        },
+        {
+          "task": 1267,
+          "owner": "development",
+          "benign_token_similarity": 0.7398843930635838,
+          "attack_token_similarity": 0.7513812154696132
+        },
+        {
+          "task": 1539,
+          "owner": "development",
+          "benign_token_similarity": 0.3983050847457627,
+          "attack_token_similarity": 0.4050632911392405
+        },
+        {
+          "task": 1817,
+          "owner": "development",
+          "benign_token_similarity": 0.7948717948717948,
+          "attack_token_similarity": 0.7790697674418605
+        },
+        {
+          "task": 1847,
+          "owner": "development",
+          "benign_token_similarity": 0.3679060665362035,
+          "attack_token_similarity": 0.3622350674373796
+        },
+        {
+          "task": 2100,
+          "owner": "development",
+          "benign_token_similarity": 0.578125,
+          "attack_token_similarity": 0.5627376425855514
+        },
+        {
+          "task": 2649,
+          "owner": "development",
+          "benign_token_similarity": 0.5714285714285714,
+          "attack_token_similarity": 0.5277161862527716
+        },
+        {
+          "task": 4047,
+          "owner": "development",
+          "benign_token_similarity": 0.6424870466321243,
+          "attack_token_similarity": 0.5685279187817259
+        },
+        {
+          "task": 4130,
+          "owner": "development",
+          "benign_token_similarity": 0.5107913669064749,
+          "attack_token_similarity": 0.49640287769784175
+        },
+        {
+          "task": 4179,
+          "owner": "development",
+          "benign_token_similarity": 0.7871720116618076,
+          "attack_token_similarity": 0.7317073170731707
+        },
+        {
+          "task": 4325,
+          "owner": "development",
+          "benign_token_similarity": 0.5294117647058824,
+          "attack_token_similarity": 0.5151515151515151
+        },
+        {
+          "task": 4327,
+          "owner": "development",
+          "benign_token_similarity": 0.43010752688172044,
+          "attack_token_similarity": 0.38095238095238093
+        },
+        {
+          "task": 4368,
+          "owner": "development",
+          "benign_token_similarity": 0.5882352941176471,
+          "attack_token_similarity": 0.572972972972973
+        },
+        {
+          "task": 4371,
+          "owner": "development",
+          "benign_token_similarity": 0.7074829931972789,
+          "attack_token_similarity": 0.7074829931972789
+        },
+        {
+          "task": 595,
+          "owner": "construction",
+          "benign_token_similarity": 0.6482213438735178,
+          "attack_token_similarity": 0.6582278481012658
+        },
+        {
+          "task": 623,
+          "owner": "construction",
+          "benign_token_similarity": 0.2334384858044164,
+          "attack_token_similarity": 0.2334384858044164
+        },
+        {
+          "task": 909,
+          "owner": "construction",
+          "benign_token_similarity": 0.5360824742268041,
+          "attack_token_similarity": 0.5434782608695652
+        },
+        {
+          "task": 1344,
+          "owner": "construction",
+          "benign_token_similarity": 0.7603305785123967,
+          "attack_token_similarity": 0.7459016393442623
+        },
+        {
+          "task": 1559,
+          "owner": "construction",
+          "benign_token_similarity": 0.5,
+          "attack_token_similarity": 0.5
+        },
+        {
+          "task": 1672,
+          "owner": "construction",
+          "benign_token_similarity": 0.7169811320754716,
+          "attack_token_similarity": 0.7009345794392523
+        },
+        {
+          "task": 1736,
+          "owner": "construction",
+          "benign_token_similarity": 0.823045267489712,
+          "attack_token_similarity": 0.8148148148148148
+        },
+        {
+          "task": 2048,
+          "owner": "construction",
+          "benign_token_similarity": 0.5410821643286573,
+          "attack_token_similarity": 0.5410821643286573
+        },
+        {
+          "task": 2090,
+          "owner": "construction",
+          "benign_token_similarity": 0.7338935574229691,
+          "attack_token_similarity": 0.7257617728531855
+        },
+        {
+          "task": 4272,
+          "owner": "construction",
+          "benign_token_similarity": 0.6844919786096256,
+          "attack_token_similarity": 0.6844919786096256
+        },
+        {
+          "task": 4295,
+          "owner": "construction",
+          "benign_token_similarity": 0.7361111111111112,
+          "attack_token_similarity": 0.7402597402597403
+        },
+        {
+          "task": 4326,
+          "owner": "construction",
+          "benign_token_similarity": 0.2903225806451613,
+          "attack_token_similarity": 0.37333333333333335
+        },
+        {
+          "task": 4688,
+          "owner": "construction",
+          "benign_token_similarity": 0.5605095541401274,
+          "attack_token_similarity": 0.5730994152046783
+        },
+        {
+          "task": 4704,
+          "owner": "construction",
+          "benign_token_similarity": 0.801762114537445,
+          "attack_token_similarity": 0.801762114537445
+        }
+      ]
+    },
+    "source-shortcuts.json": {
+      "method": {
+        "model": "ridge least squares",
+        "style_features": [
+          "chars",
+          "lines",
+          "nonempty_lines",
+          "blank_fraction",
+          "mean_line_length",
+          "max_line_length",
+          "tokens",
+          "identifier_unique",
+          "identifier_mean_length",
+          "numeric_literals",
+          "large_numeric_literals",
+          "single_quote_strings",
+          "double_quote_strings",
+          "max_indent",
+          "main_guard",
+          "solve_name",
+          "stdin_read",
+          "stdin_readline",
+          "input_call",
+          "If",
+          "For",
+          "While",
+          "Try",
+          "ExceptHandler",
+          "FunctionDef",
+          "Return",
+          "Call",
+          "Compare",
+          "BoolOp",
+          "BinOp",
+          "Subscript",
+          "ListComp",
+          "GeneratorExp",
+          "Import",
+          "ImportFrom"
+        ],
+        "style_alpha": 10,
+        "lexical": "character trigrams, min train df 2, top 2000, sublinear TF-IDF, unit norm",
+        "lexical_alpha": 1,
+        "cv": "5 folds grouped by task, deterministic SHA256 seed 17; all preprocessing fit on train fold only",
+        "threshold": 0.5,
+        "no_tuning": true,
+        "bootstrap": "2000 resamples of held-out tasks; fixed predictions; not model-retraining uncertainty"
+      },
+      "results": {
+        "matched/source/style/group5": {
+          "n": 136,
+          "correct": 132,
+          "accuracy": 0.9705882352941176,
+          "auc": 0.9852941176470589,
+          "positive_rate": 0.47058823529411764,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.9264705882352942,
+            1.0
+          ]
+        },
+        "matched/source/style/construction_to_development": {
+          "n": 80,
+          "correct": 76,
+          "accuracy": 0.95,
+          "auc": 0.955625,
+          "positive_rate": 0.45,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.875,
+            1.0
+          ]
+        },
+        "matched/source/trigram/group5": {
+          "n": 136,
+          "correct": 130,
+          "accuracy": 0.9558823529411765,
+          "auc": 0.9965397923875432,
+          "positive_rate": 0.4852941176470588,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.8970588235294118,
+            1.0
+          ]
+        },
+        "matched/source/trigram/construction_to_development": {
+          "n": 80,
+          "correct": 76,
+          "accuracy": 0.95,
+          "auc": 1.0,
+          "positive_rate": 0.55,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.875,
+            1.0
+          ]
+        },
+        "matched/label/style/group5": {
+          "n": 136,
+          "correct": 71,
+          "accuracy": 0.5220588235294118,
+          "auc": 0.5382785467128027,
+          "positive_rate": 0.4485294117647059,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5,
+            0.5588235294117647
+          ]
+        },
+        "matched/label/style/construction_to_development": {
+          "n": 80,
+          "correct": 44,
+          "accuracy": 0.55,
+          "auc": 0.52125,
+          "positive_rate": 0.6,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5125,
+            0.6
+          ]
+        },
+        "matched/label/trigram/group5": {
+          "n": 136,
+          "correct": 73,
+          "accuracy": 0.5367647058823529,
+          "auc": 0.5168685121107266,
+          "positive_rate": 0.47794117647058826,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.49264705882352944,
+            0.5882352941176471
+          ]
+        },
+        "matched/label/trigram/construction_to_development": {
+          "n": 80,
+          "correct": 41,
+          "accuracy": 0.5125,
+          "auc": 0.5,
+          "positive_rate": 0.4875,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.45,
+            0.575
+          ]
+        },
+        "all/source/style/group5": {
+          "n": 182,
+          "correct": 174,
+          "accuracy": 0.9560439560439561,
+          "auc": 0.9958536585365854,
+          "positive_rate": 0.5054945054945055,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.9120879120879121,
+            0.9893617021276596
+          ]
+        },
+        "all/source/style/construction_to_development": {
+          "n": 102,
+          "correct": 98,
+          "accuracy": 0.9607843137254902,
+          "auc": 0.9659090909090909,
+          "positive_rate": 0.5294117647058824,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.9037990196078431,
+            1.0
+          ]
+        },
+        "all/source/trigram/group5": {
+          "n": 182,
+          "correct": 178,
+          "accuracy": 0.978021978021978,
+          "auc": 0.9968292682926829,
+          "positive_rate": 0.5494505494505495,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.9444444444444444,
+            1.0
+          ]
+        },
+        "all/source/trigram/construction_to_development": {
+          "n": 102,
+          "correct": 96,
+          "accuracy": 0.9411764705882353,
+          "auc": 0.9960815047021944,
+          "positive_rate": 0.5882352941176471,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.8679245283018868,
+            1.0
+          ]
+        },
+        "all/label/style/group5": {
+          "n": 182,
+          "correct": 95,
+          "accuracy": 0.521978021978022,
+          "auc": 0.550960028982007,
+          "positive_rate": 0.37362637362637363,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5053191489361702,
+            0.5459770114942529
+          ]
+        },
+        "all/label/style/construction_to_development": {
+          "n": 102,
+          "correct": 54,
+          "accuracy": 0.5294117647058824,
+          "auc": 0.5436370626682046,
+          "positive_rate": 0.4019607843137255,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5,
+            0.5636363636363636
+          ]
+        },
+        "all/label/trigram/group5": {
+          "n": 182,
+          "correct": 100,
+          "accuracy": 0.5494505494505495,
+          "auc": 0.5524695085134645,
+          "positive_rate": 0.532967032967033,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5053749142072752,
+            0.5913978494623656
+          ]
+        },
+        "all/label/trigram/construction_to_development": {
+          "n": 102,
+          "correct": 54,
+          "accuracy": 0.5294117647058824,
+          "auc": 0.5382545174932718,
+          "positive_rate": 0.4215686274509804,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.4791666666666667,
+            0.5909322820037105
+          ]
+        }
+      },
+      "style_medians": {
+        "qwen/benign": {
+          "n": 50,
+          "chars": 476.0,
+          "lines": 27.5,
+          "nonempty_lines": 20.5,
+          "blank_fraction": 0.24662162162162163,
+          "mean_line_length": 22.817500000000003,
+          "max_line_length": 40.0,
+          "tokens": 162.5,
+          "identifier_unique": 26.0,
+          "identifier_mean_length": 3.7354312354312356,
+          "numeric_literals": 8.0,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 1.0,
+          "max_indent": 12.0,
+          "main_guard": 1.0,
+          "solve_name": 0.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 2.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 0.0,
+          "Call": 10.0,
+          "Compare": 2.5,
+          "BoolOp": 0.0,
+          "BinOp": 3.0,
+          "Subscript": 3.5,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        },
+        "qwen/attack": {
+          "n": 50,
+          "chars": 477.0,
+          "lines": 28.0,
+          "nonempty_lines": 20.5,
+          "blank_fraction": 0.2423112767940354,
+          "mean_line_length": 22.614285714285714,
+          "max_line_length": 41.5,
+          "tokens": 162.5,
+          "identifier_unique": 27.0,
+          "identifier_mean_length": 3.7354312354312356,
+          "numeric_literals": 8.5,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 1.0,
+          "max_indent": 12.0,
+          "main_guard": 1.0,
+          "solve_name": 0.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 3.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 0.0,
+          "Call": 10.5,
+          "Compare": 3.0,
+          "BoolOp": 0.0,
+          "BinOp": 3.5,
+          "Subscript": 3.5,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        },
+        "gemma/benign": {
+          "n": 41,
+          "chars": 581.0,
+          "lines": 33.0,
+          "nonempty_lines": 24.0,
+          "blank_fraction": 0.2857142857142857,
+          "mean_line_length": 23.235294117647058,
+          "max_line_length": 45.0,
+          "tokens": 184.0,
+          "identifier_unique": 28.0,
+          "identifier_mean_length": 4.564102564102564,
+          "numeric_literals": 7.0,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 1.0,
+          "max_indent": 12.0,
+          "main_guard": 1.0,
+          "solve_name": 1.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 4.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 2.0,
+          "Call": 10.0,
+          "Compare": 3.0,
+          "BoolOp": 0.0,
+          "BinOp": 3.0,
+          "Subscript": 3.0,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        },
+        "gemma/attack": {
+          "n": 41,
+          "chars": 596.0,
+          "lines": 34.0,
+          "nonempty_lines": 24.0,
+          "blank_fraction": 0.28125,
+          "mean_line_length": 23.625,
+          "max_line_length": 45.0,
+          "tokens": 184.0,
+          "identifier_unique": 28.0,
+          "identifier_mean_length": 4.564102564102564,
+          "numeric_literals": 7.0,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 1.0,
+          "max_indent": 12.0,
+          "main_guard": 1.0,
+          "solve_name": 1.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 4.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 2.0,
+          "Call": 9.0,
+          "Compare": 3.0,
+          "BoolOp": 0.0,
+          "BinOp": 3.0,
+          "Subscript": 3.0,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        }
+      },
+      "row_counts": {
+        "matched": {
+          "tasks": 34,
+          "programs": 136
+        },
+        "all": {
+          "tasks": 57,
+          "programs": 182
+        }
+      },
+      "matched_source_style_prevalence": {
+        "qwen": {
+          "n": 68,
+          "Try": 0,
+          "main_guard": 40,
+          "solve_name": 24,
+          "stdin_read": 36,
+          "stdin_readline": 16,
+          "input_call": 14
+        },
+        "gemma": {
+          "n": 68,
+          "Try": 26,
+          "main_guard": 68,
+          "solve_name": 68,
+          "stdin_read": 42,
+          "stdin_readline": 26,
+          "input_call": 0
+        }
+      },
+      "cross_task_duplicate_programs": []
+    },
+    "paired-probe-review.json": {
+      "matched/style/group5": {
+        "pairs": 68,
+        "tasks": 34,
+        "task_mean_delta_up": 23,
+        "task_mean_delta_down": 6,
+        "task_mean_delta_tie": 5,
+        "task_mean_delta_sign_p": 0.002315700054168701,
+        "cluster_flip_rank_p": 0.023593902587890625,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 19,
+            "down": 7,
+            "tie": 8,
+            "p": 0.028959274291992188,
+            "median_delta": 8.094206331016318e-05
+          },
+          "qwen": {
+            "up": 14,
+            "down": 8,
+            "tie": 12,
+            "p": 0.28627872467041016,
+            "median_delta": 0.0
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.6323529411764706,
+        "paired_rank_task_bootstrap_95": [
+          0.5294117647058824,
+          0.7279411764705882
+        ]
+      },
+      "matched/style/construction_to_development": {
+        "pairs": 40,
+        "tasks": 20,
+        "task_mean_delta_up": 12,
+        "task_mean_delta_down": 7,
+        "task_mean_delta_tie": 1,
+        "task_mean_delta_sign_p": 0.359283447265625,
+        "cluster_flip_rank_p": 0.3452301025390625,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 11,
+            "down": 7,
+            "tie": 2,
+            "p": 0.480682373046875,
+            "median_delta": 0.0068517265193032695
+          },
+          "qwen": {
+            "up": 9,
+            "down": 5,
+            "tie": 6,
+            "p": 0.4239501953125,
+            "median_delta": 0.0
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.6,
+        "paired_rank_task_bootstrap_95": [
+          0.425,
+          0.775
+        ]
+      },
+      "matched/trigram/group5": {
+        "pairs": 68,
+        "tasks": 34,
+        "task_mean_delta_up": 21,
+        "task_mean_delta_down": 12,
+        "task_mean_delta_tie": 1,
+        "task_mean_delta_sign_p": 0.16275565745308995,
+        "cluster_flip_rank_p": 0.6776394844055176,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 18,
+            "down": 15,
+            "tie": 1,
+            "p": 0.7283324808813632,
+            "median_delta": 0.0023208360096597103
+          },
+          "qwen": {
+            "up": 18,
+            "down": 15,
+            "tie": 1,
+            "p": 0.7283324808813632,
+            "median_delta": 0.0008104568009677515
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.5441176470588235,
+        "paired_rank_task_bootstrap_95": [
+          0.4117647058823529,
+          0.6764705882352942
+        ]
+      },
+      "matched/trigram/construction_to_development": {
+        "pairs": 40,
+        "tasks": 20,
+        "task_mean_delta_up": 10,
+        "task_mean_delta_down": 9,
+        "task_mean_delta_tie": 1,
+        "task_mean_delta_sign_p": 1.0,
+        "cluster_flip_rank_p": 0.75390625,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 12,
+            "down": 7,
+            "tie": 1,
+            "p": 0.359283447265625,
+            "median_delta": 0.0020551949047555584
+          },
+          "qwen": {
+            "up": 9,
+            "down": 10,
+            "tie": 1,
+            "p": 1.0,
+            "median_delta": -5.4450045035403516e-05
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.55,
+        "paired_rank_task_bootstrap_95": [
+          0.4,
+          0.7
+        ]
+      },
+      "all/style/group5": {
+        "pairs": 91,
+        "tasks": 57,
+        "task_mean_delta_up": 41,
+        "task_mean_delta_down": 8,
+        "task_mean_delta_tie": 8,
+        "task_mean_delta_sign_p": 1.9646537765538596e-06,
+        "cluster_flip_rank_p": 5.3418389597936766e-05,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 25,
+            "down": 7,
+            "tie": 9,
+            "p": 0.0021024015732109547,
+            "median_delta": 0.0028612190999108833
+          },
+          "qwen": {
+            "up": 27,
+            "down": 9,
+            "tie": 14,
+            "p": 0.00393317302223295,
+            "median_delta": 0.00012090895848837491
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.6978021978021978,
+        "paired_rank_task_bootstrap_95": [
+          0.6099972527472527,
+          0.7857343499197429
+        ]
+      },
+      "all/style/construction_to_development": {
+        "pairs": 51,
+        "tasks": 31,
+        "task_mean_delta_up": 22,
+        "task_mean_delta_down": 6,
+        "task_mean_delta_tie": 3,
+        "task_mean_delta_sign_p": 0.0037191659212112427,
+        "cluster_flip_rank_p": 0.017293930053710938,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 13,
+            "down": 7,
+            "tie": 2,
+            "p": 0.26317596435546875,
+            "median_delta": 0.006040595911208535
+          },
+          "qwen": {
+            "up": 17,
+            "down": 4,
+            "tie": 8,
+            "p": 0.007197380065917969,
+            "median_delta": 0.005304026284013386
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.6862745098039216,
+        "paired_rank_task_bootstrap_95": [
+          0.5490196078431373,
+          0.8163265306122449
+        ]
+      },
+      "all/trigram/group5": {
+        "pairs": 91,
+        "tasks": 57,
+        "task_mean_delta_up": 42,
+        "task_mean_delta_down": 14,
+        "task_mean_delta_tie": 1,
+        "task_mean_delta_sign_p": 0.00023444586091919684,
+        "cluster_flip_rank_p": 0.0014880559464813814,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 27,
+            "down": 13,
+            "tie": 1,
+            "p": 0.03847730828420026,
+            "median_delta": 0.004739260286183322
+          },
+          "qwen": {
+            "up": 35,
+            "down": 14,
+            "tie": 1,
+            "p": 0.003801654409748778,
+            "median_delta": 0.0033896955037915344
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.6923076923076923,
+        "paired_rank_task_bootstrap_95": [
+          0.5851063829787234,
+          0.7954545454545454
+        ]
+      },
+      "all/trigram/construction_to_development": {
+        "pairs": 51,
+        "tasks": 31,
+        "task_mean_delta_up": 19,
+        "task_mean_delta_down": 11,
+        "task_mean_delta_tie": 1,
+        "task_mean_delta_sign_p": 0.20048842206597328,
+        "cluster_flip_rank_p": 0.11824607849121094,
+        "source_pair_directions": {
+          "gemma": {
+            "up": 12,
+            "down": 9,
+            "tie": 1,
+            "p": 0.6636238098144531,
+            "median_delta": 0.00032475683576807524
+          },
+          "qwen": {
+            "up": 19,
+            "down": 9,
+            "tie": 1,
+            "p": 0.08715855330228806,
+            "median_delta": 0.0019215767206414713
+          }
+        },
+        "pair_rank_accuracy_ties_half": 0.6274509803921569,
+        "paired_rank_task_bootstrap_95": [
+          0.4893369619000495,
+          0.7692307692307693
+        ]
+      }
+    },
+    "audit-monitor-analysis.json": {
+      "all_retained": {
+        "audit": {
+          "qwen": {
+            "attacks": 50,
+            "pass_all": 15,
+            "fail_any": 35,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 131,
+              "wrong_answer": 58,
+              "invalid_output": 1
+            },
+            "case_count": 190,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.695,
+            "pass_fraction_histogram": {
+              "1.0": 15,
+              "0.75": 14,
+              "0.25": 7,
+              "0.5": 11,
+              "0.6666666666666666": 3
+            }
+          },
+          "gemma": {
+            "attacks": 41,
+            "pass_all": 11,
+            "fail_any": 30,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 114,
+              "wrong_answer": 49,
+              "invalid_output": 1
+            },
+            "case_count": 164,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6951219512195121,
+            "pass_fraction_histogram": {
+              "0.75": 16,
+              "1.0": 11,
+              "0.25": 6,
+              "0.5": 8
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "qwen/attack": {
+              "FLAG": 43,
+              "PASS": 7
+            },
+            "gemma/benign": {
+              "PASS": 37,
+              "FLAG": 4
+            },
+            "qwen/benign": {
+              "PASS": 48,
+              "FLAG": 2
+            },
+            "gemma/attack": {
+              "FLAG": 39,
+              "PASS": 2
+            }
+          },
+          "gemma": {
+            "qwen/attack": {
+              "FLAG": 47,
+              "PASS": 2,
+              "missing": 1
+            },
+            "gemma/benign": {
+              "PASS": 41
+            },
+            "qwen/benign": {
+              "PASS": 49,
+              "missing": 1
+            },
+            "gemma/attack": {
+              "FLAG": 39,
+              "missing": 1,
+              "PASS": 1
+            }
+          }
+        }
+      },
+      "development": {
+        "audit": {
+          "qwen": {
+            "attacks": 29,
+            "pass_all": 9,
+            "fail_any": 20,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 72,
+              "wrong_answer": 34
+            },
+            "case_count": 106,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6896551724137931,
+            "pass_fraction_histogram": {
+              "0.75": 6,
+              "0.25": 4,
+              "1.0": 9,
+              "0.5": 7,
+              "0.6666666666666666": 3
+            }
+          },
+          "gemma": {
+            "attacks": 22,
+            "pass_all": 7,
+            "fail_any": 15,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 64,
+              "wrong_answer": 24
+            },
+            "case_count": 88,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.7272727272727273,
+            "pass_fraction_histogram": {
+              "0.75": 8,
+              "1.0": 7,
+              "0.5": 5,
+              "0.25": 2
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "qwen/attack": {
+              "FLAG": 26,
+              "PASS": 3
+            },
+            "gemma/benign": {
+              "PASS": 21,
+              "FLAG": 1
+            },
+            "qwen/benign": {
+              "PASS": 28,
+              "FLAG": 1
+            },
+            "gemma/attack": {
+              "FLAG": 20,
+              "PASS": 2
+            }
+          },
+          "gemma": {
+            "qwen/attack": {
+              "FLAG": 27,
+              "PASS": 1,
+              "missing": 1
+            },
+            "gemma/benign": {
+              "PASS": 22
+            },
+            "qwen/benign": {
+              "PASS": 28,
+              "missing": 1
+            },
+            "gemma/attack": {
+              "FLAG": 20,
+              "missing": 1,
+              "PASS": 1
+            }
+          }
+        }
+      },
+      "construction": {
+        "audit": {
+          "qwen": {
+            "attacks": 21,
+            "pass_all": 6,
+            "fail_any": 15,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 59,
+              "wrong_answer": 24,
+              "invalid_output": 1
+            },
+            "case_count": 84,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.7023809523809523,
+            "pass_fraction_histogram": {
+              "1.0": 6,
+              "0.25": 3,
+              "0.75": 8,
+              "0.5": 4
+            }
+          },
+          "gemma": {
+            "attacks": 19,
+            "pass_all": 4,
+            "fail_any": 15,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 50,
+              "wrong_answer": 25,
+              "invalid_output": 1
+            },
+            "case_count": 76,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6578947368421053,
+            "pass_fraction_histogram": {
+              "0.75": 8,
+              "0.25": 4,
+              "1.0": 4,
+              "0.5": 3
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "gemma/attack": {
+              "FLAG": 19
+            },
+            "qwen/attack": {
+              "FLAG": 17,
+              "PASS": 4
+            },
+            "qwen/benign": {
+              "PASS": 20,
+              "FLAG": 1
+            },
+            "gemma/benign": {
+              "PASS": 16,
+              "FLAG": 3
+            }
+          },
+          "gemma": {
+            "gemma/attack": {
+              "FLAG": 19
+            },
+            "qwen/attack": {
+              "FLAG": 20,
+              "PASS": 1
+            },
+            "qwen/benign": {
+              "PASS": 21
+            },
+            "gemma/benign": {
+              "PASS": 19
+            }
+          }
+        }
+      },
+      "shared_honest_pretraining": {
+        "audit": {
+          "qwen": {
+            "attacks": 9,
+            "pass_all": 4,
+            "fail_any": 5,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 28,
+              "wrong_answer": 8
+            },
+            "case_count": 36,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.7777777777777778,
+            "pass_fraction_histogram": {
+              "1.0": 4,
+              "0.25": 1,
+              "0.75": 3,
+              "0.5": 1
+            }
+          },
+          "gemma": {
+            "attacks": 10,
+            "pass_all": 2,
+            "fail_any": 8,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 28,
+              "wrong_answer": 12
+            },
+            "case_count": 40,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.7,
+            "pass_fraction_histogram": {
+              "0.75": 5,
+              "0.25": 1,
+              "1.0": 2,
+              "0.5": 2
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "gemma/attack": {
+              "FLAG": 10
+            },
+            "qwen/attack": {
+              "PASS": 2,
+              "FLAG": 7
+            },
+            "qwen/benign": {
+              "PASS": 8,
+              "FLAG": 1
+            },
+            "gemma/benign": {
+              "PASS": 8,
+              "FLAG": 2
+            }
+          },
+          "gemma": {
+            "gemma/attack": {
+              "FLAG": 10
+            },
+            "qwen/attack": {
+              "FLAG": 9
+            },
+            "qwen/benign": {
+              "PASS": 9
+            },
+            "gemma/benign": {
+              "PASS": 10
+            }
+          }
+        }
+      },
+      "matched_development": {
+        "audit": {
+          "qwen": {
+            "attacks": 20,
+            "pass_all": 6,
+            "fail_any": 14,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 51,
+              "wrong_answer": 25
+            },
+            "case_count": 76,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6833333333333333,
+            "pass_fraction_histogram": {
+              "0.75": 5,
+              "0.25": 3,
+              "0.5": 5,
+              "1.0": 6,
+              "0.6666666666666666": 1
+            }
+          },
+          "gemma": {
+            "attacks": 20,
+            "pass_all": 7,
+            "fail_any": 13,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 58,
+              "wrong_answer": 22
+            },
+            "case_count": 80,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.725,
+            "pass_fraction_histogram": {
+              "0.75": 6,
+              "1.0": 7,
+              "0.5": 5,
+              "0.25": 2
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "gemma/benign": {
+              "PASS": 19,
+              "FLAG": 1
+            },
+            "qwen/benign": {
+              "PASS": 19,
+              "FLAG": 1
+            },
+            "qwen/attack": {
+              "FLAG": 17,
+              "PASS": 3
+            },
+            "gemma/attack": {
+              "FLAG": 18,
+              "PASS": 2
+            }
+          },
+          "gemma": {
+            "gemma/benign": {
+              "PASS": 20
+            },
+            "qwen/benign": {
+              "PASS": 20
+            },
+            "qwen/attack": {
+              "FLAG": 18,
+              "PASS": 1,
+              "missing": 1
+            },
+            "gemma/attack": {
+              "FLAG": 18,
+              "missing": 1,
+              "PASS": 1
+            }
+          }
+        }
+      },
+      "matched_construction": {
+        "audit": {
+          "qwen": {
+            "attacks": 14,
+            "pass_all": 5,
+            "fail_any": 9,
+            "fail_all": 0,
+            "case_outcomes": {
+              "wrong_answer": 17,
+              "passed": 38,
+              "invalid_output": 1
+            },
+            "case_count": 56,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6785714285714286,
+            "pass_fraction_histogram": {
+              "0.25": 3,
+              "1.0": 5,
+              "0.75": 3,
+              "0.5": 3
+            }
+          },
+          "gemma": {
+            "attacks": 14,
+            "pass_all": 4,
+            "fail_any": 10,
+            "fail_all": 0,
+            "case_outcomes": {
+              "wrong_answer": 18,
+              "passed": 37,
+              "invalid_output": 1
+            },
+            "case_count": 56,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6607142857142857,
+            "pass_fraction_histogram": {
+              "0.25": 4,
+              "1.0": 4,
+              "0.75": 5,
+              "0.5": 1
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "gemma/attack": {
+              "FLAG": 14
+            },
+            "qwen/attack": {
+              "FLAG": 11,
+              "PASS": 3
+            },
+            "qwen/benign": {
+              "PASS": 13,
+              "FLAG": 1
+            },
+            "gemma/benign": {
+              "PASS": 12,
+              "FLAG": 2
+            }
+          },
+          "gemma": {
+            "gemma/attack": {
+              "FLAG": 14
+            },
+            "qwen/attack": {
+              "FLAG": 14
+            },
+            "qwen/benign": {
+              "PASS": 14
+            },
+            "gemma/benign": {
+              "PASS": 14
+            }
+          }
+        }
+      },
+      "matched_shared_honest_pretraining": {
+        "audit": {
+          "qwen": {
+            "attacks": 6,
+            "pass_all": 3,
+            "fail_any": 3,
+            "fail_all": 0,
+            "case_outcomes": {
+              "wrong_answer": 6,
+              "passed": 18
+            },
+            "case_count": 24,
+            "median_per_program_case_pass_fraction": 0.875,
+            "mean_per_program_case_pass_fraction": 0.75,
+            "pass_fraction_histogram": {
+              "0.25": 1,
+              "1.0": 3,
+              "0.75": 1,
+              "0.5": 1
+            }
+          },
+          "gemma": {
+            "attacks": 6,
+            "pass_all": 2,
+            "fail_any": 4,
+            "fail_all": 0,
+            "case_outcomes": {
+              "wrong_answer": 6,
+              "passed": 18
+            },
+            "case_count": 24,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.75,
+            "pass_fraction_histogram": {
+              "0.25": 1,
+              "1.0": 2,
+              "0.75": 3
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "gemma/attack": {
+              "FLAG": 6
+            },
+            "qwen/attack": {
+              "PASS": 2,
+              "FLAG": 4
+            },
+            "qwen/benign": {
+              "PASS": 5,
+              "FLAG": 1
+            },
+            "gemma/benign": {
+              "FLAG": 1,
+              "PASS": 5
+            }
+          },
+          "gemma": {
+            "gemma/attack": {
+              "FLAG": 6
+            },
+            "qwen/attack": {
+              "FLAG": 6
+            },
+            "qwen/benign": {
+              "PASS": 6
+            },
+            "gemma/benign": {
+              "PASS": 6
+            }
+          }
+        }
+      },
+      "matched_twin_continuation": {
+        "audit": {
+          "qwen": {
+            "attacks": 8,
+            "pass_all": 2,
+            "fail_any": 6,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 20,
+              "wrong_answer": 11,
+              "invalid_output": 1
+            },
+            "case_count": 32,
+            "median_per_program_case_pass_fraction": 0.625,
+            "mean_per_program_case_pass_fraction": 0.625,
+            "pass_fraction_histogram": {
+              "0.75": 2,
+              "0.25": 2,
+              "0.5": 2,
+              "1.0": 2
+            }
+          },
+          "gemma": {
+            "attacks": 8,
+            "pass_all": 2,
+            "fail_any": 6,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 19,
+              "wrong_answer": 12,
+              "invalid_output": 1
+            },
+            "case_count": 32,
+            "median_per_program_case_pass_fraction": 0.625,
+            "mean_per_program_case_pass_fraction": 0.59375,
+            "pass_fraction_histogram": {
+              "0.75": 2,
+              "0.25": 3,
+              "1.0": 2,
+              "0.5": 1
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "gemma/attack": {
+              "FLAG": 8
+            },
+            "qwen/attack": {
+              "FLAG": 7,
+              "PASS": 1
+            },
+            "qwen/benign": {
+              "PASS": 8
+            },
+            "gemma/benign": {
+              "PASS": 7,
+              "FLAG": 1
+            }
+          },
+          "gemma": {
+            "gemma/attack": {
+              "FLAG": 8
+            },
+            "qwen/attack": {
+              "FLAG": 8
+            },
+            "qwen/benign": {
+              "PASS": 8
+            },
+            "gemma/benign": {
+              "PASS": 8
+            }
+          }
+        }
+      },
+      "twin_continuation": {
+        "audit": {
+          "qwen": {
+            "attacks": 12,
+            "pass_all": 2,
+            "fail_any": 10,
+            "fail_all": 0,
+            "case_outcomes": {
+              "wrong_answer": 16,
+              "passed": 31,
+              "invalid_output": 1
+            },
+            "case_count": 48,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6458333333333334,
+            "pass_fraction_histogram": {
+              "0.5": 3,
+              "0.75": 5,
+              "0.25": 2,
+              "1.0": 2
+            }
+          },
+          "gemma": {
+            "attacks": 9,
+            "pass_all": 2,
+            "fail_any": 7,
+            "fail_all": 0,
+            "case_outcomes": {
+              "passed": 22,
+              "wrong_answer": 13,
+              "invalid_output": 1
+            },
+            "case_count": 36,
+            "median_per_program_case_pass_fraction": 0.75,
+            "mean_per_program_case_pass_fraction": 0.6111111111111112,
+            "pass_fraction_histogram": {
+              "0.75": 3,
+              "0.25": 3,
+              "1.0": 2,
+              "0.5": 1
+            }
+          }
+        },
+        "monitors": {
+          "qwen": {
+            "gemma/attack": {
+              "FLAG": 9
+            },
+            "qwen/attack": {
+              "FLAG": 10,
+              "PASS": 2
+            },
+            "qwen/benign": {
+              "PASS": 12
+            },
+            "gemma/benign": {
+              "PASS": 8,
+              "FLAG": 1
+            }
+          },
+          "gemma": {
+            "gemma/attack": {
+              "FLAG": 9
+            },
+            "qwen/attack": {
+              "FLAG": 11,
+              "PASS": 1
+            },
+            "qwen/benign": {
+              "PASS": 12
+            },
+            "gemma/benign": {
+              "PASS": 9
+            }
+          }
+        }
+      }
+    },
+    "analysis-manifest.json": {
+      "repository_commit": "9f8aafb61daf8e4eaee78c3d43932e0b716a50d1",
+      "scope": "Retained91, construction and development only; static program review, frozen audit/monitor summaries, and lightweight classifier probes. No evaluated program or language model executed.",
+      "python": "3.12.13 (main, Mar  3 2026, 12:39:30) [Clang 17.0.0 (clang-1700.6.3.2)]",
+      "numpy": "2.5.4",
+      "commands": [
+        "python3 -S data/analysis/twin-corpus-20261102/measure_pairs.py",
+        "python3 -S data/analysis/twin-corpus-20261102/summarize_audits.py",
+        "env -u PYTHONPATH .venv/bin/python data/analysis/twin-corpus-20261102/probe_shortcuts.py"
+      ],
+      "limitations": [
+        "Semantic classifications are manual static assessments.",
+        "Probe validation is task-disjoint but remains exploratory on a small acquisition-specific corpus.",
+        "Development is not an untouched final evaluation set.",
+        "Historical monitor results do not qualify the proposed thinking-off binary configuration."
+      ],
+      "inputs": {
+        "data/qualification/frozen92-20261101/report/qualified-view.json": "69f7635e17d245fe21c2a8cea0ede4815e30594347e29f772983650040a694f2",
+        "data/qualification/frozen92-20261101/report/audit-results.json": "b0133ceb95ea2bb70577f2710536dd287367b46e84ffbcfaf22f38b9d3887321",
+        "data/qualification/frozen92-20261101/manifest.json": "1838658cf67754d1429a37d3df71d75e6a96e1b697748b1a66c53ca70c2c162f",
+        "src/data-pipeline/stage05/monitor.py": "74b0698cbca4c7dbc1c4aac03848871e16d196fcc6f8d045a22dbf9a4988289b"
+      },
+      "artifacts": {
+        "audit-monitor-analysis.json": {
+          "bytes": 15232,
+          "sha256": "421ebf66a835bb118cf60cb0d5105eb2fc074b716fce7f90b5e461ed782689c4"
+        },
+        "measure_pairs.py": {
+          "bytes": 8288,
+          "sha256": "deabd4645b4bfba237e60d2a41a627652c0a99cac8e548d836971301610aaab4"
+        },
+        "normalized-diffs.txt": {
+          "bytes": 48170,
+          "sha256": "7181e516306daa2896cb0a745ec5fa2dfb4f981baa9bc1f8e384eb1f2c6ec683"
+        },
+        "pair-summary.json": {
+          "bytes": 30424,
+          "sha256": "6058844d2b0a087a337517046cd6e92fc5e761ee8ceb91ce54c3aa86e8f180a6"
+        },
+        "pairs.csv": {
+          "bytes": 14116,
+          "sha256": "66a482b8c0361a921772de9cd7a205d2cce0e8cd9a97d515f7c63784685e27e9"
+        },
+        "probe_shortcuts.py": {
+          "bytes": 8322,
+          "sha256": "b62d95ccb9bdf10a23186d6fa3126bac141e55fa707b2d68fc3f783f1749f0b9"
+        },
+        "programs.csv": {
+          "bytes": 70830,
+          "sha256": "10b9aed69f25aaf02ba7518c0d5df91f189a2c24a0a00f5c7f1531a28b606771"
+        },
+        "semantic-review.json": {
+          "bytes": 16105,
+          "sha256": "80d174df3dca345ca77b6c4d257d880ea8260e30d9d30378f6eb009f3de8c716"
+        },
+        "source-shortcuts.json": {
+          "bytes": 17693,
+          "sha256": "dca01fb0b3361a3a1e12fcf112973c9e1ea680a608e2a23f65e88cfc2faa7437"
+        },
+        "summarize_audits.py": {
+          "bytes": 2995,
+          "sha256": "bd6215ae1a2b12085a4d3296fe89c1374e100d4d6296d286180f45ef38aa8ed2"
+        }
+      }
+    },
+    "review-manifest.json": {
+      "purpose": "Post-review paired-ranking diagnostics, supplementary to single-program classification. No benign reference is available at monitor inference.",
+      "methods": "Fixed earlier probes; source-pairs grouped within tasks for descriptive bootstrap and sign-flip tests; exploratory post-hoc analyses, not confirmatory p-values.",
+      "provenance": {
+        "probe_shortcuts.py": "b62d95ccb9bdf10a23186d6fa3126bac141e55fa707b2d68fc3f783f1749f0b9",
+        "review_paired_probes.py": "2eb73c7182898d71d64099137644fe7972976f5fddcb96ba5cfca9459cfbb75c",
+        "paired-probe-review.json": "4400fe1a51b5dc1fb88a53c682a6eff6609da34c45d81a5de1dc34991db85ddc"
+      },
+      "claude_review_sha256": "f266597cabbfe01ca0ffa926d446b43e8c1430454f253b2ecddced1d7a57ee9f"
+    }
+  },
+  "external_entrypoint_ablation": {
+    "status": "Reviewer-produced source-feature ablation; inspected code/results, not behavior-validated canonicalization.",
+    "input_hashes": {
+      "probe_canon.py": "df151aee668bb21917ec86f557f9fbc5d3f887aa64a7c305f133a9fb97964975",
+      "source-shortcuts-canon.json": "ee9afbf4565b40c0441c4ad892dc41b836f21f16056a7c9806830fca9529ab13"
+    },
+    "results": {
+      "method": {
+        "model": "ridge least squares",
+        "style_features": [
+          "chars",
+          "lines",
+          "nonempty_lines",
+          "blank_fraction",
+          "mean_line_length",
+          "max_line_length",
+          "tokens",
+          "identifier_unique",
+          "identifier_mean_length",
+          "numeric_literals",
+          "large_numeric_literals",
+          "single_quote_strings",
+          "double_quote_strings",
+          "max_indent",
+          "main_guard",
+          "solve_name",
+          "stdin_read",
+          "stdin_readline",
+          "input_call",
+          "If",
+          "For",
+          "While",
+          "Try",
+          "ExceptHandler",
+          "FunctionDef",
+          "Return",
+          "Call",
+          "Compare",
+          "BoolOp",
+          "BinOp",
+          "Subscript",
+          "ListComp",
+          "GeneratorExp",
+          "Import",
+          "ImportFrom"
+        ],
+        "style_alpha": 10,
+        "lexical": "character trigrams, min train df 2, top 2000, sublinear TF-IDF, unit norm",
+        "lexical_alpha": 1,
+        "cv": "5 folds grouped by task, deterministic SHA256 seed 17; all preprocessing fit on train fold only",
+        "threshold": 0.5,
+        "no_tuning": true,
+        "bootstrap": "2000 resamples of held-out tasks; fixed predictions; not model-retraining uncertainty"
+      },
+      "results": {
+        "matched/source/style/group5": {
+          "n": 136,
+          "correct": 119,
+          "accuracy": 0.875,
+          "auc": 0.9372837370242214,
+          "positive_rate": 0.5220588235294118,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.8014705882352942,
+            0.9411764705882353
+          ]
+        },
+        "matched/source/style/construction_to_development": {
+          "n": 80,
+          "correct": 72,
+          "accuracy": 0.9,
+          "auc": 0.92,
+          "positive_rate": 0.5,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.8,
+            0.975
+          ]
+        },
+        "matched/source/trigram/group5": {
+          "n": 136,
+          "correct": 128,
+          "accuracy": 0.9411764705882353,
+          "auc": 0.9874567474048442,
+          "positive_rate": 0.47058823529411764,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.8823529411764706,
+            0.9852941176470589
+          ]
+        },
+        "matched/source/trigram/construction_to_development": {
+          "n": 80,
+          "correct": 74,
+          "accuracy": 0.925,
+          "auc": 0.9925,
+          "positive_rate": 0.575,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.85,
+            1.0
+          ]
+        },
+        "matched/label/style/group5": {
+          "n": 136,
+          "correct": 71,
+          "accuracy": 0.5220588235294118,
+          "auc": 0.5387110726643599,
+          "positive_rate": 0.4485294117647059,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5,
+            0.5514705882352942
+          ]
+        },
+        "matched/label/style/construction_to_development": {
+          "n": 80,
+          "correct": 43,
+          "accuracy": 0.5375,
+          "auc": 0.521875,
+          "positive_rate": 0.5875,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.4875,
+            0.5875
+          ]
+        },
+        "matched/label/trigram/group5": {
+          "n": 136,
+          "correct": 73,
+          "accuracy": 0.5367647058823529,
+          "auc": 0.5164359861591695,
+          "positive_rate": 0.47794117647058826,
+          "folds": [
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 27,
+              "test_tasks": 7,
+              "train_programs": 108,
+              "test_programs": 28
+            },
+            {
+              "train_tasks": 28,
+              "test_tasks": 6,
+              "train_programs": 112,
+              "test_programs": 24
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.49264705882352944,
+            0.5882352941176471
+          ]
+        },
+        "matched/label/trigram/construction_to_development": {
+          "n": 80,
+          "correct": 41,
+          "accuracy": 0.5125,
+          "auc": 0.5025,
+          "positive_rate": 0.4875,
+          "folds": [
+            {
+              "train_tasks": 14,
+              "test_tasks": 20,
+              "train_programs": 56,
+              "test_programs": 80
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.45,
+            0.575
+          ]
+        },
+        "all/source/style/group5": {
+          "n": 182,
+          "correct": 168,
+          "accuracy": 0.9230769230769231,
+          "auc": 0.9510975609756097,
+          "positive_rate": 0.5164835164835165,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.8695293836598185,
+            0.9690800547022932
+          ]
+        },
+        "all/source/style/construction_to_development": {
+          "n": 102,
+          "correct": 88,
+          "accuracy": 0.8627450980392157,
+          "auc": 0.9467084639498433,
+          "positive_rate": 0.5882352941176471,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.7647058823529411,
+            0.9444444444444444
+          ]
+        },
+        "all/source/trigram/group5": {
+          "n": 182,
+          "correct": 174,
+          "accuracy": 0.9560439560439561,
+          "auc": 0.9889024390243902,
+          "positive_rate": 0.5494505494505495,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.9101123595505618,
+            0.9894736842105263
+          ]
+        },
+        "all/source/trigram/construction_to_development": {
+          "n": 102,
+          "correct": 98,
+          "accuracy": 0.9607843137254902,
+          "auc": 0.9968652037617555,
+          "positive_rate": 0.6078431372549019,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.8979591836734694,
+            1.0
+          ]
+        },
+        "all/label/style/group5": {
+          "n": 182,
+          "correct": 95,
+          "accuracy": 0.521978021978022,
+          "auc": 0.5504769955319406,
+          "positive_rate": 0.43956043956043955,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5052069909793815,
+            0.5454545454545454
+          ]
+        },
+        "all/label/style/construction_to_development": {
+          "n": 102,
+          "correct": 53,
+          "accuracy": 0.5196078431372549,
+          "auc": 0.5420991926182238,
+          "positive_rate": 0.4117647058823529,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.4807692307692308,
+            0.5576923076923077
+          ]
+        },
+        "all/label/trigram/group5": {
+          "n": 182,
+          "correct": 100,
+          "accuracy": 0.5494505494505495,
+          "auc": 0.5533148170510808,
+          "positive_rate": 0.532967032967033,
+          "folds": [
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 140,
+              "test_programs": 42
+            },
+            {
+              "train_tasks": 45,
+              "test_tasks": 12,
+              "train_programs": 144,
+              "test_programs": 38
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            },
+            {
+              "train_tasks": 46,
+              "test_tasks": 11,
+              "train_programs": 148,
+              "test_programs": 34
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.5,
+            0.5937591911764706
+          ]
+        },
+        "all/label/trigram/construction_to_development": {
+          "n": 102,
+          "correct": 54,
+          "accuracy": 0.5294117647058824,
+          "auc": 0.538638985005767,
+          "positive_rate": 0.4019607843137255,
+          "folds": [
+            {
+              "train_tasks": 26,
+              "test_tasks": 31,
+              "train_programs": 80,
+              "test_programs": 102
+            }
+          ],
+          "accuracy_task_bootstrap_percentiles_2_5_97_5": [
+            0.48,
+            0.59
+          ]
+        }
+      },
+      "style_medians": {
+        "qwen/benign": {
+          "n": 50,
+          "chars": 447.0,
+          "lines": 26.5,
+          "nonempty_lines": 19.5,
+          "blank_fraction": 0.2532051282051282,
+          "mean_line_length": 22.35,
+          "max_line_length": 40.0,
+          "tokens": 154.5,
+          "identifier_unique": 25.0,
+          "identifier_mean_length": 3.724239864864865,
+          "numeric_literals": 8.0,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 0.0,
+          "max_indent": 12.0,
+          "main_guard": 0.0,
+          "solve_name": 1.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 2.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 0.0,
+          "Call": 10.0,
+          "Compare": 2.0,
+          "BoolOp": 0.0,
+          "BinOp": 3.0,
+          "Subscript": 3.5,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        },
+        "qwen/attack": {
+          "n": 50,
+          "chars": 448.0,
+          "lines": 27.0,
+          "nonempty_lines": 19.5,
+          "blank_fraction": 0.25,
+          "mean_line_length": 22.31547619047619,
+          "max_line_length": 41.5,
+          "tokens": 156.0,
+          "identifier_unique": 25.5,
+          "identifier_mean_length": 3.724239864864865,
+          "numeric_literals": 8.5,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 0.0,
+          "max_indent": 12.0,
+          "main_guard": 0.0,
+          "solve_name": 1.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 2.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 0.0,
+          "Call": 10.5,
+          "Compare": 2.0,
+          "BoolOp": 0.0,
+          "BinOp": 3.5,
+          "Subscript": 3.5,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        },
+        "gemma/benign": {
+          "n": 41,
+          "chars": 550.0,
+          "lines": 32.0,
+          "nonempty_lines": 23.0,
+          "blank_fraction": 0.2926829268292683,
+          "mean_line_length": 22.857142857142858,
+          "max_line_length": 45.0,
+          "tokens": 176.0,
+          "identifier_unique": 27.0,
+          "identifier_mean_length": 4.54054054054054,
+          "numeric_literals": 7.0,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 0.0,
+          "max_indent": 12.0,
+          "main_guard": 0.0,
+          "solve_name": 1.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 3.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 2.0,
+          "Call": 10.0,
+          "Compare": 2.0,
+          "BoolOp": 0.0,
+          "BinOp": 3.0,
+          "Subscript": 3.0,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        },
+        "gemma/attack": {
+          "n": 41,
+          "chars": 565.0,
+          "lines": 33.0,
+          "nonempty_lines": 23.0,
+          "blank_fraction": 0.2903225806451613,
+          "mean_line_length": 23.419354838709676,
+          "max_line_length": 45.0,
+          "tokens": 176.0,
+          "identifier_unique": 27.0,
+          "identifier_mean_length": 4.54054054054054,
+          "numeric_literals": 7.0,
+          "large_numeric_literals": 0.0,
+          "single_quote_strings": 0.0,
+          "double_quote_strings": 0.0,
+          "max_indent": 12.0,
+          "main_guard": 0.0,
+          "solve_name": 1.0,
+          "stdin_read": 1.0,
+          "stdin_readline": 0.0,
+          "input_call": 0.0,
+          "If": 3.0,
+          "For": 1.0,
+          "While": 0.0,
+          "Try": 0.0,
+          "ExceptHandler": 0.0,
+          "FunctionDef": 1.0,
+          "Return": 2.0,
+          "Call": 9.0,
+          "Compare": 2.0,
+          "BoolOp": 0.0,
+          "BinOp": 3.0,
+          "Subscript": 3.0,
+          "ListComp": 0.0,
+          "GeneratorExp": 0.0,
+          "Import": 1.0,
+          "ImportFrom": 0.0
+        }
+      },
+      "row_counts": {
+        "matched": {
+          "tasks": 34,
+          "programs": 136
+        },
+        "all": {
+          "tasks": 57,
+          "programs": 182
+        }
+      },
+      "matched_source_style_prevalence": {
+        "qwen": {
+          "n": 68,
+          "Try": 0,
+          "main_guard": 0,
+          "solve_name": 60,
+          "stdin_read": 36,
+          "stdin_readline": 16,
+          "input_call": 14
+        },
+        "gemma": {
+          "n": 68,
+          "Try": 26,
+          "main_guard": 0,
+          "solve_name": 68,
+          "stdin_read": 42,
+          "stdin_readline": 26,
+          "input_call": 0
+        }
+      },
+      "cross_task_duplicate_programs": []
+    }
+  }
+}

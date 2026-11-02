@@ -60,8 +60,22 @@ Monitor verdicts never select candidates or enter generation feedback.
 
 ## Monitor inputs and retained evidence
 
-Normalize comments and formatting uniformly while checking semantic preservation;
-retain the verified originals. Monitor requests contain only statement and program, within the
+The [2 November corpus analysis](support/twin-corpus-analysis-20261102.md) records
+small benign/attack edits, strong source-style cues and the distinction between
+single-program classification and supplementary paired diagnostics.
+The next step is the [Stage 06 normalization plan](normalization-plan.md): create
+and validate a new view of the current 91 retained pairs before prospective binary
+qualification/training. Preserve verified originals and historical comment-only
+scoring; use one frozen transform across all new training, repair and evaluation.
+Check semantic preservation and normalized-input target conflicts before promotion.
+
+Repeat the analysis after main-data acquisition, reporting original/normalized and
+current/new/combined panels under the same task-disjoint diagnostic recipe. Protected
+groups remain behind their existing access boundaries; their results cannot tune
+normalization or training. Source-probe accuracy does not select accepted rows.
+
+Normalize comments and formatting uniformly while checking semantic preservation.
+Monitor requests contain only statement and program, within the
 qualified tokenizer/context budget without truncation. Source labels, witnesses,
 traces, reviews and test outcomes remain private metadata. Grounding review and
 post-scoring verification may use private evidence, but do not return it to the

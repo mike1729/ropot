@@ -5,7 +5,7 @@ attacks? This repository contains the data pipeline and experiments for the
 [honeypot monitor repair pilot](docs/pilot.md).
 
 **Data acquisition, scoring and corpus qualification are complete. The next
-experiment follows the [binary twin training plan](docs/twin-training-plan.md),
+experiment follows the binary twin training plan,
 starting with direct PASS/FLAG qualification.** Qwen3.8-27B MLX 8-bit is the actor
 and monitor base;
 Gemma-4-31B-it is the synthetic source.

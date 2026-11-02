@@ -229,7 +229,7 @@ class PublishCohortTests(unittest.TestCase):
         explicit = [item for flag, path in zip(flags, overrides) for item in (flag, str(path))]
         for arguments, expected in (([], defaults), (explicit, overrides)):
             with self.subTest(arguments=arguments), mock.patch("sys.argv", ["pipeline", "cohort", *arguments]), \
-                    mock.patch.object(p, "publish_cohort", return_value={"tasks": []}) as publish, \
+                    mock.patch.object(cli, "publish_cohort", return_value={"tasks": []}) as publish, \
                     mock.patch("builtins.print"):
                 cli.main()
                 publish.assert_called_once_with(*expected)

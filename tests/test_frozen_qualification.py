@@ -5,10 +5,18 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from scripts.qualification import status
+
 PATH = Path(__file__).resolve().parents[1] / 'scripts/qualification/freeze.py'
 spec = importlib.util.spec_from_file_location('qualification_freeze', PATH)
 f = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(f)
+
+
+def load_saved(directory=f.OUT):
+    """Check historical repository bindings while reading private evidence on disk."""
+    status.check_revision(directory, {})
+    return status.read(directory / 'manifest.json')
 
 
 class FrozenQualification(unittest.TestCase):
@@ -38,7 +46,7 @@ class FrozenQualification(unittest.TestCase):
     def test_campaign_preserves_selection_cases_and_exceptions(self):
         if not (f.OUT / 'manifest.json').exists():
             self.skipTest('Local private campaign is not available')
-        manifest = f.load()
+        manifest = load_saved()
         selected = f.read(f.REV / 'claude-dispatch01/full-monitor-selection.json')['selections']
         self.assertEqual([p['selection'] for p in manifest['pairs']], selected)
         self.assertEqual(sum(len(p['partition']['audit']) for p in manifest['pairs']), 358)
@@ -96,7 +104,7 @@ class QualificationPhases(unittest.TestCase):
         root = f.OUT / 'reviews'
         if not (root / 'manifest.json').exists():
             self.skipTest('Private review packets not exported')
-        plan = f.load(root)
+        plan = load_saved(root)
         entries = [e for p in plan['packets'] for e in f.read(p)['explanations']]
         self.assertEqual(len(entries), 176)
         self.assertEqual(len({e['id'] for e in entries}), 176)
@@ -135,14 +143,14 @@ class QualificationReporting(unittest.TestCase):
         root=f.OUT/'report'
         if not (root/'manifest.json').exists():
             self.skipTest('Private final report not generated')
-        f.load(root)
+        load_saved(root)
         audit=f.read(root/'audit-results.json')
         self.assertEqual({k:len(v['task_ids']) for k,v in audit['panels'].items()},dict(matched20=20,clean19=19,construction15=15,nonweak14=14))
         self.assertEqual({k:len(v['task_ids']) for k,v in audit['qualified_panels'].items()},dict(matched20=20,clean19=19,construction15=14,nonweak14=13))
         view=f.read(root/'qualified-view.json')
         self.assertEqual(view['retained_pairs'],91)
         self.assertEqual(set(view['excluded_pairs']),{'qwen:886'})
-        self.assertEqual(len(f.load()['pairs']),92)
+        self.assertEqual(len(load_saved()['pairs']),92)
         grounded=f.read(root/'grounding.json')
         self.assertEqual(grounded['coverage']['independent_decisions'],352)
         self.assertEqual(len(grounded['unresolved_disagreements']),4)
@@ -158,7 +166,7 @@ class QualificationReporting(unittest.TestCase):
     def test_complete_review_isolation_and_exact_witness_budget(self):
         if not (f.OUT/'witnesses/completion.json').exists():
             self.skipTest('Private review/witness work not complete')
-        root=f.OUT/'reviews';plan=f.load(root)
+        root=f.OUT/'reviews';plan=load_saved(root)
         records=[f.read(p) for p in (root/'calls').glob('*/*/record.json')]
         self.assertEqual(len(records),44)
         for record in records:

@@ -6,13 +6,11 @@ and retains legacy gate metadata as provenance only. Inputs must remain stable;
 publication assumes one publisher and refuses an existing destination.
 """
 
-import hashlib
 import json
 from pathlib import Path
-import tempfile
 
 from .. import source_hashes
-from ..artifacts import write_json
+from ..artifacts import publication_directory, sha256, write_json
 from ..paths import QUALIFIED_POOL, TEST_POOL as OUTPUT
 from .qualified_tasks import iter_qualified_tasks
 
@@ -27,14 +25,12 @@ def export_test(input_dir=QUALIFIED_POOL, output_dir=OUTPUT):
     original = (input_dir / "manifest.json").read_bytes()
     source = json.loads(original)
     hashes = {}
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as directory:
-        staging = Path(directory)
+    with publication_directory(output_dir) as staging:
         (staging / "tasks").mkdir()
         for relative, raw, task in iter_qualified_tasks(input_dir, source):
             if task["split"] == "test":
                 (staging / relative).write_bytes(raw)
-                hashes[relative] = hashlib.sha256(raw).hexdigest()
+                hashes[relative] = sha256(raw)
         if not hashes:
             raise ValueError("No qualified test tasks")
         manifest = {
@@ -43,14 +39,11 @@ def export_test(input_dir=QUALIFIED_POOL, output_dir=OUTPUT):
             "tasks": sorted(hashes), "accepted_counts": {"train": 0, "test": len(hashes)},
             "selection": {"split": "test", "excluded_train_tasks": source["accepted_counts"].get("train", 0)},
             "provenance": {"input_dir": str(input_dir.resolve()),
-                           "input_manifest_sha256": hashlib.sha256(original).hexdigest(),
+                           "input_manifest_sha256": sha256(original),
                            "qualification_manifest": "qualification-manifest.json",
                            "task_sha256": dict(sorted(hashes.items())),
                            "source_sha256": source_hashes()},
         }
         (staging / "qualification-manifest.json").write_bytes(original)
         write_json(staging / "manifest.json", manifest)
-        if output_dir.exists() or output_dir.is_symlink():
-            raise FileExistsError(output_dir)
-        staging.rename(output_dir)
     return manifest

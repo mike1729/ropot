@@ -246,6 +246,33 @@ class QualificationTests(unittest.TestCase):
                 cli.main()
         run.assert_called_once_with(Path("raw"), Path("pool"), 8)
 
+    def test_other_cli_commands_forward_defaults_and_explicit_paths(self):
+        import sys
+        cli = importlib.import_module("src.data-pipeline.__main__")
+        paths = importlib.import_module("src.data-pipeline.paths")
+        cases = [
+            (["download"], "download_apps", ()),
+            (["analyze"], "analyze", (paths.QUALIFIED_POOL, paths.POOL_ANALYSIS, cli.DEFAULT_TOKENIZER)),
+            (["analyze", "--input-dir", "pool", "--output-dir", "analysis", "--tokenizer", "encoder.json"],
+             "analyze", (Path("pool"), Path("analysis"), Path("encoder.json"))),
+            (["export-test"], "export_test", (paths.QUALIFIED_POOL, paths.TEST_POOL)),
+            (["export-test", "--input-dir", "pool", "--output-dir", "test"],
+             "export_test", (Path("pool"), Path("test"))),
+        ]
+        operations = ("download_apps", "qualify", "analyze", "export_test", "publish_cohort")
+        for arguments, target, expected in cases:
+            with self.subTest(arguments=arguments), \
+                    mock.patch.object(sys, "argv", ["pipeline", *arguments]), \
+                    mock.patch.multiple(cli, **{name: mock.DEFAULT for name in operations}) as calls, \
+                    mock.patch("builtins.print"):
+                for call in calls.values():
+                    call.return_value = {"tasks": []}
+                cli.main()
+                calls[target].assert_called_once_with(*expected)
+                for name in operations:
+                    if name != target:
+                        calls[name].assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

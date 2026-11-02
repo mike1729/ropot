@@ -2,7 +2,7 @@
 
 LocalRunner checks individual sources against all cases supplied by its caller;
 selection of the three passing references belongs to qualification orchestration.
-Execution is not sandboxed. See docs/stage-01-plan.md for the runtime contract.
+Execution is not sandboxed. See docs/v1/stage-01-plan.md for the runtime contract.
 """
 
 from contextlib import closing, ExitStack

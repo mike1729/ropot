@@ -8,16 +8,16 @@ workers share a local subprocess runner; completed exports are published togethe
 from collections import Counter
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
+from itertools import islice
 import json
 from pathlib import Path
 import sys
-import tempfile
 
 from .. import source_hashes
-from ..artifacts import write_json
+from ..artifacts import digest, publication_directory, write_json
 from ..paths import QUALIFIED_POOL as OUTPUT
 
-from .download import BASE, DESTINATION, FILES, REVISION, digest
+from .download import BASE, DESTINATION, FILES, REVISION
 from .local_runner import LocalRunner, MAX_CONCURRENT_CASES
 from .screen import Rejected, screen_task
 from .statement_examples import map_statement_examples_to_cases
@@ -155,24 +155,17 @@ def qualify(input_dir=DESTINATION, output_dir=OUTPUT, workers=MAX_CONCURRENT_CAS
         raise FileExistsError(output_dir)
     files = verify_inputs(input_dir)
     pipeline = source_hashes()
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
     accepted = Counter({split: 0 for split in FILES})
     exclusions, paths, rejection_paths = Counter(), [], []
-    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as directory:
-        staging = Path(directory)
+    with publication_directory(output_dir) as staging:
         (staging / "tasks").mkdir()
-        rows = iter((split, row) for split in FILES for row in read_rows(input_dir, split))
+        rows = ((split, row) for split in FILES for row in read_rows(input_dir, split))
         with ThreadPoolExecutor(max_workers=workers) as pool, LocalRunner() as runner:
-            pending, exhausted, processed = {}, False, 0
-            # Refill the bounded worker pool and collect qualification outcomes until exhausted.
-            while pending or not exhausted:
-                while not exhausted and len(pending) < workers:
-                    item = next(rows, None)
-                    if item is None:
-                        exhausted = True
-                    else:
-                        split, row = item
-                        pending[pool.submit(qualify_task, row, split, runner)] = (split, row["id"])
+            pending, processed = {}, 0
+            while True:
+                # Consume only enough rows to fill the available worker slots.
+                for split, row in islice(rows, workers - len(pending)):
+                    pending[pool.submit(qualify_task, row, split, runner)] = (split, row["id"])
                 if not pending:
                     break
                 completed, _ = wait(pending, return_when=FIRST_COMPLETED)
@@ -214,7 +207,4 @@ def qualify(input_dir=DESTINATION, output_dir=OUTPUT, workers=MAX_CONCURRENT_CAS
             "accepted_counts": dict(accepted), "exclusion_reasons": dict(sorted(exclusions.items())),
         }
         write_json(staging / "manifest.json", manifest)
-        if output_dir.exists() or output_dir.is_symlink():
-            raise FileExistsError(output_dir)
-        staging.rename(output_dir)
     return manifest

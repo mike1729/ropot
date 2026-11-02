@@ -12,17 +12,15 @@ one publisher may target a destination. No cutoff or cohort is chosen here.
 
 from collections import Counter
 import csv
-import hashlib
 import json
 import math
 from pathlib import Path
 import statistics
 import sys
-import tempfile
 from urllib.parse import urlsplit
 
 from .. import source_hashes
-from ..artifacts import digest, write_json
+from ..artifacts import digest, publication_directory, sha256, write_json
 from ..paths import POOL_ANALYSIS as OUTPUT, QUALIFIED_POOL
 from .qualified_tasks import iter_qualified_tasks
 
@@ -80,10 +78,10 @@ def measure_task(task, encoder):
                 "question_characters": len(task["question"]),
                 "question_bytes": len(task["question"].encode("utf-8")),
                 "passing_case_max_seconds": max(a["max_case_seconds"] for a in attempts if a["passed"])})
-    for name, field in (("input", "input"), ("output", "output")):
+    for field in ("input", "output"):
         for unit, size in (("characters", len), ("bytes", lambda s: len(s.encode("utf-8")))):
             sizes = [size(c[field]) for c in cases]
-            row.update({f"{name}_max_{unit}": max(sizes), f"{name}_total_{unit}": sum(sizes)})
+            row.update({f"{field}_max_{unit}": max(sizes), f"{field}_total_{unit}": sum(sizes)})
     return row
 
 
@@ -114,7 +112,7 @@ def analyze(input_dir=QUALIFIED_POOL, output_dir=OUTPUT, tokenizer=DEFAULT_TOKEN
         except Exception as error:
             error.add_note(f"While analyzing {relative}")
             raise
-        task_hashes[relative] = hashlib.sha256(raw).hexdigest()
+        task_hashes[relative] = sha256(raw)
     if not rows:
         raise ValueError("No qualified test tasks")
     excluded_train = manifest["accepted_counts"].get("train", 0)
@@ -136,24 +134,19 @@ def analyze(input_dir=QUALIFIED_POOL, output_dir=OUTPUT, tokenizer=DEFAULT_TOKEN
                            "tokens": "raw content only; no template, target, padding, truncation or added special tokens",
                            "references": "three observed passes; untried references have unknown pass status",
                            "timing": "recorded local qualification observations; not Linux performance"},
-        "provenance": {"input_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+        "provenance": {"input_manifest_sha256": sha256(manifest_bytes),
                        "input_dir": str(input_dir.resolve()), "task_sha256": dict(sorted(task_hashes.items())),
                        "tokenizer": {"path": str(tokenizer.resolve()), "sha256": digest(tokenizer), "version": tokenizer_version},
                        "python": sys.version, "qualification_runtime": manifest["runtime"], "workers": manifest["workers"],
                        "source_sha256": source_hashes()},
     }
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as directory:
-        staging = Path(directory)
+    with publication_directory(output_dir) as staging:
         with (staging / "tasks.csv").open("w", newline="", encoding="utf-8") as stream:
             writer = csv.DictWriter(stream, fieldnames=rows[0].keys())
             writer.writeheader()
             writer.writerows(rows)
         summary["provenance"]["tasks_csv_sha256"] = digest(staging / "tasks.csv")
         write_json(staging / "summary.json", summary)
-        if output_dir.exists() or output_dir.is_symlink():
-            raise FileExistsError(output_dir)
-        staging.rename(output_dir)
     print(f"APPS test: {len(rows)} tasks; {excluded_train} train tasks excluded")
     print("Difficulty:", summary["counts"]["difficulty"], "Hosts:", summary["counts"]["host"])
     print(f"{'Task metric':28} {'median':>10} {'p90':>10} {'p95':>10} {'p99':>10} {'max':>10}")

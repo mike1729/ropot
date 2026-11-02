@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from urllib.request import urlopen
 
-from ..artifacts import digest
+from ..artifacts import digest, write_json
 from ..paths import RAW_APPS as DESTINATION
 
 
@@ -64,6 +64,4 @@ def main():
         "verified_at": datetime.now(timezone.utc).isoformat(),
         "files": files,
     }
-    (DESTINATION / "manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
+    write_json(DESTINATION / "manifest.json", manifest)

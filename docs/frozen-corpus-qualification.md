@@ -30,6 +30,10 @@ recompute metrics, generate attacks, rerun monitors, train or export training da
 
 These are provenance and reproduction entry points, run with `.venv/bin/python`
 from the repository root. They are not instructions to repeat completed work.
+The drivers check live repository bytes and recorded absolute paths, so they no
+longer validate against this refactored checkout. Reproducing them requires the
+sealing sources from `749e2a0` at their original paths, with private evidence
+preserved. Use `status.py` to inspect the frozen campaign from the current tree.
 
 | Phase | Driver |
 | --- | --- |
@@ -67,7 +71,7 @@ audit cases. Historical monitor variants remain labelled; user acceptance does
 not imply uniform scoring. The full-cost gate stays unresolved while named usage
 components are missing; Claude list-price estimates do not establish payment.
 
-The prospective [binary twin training plan](twin-training-plan.md) now defines
+The prospective binary twin training plan now defines
 label-only targets and initial training choices. Launch still requires fresh binary
 monitor qualification, adapter compatibility and runtime smoke, alongside resolving
 or explicitly addressing incomplete full-cost accounting. The saved readiness is

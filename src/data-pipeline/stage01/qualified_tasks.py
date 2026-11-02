@@ -12,12 +12,13 @@ from pathlib import Path
 def iter_qualified_tasks(input_dir, manifest):
     """Yield (relative path, original bytes, decoded task), validating the listing."""
     input_dir = Path(input_dir)
+    root = input_dir.resolve()
     counts, seen = Counter(), set()
     # Validate each listed artifact's path and identity before yielding its original bytes.
     for relative in manifest["tasks"]:
         path = Path(relative)
         if (path.parts != ("tasks", path.name) or path.suffix != ".json"
-                or not (input_dir / path).resolve().is_relative_to(input_dir.resolve())):
+                or not (input_dir / path).resolve().is_relative_to(root)):
             raise ValueError(f"Invalid task path: {relative}")
         raw = (input_dir / path).read_bytes()
         task = json.loads(raw)

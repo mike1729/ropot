@@ -11,10 +11,9 @@ provides atomic visibility, without a power-loss durability guarantee.
 from collections import Counter
 import json
 from pathlib import Path
-import tempfile
 
 from .. import source_hashes
-from ..artifacts import write_json
+from ..artifacts import publication_directory, sha256, write_json
 from ..paths import COHORT as OUTPUT, POOL_ANALYSIS as ANALYSIS_OUTPUT, TEST_POOL as TEST_OUTPUT
 
 from . import cohort
@@ -39,7 +38,7 @@ def reduce_task(task):
     if len(visible) > MAX_CASES:
         raise ValueError(f"More than {MAX_CASES} visible cases cannot fit the execution cap")
     hidden = sorted((case for case in cases if not case["visible"]), key=lambda case: (
-        cohort.sha256(f"{CASE_SELECTION}|{task['split']}|{task['id']}|{case['index']}".encode()), case["index"]))
+        sha256(f"{CASE_SELECTION}|{task['split']}|{task['id']}|{case['index']}".encode()), case["index"]))
     selected = visible + hidden[:MAX_CASES - len(visible)]
     # Full-suite evidence and duplicated raw inputs remain in the source pool.
     reduced = {key: value for key, value in task.items()
@@ -53,10 +52,9 @@ def capacity_report(allocation, loaded):
     records = {task["id"]: task for task in allocation["tasks"]}
 
     def count(identifiers):
-        tasks = [records[identifier] for identifier in identifiers]
-        return {"tasks": len(tasks), "difficulty": {
-            difficulty: sum(task["difficulty"] == difficulty for task in tasks)
-            for difficulty in cohort.DIFFICULTIES}}
+        difficulties = Counter(records[identifier]["difficulty"] for identifier in identifiers)
+        return {"tasks": sum(difficulties.values()),
+                "difficulty": {difficulty: difficulties[difficulty] for difficulty in cohort.DIFFICULTIES}}
 
     def group_counts(groups):
         result = {}
@@ -140,26 +138,21 @@ def publish_cohort(input_dir=TEST_OUTPUT, analysis_dir=ANALYSIS_OUTPUT, output_d
                        "source_sha256": source_hashes()},
     }
     report = capacity_report(allocation, loaded)
-    output_dir.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}-", dir=output_dir.parent) as directory:
-        staging = Path(directory)
+    with publication_directory(output_dir) as staging:
         (staging / "tasks").mkdir()
         original_cases = published_cases = 0
         for record in manifest["tasks"]:
             raw = (input_dir / record["path"]).read_bytes()
-            if cohort.sha256(raw) != record["sha256"]:
+            if sha256(raw) != record["sha256"]:
                 raise ValueError(f"Input task changed during publication: {record['path']}")
             task = json.loads(raw)
             reduced = reduce_task(task)
             target = staging / record["path"]
             write_json(target, reduced)
-            record["source_sha256"], record["sha256"] = record["sha256"], cohort.sha256(target.read_bytes())
+            record["source_sha256"], record["sha256"] = record["sha256"], sha256(target.read_bytes())
             original_cases += len(task["cases"])
             published_cases += len(reduced["cases"])
         report["cases"] = {"original": original_cases, "published": published_cases}
         write_json(staging / "manifest.json", manifest)
         write_json(staging / "report.json", report)
-        if output_dir.exists() or output_dir.is_symlink():
-            raise FileExistsError(output_dir)
-        staging.rename(output_dir)
     return manifest

@@ -1,12 +1,13 @@
 """Stage 02 input validation and pure allocation policy; no publication or activation.
 
-See docs/stage-02-plan.md. Task records reference unchanged input artifacts, keeping
+See docs/v1/stage-02-plan.md. Task records reference unchanged input artifacts, keeping
 every stored case and qualification evidence in place. Load inputs before allocate;
 neither function executes programs or counts new tokens.
 """
 
 import csv
 import io
+from itertools import cycle, islice
 import json
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -161,24 +162,20 @@ def allocate(tasks):
     # Allocate initial quotas, then distribute reserve and deferred tasks by difficulty.
     for difficulty_index, difficulty in enumerate(DIFFICULTIES):
         ordered = sorted((t for t in records.values() if t["difficulty"] == difficulty), key=hash_key)
-        eligible = [t for t in ordered if not t["defer_reasons"]]
+        eligible = (task for task in ordered if not task["defer_reasons"])
         deferred = [t for t in ordered if t["defer_reasons"]]
 
         def assign(task, owner, block):
             task.update(owner=owner, block=block)
             buckets[owner][block][difficulty_index].append(task["id"])
 
-        cursor = 0
         for owner, quotas in QUOTAS.items():
-            chosen = eligible[cursor:cursor + quotas[difficulty_index]]
-            for task in chosen:
+            for task in islice(eligible, quotas[difficulty_index]):
                 assign(task, owner, "initial")
-            cursor += len(chosen)
-        reserve_cursor = 0
-        for block, population in (("reserve", eligible[cursor:]), ("deferred", deferred)):
+        reserve_owners = cycle(RESERVE_CYCLE)
+        for block, population in (("reserve", eligible), ("deferred", deferred)):
             for task in population:
-                assign(task, RESERVE_CYCLE[reserve_cursor % len(RESERVE_CYCLE)], block)
-                reserve_cursor += 1
+                assign(task, next(reserve_owners), block)
     for task in records.values():
         if (RESTRICTED_USES.intersection(task.get("known_uses", ()))
                 and task["owner"] not in ("construction", "development")):

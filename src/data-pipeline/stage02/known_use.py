@@ -1,9 +1,10 @@
 """Read recorded task uses and row bindings without opening historical evidence."""
 
-import hashlib
 import json
 from pathlib import Path
 import re
+
+from ..artifacts import sha256
 
 
 _MANIFESTS = Path(__file__).resolve().parents[4] / "honeypot/data/manifests"
@@ -15,7 +16,7 @@ RESTRICTED_USES = {"prompt_checker_development", "unresolved"}
 
 def row_sha256(original_row):
     raw = json.dumps(original_row, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    return sha256(raw.encode("utf-8"))
 
 
 def _identity(value):
@@ -61,8 +62,8 @@ def load_known_use(records_path=RECORDS, coverage_path=COVERAGE):
             task = tasks.setdefault(key, {"row_sha256": digest, "uses": []})
             task["uses"] = sorted(set(task["uses"]) | {item["use"]})
     return {"tasks": tasks,
-            "provenance": {"records_path": str(records_path), "records_sha256": hashlib.sha256(records_raw).hexdigest(),
-                           "coverage_path": str(coverage_path), "coverage_sha256": hashlib.sha256(coverage_raw).hexdigest(),
+            "provenance": {"records_path": str(records_path), "records_sha256": sha256(records_raw),
+                           "coverage_path": str(coverage_path), "coverage_sha256": sha256(coverage_raw),
                            "apps_row_hash_rule": ROW_HASH_RULE},
             "coverage": {key: coverage[key] for key in
                          ("cutoff_date", "history_certainty", "inspection_scope", "interpretation", "limits")}}

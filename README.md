@@ -68,7 +68,7 @@ docs evolve. The command needs Git and Python 3.9 or later, with no optional pac
 | `configs/` | Pinned inference, monitor and sandbox settings |
 | `tests/` | Default regression suite and explicitly enabled live fixtures |
 | `docs/support/` | Completed v2 plans, experiments, recoveries and reports |
-| `docs/v1/`, `archive/stage03/` | Historical plans, results and preserved callers |
+| `docs/v1/` | Historical plans, results and Git archive recovery guides |
 
 V1 is closed. Its [closeout](docs/v1/v1-closeout.md) and
 [reviewed results](docs/v1/reviewed-generation-monitor-results.md) preserve the

@@ -14,7 +14,7 @@ limitations and the Stage 04 handoff.
 
 Keep existing APIs and scientific evidence; add no more experiment arms.
 One-off callers, their tests and the detailed experiment plans are retained in
-[the archive](../../archive/stage03/README.md).
+[the Git archive](archive.md#stage-03-experiment-callers).
 
 ## Completion and handoff
 

@@ -194,7 +194,7 @@ log and a 39-line one-off driver. This stage changes only the driver and report,
 
 ## Strict-code full smoke with five repairs — 2026-10-26
 
-The user authorized the [separate frozen caller](../../archive/stage03/experiments/batch09b_ministral.py)
+The user authorized the [separate frozen caller](archive.md#stage-03-experiment-callers)
 with up to five repairs, overriding the one-repair checklist. It reuses all eight
 saved tasks in order, Ministral only, the neutral system and exact strict-code
 initial/repair instructions, temperature 0.2/top-p 0.95, seed 17, and 2,048 tokens
@@ -242,7 +242,7 @@ there are no pipeline or test changes. Nothing was committed.
 ## Full 50-task development launch — 2026-10-26
 
 The user authorized both sources on all 50 published development-initial IDs.
-The [frozen caller](../../archive/stage03/experiments/batch09c_development50.py) runs Qwen first
+The [frozen caller](archive.md#stage-03-experiment-callers) runs Qwen first
 (`0004-batch09c-actor`), then Ministral (`0005-batch09c-synthetic`), stopping on
 technical failure without retries. Qwen retains its original 1,024-token,
 one-repair recipe; Ministral uses strict code at 2,048 tokens and five repairs.
@@ -266,7 +266,7 @@ additional direct tuning draws are authorized by this launch. Nothing committed.
 ## Prepared honeypot-style Ministral comparison — 2026-10-26
 
 Preparation only; no generation or verification dispatched. The
-[separate caller](../../archive/stage03/experiments/batch09d_honeypot_ministral.py) adapts the
+[separate caller](archive.md#stage-03-experiment-callers) adapts the
 historical 300-task run to these same 50 development tasks. Historical runner and
 simple-pipeline source recovered from Git match both hashes in the original
 Ministral plan. The historical policy is ten fresh statement-only attempts with

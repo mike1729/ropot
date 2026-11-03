@@ -76,7 +76,7 @@ record the completed v2 campaign's effective settings.
 | Restricted study tasks | `stage03.study_tasks.load_cohort`, `load_task` | [Ownership and access](data-pipeline-overview.md#ownership-and-case-partitions) |
 | Program execution | `stage03.inspect_runner.run`, `stage03.verification.verify`, `reuse` | [Execution contract](v1/stage-03-plan.md#inspect-execution-contract) |
 | Local generation | `stage03.local_generation.generate`, `generate_batched` | [Generation and extraction](v1/stage-03-batch-06-plan.md) |
-| Benign acquisition | `stage03.benign_acquisition.prepare_contract`, `acquire` | [B1 contract](support/v2-batch-01-plan.md) |
+| Campaign benign acquisition | `scripts/qwen_dev_benigns.py` (`prepare`, `run`) | [Qwen3.8 panel and bounded settings](support/qwen-dev50-benigns.md) |
 | Attack acquisition | `scripts/qwen_experiment.py` (`run`, `score_monitor`) | [Experiment driver and bounded settings](support/qwen-experiments.md) |
 | Comment normalization | `stage05.monitor.strip_comments` | [Monitor inputs](data-pipeline-overview.md#monitor-inputs-and-retained-evidence) |
 
@@ -85,6 +85,18 @@ Because the package name contains a hyphen, Python callers load it with
 Only shown-case feedback can enter repairs. Private audits and monitor verdicts
 cannot select replacements or enter generator feedback. The generation loop
 retains all bounded attempts, raw replies, partial failures and costs.
+
+The B1 `stage03.benign_acquisition.prepare_contract` and `acquire` entry points
+retain the historical Qwen3.6 actor pin and [B1 contract](support/v2-batch-01-plan.md).
+Their runtime qualifier checks repository files against live bytes; the existing
+proofs refer to a moved batching document and changed probe/generation sources,
+so they fail from this checkout. They do not qualify the current Qwen3.8 actor.
+The campaign driver instead uses `qwen_experiment.load_panel`, which binds the
+historical B1 evidence through Stage 05 and separately validates the active
+Qwen3.8 checkpoint. Fresh MLX acquisition must use that explicit binding path
+or establish a new runtime qualification before using the Stage 03 contract
+entry points. Historical binding verifies saved proof integrity and live
+runtime/model files; it does not establish fresh runtime qualification.
 
 The v1 benign publication and witness acquisition chain is preserved with its
 tests on an [archive branch](v1/archive.md). Its frozen outputs remain under

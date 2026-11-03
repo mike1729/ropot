@@ -40,8 +40,7 @@ V1 is closed. Read the [closeout](v1/v1-closeout.md) and
 retain its evidence. Its [pipeline](v1/data-pipeline-overview.md) and stage plans
 record historical contracts, including the superseded full-suite attack gate.
 
-Additional Stage 03 callers, tests and plans are preserved in
-[the experiment archive](../archive/stage03/README.md). The complete v1 code is
-also retained on the archive branch linked from the repository README. The
-remaining v1 acquisition chain and its tests have a separate
-[archive snapshot and reproduction guide](v1/archive.md).
+The [archive and reproduction guide](v1/archive.md) records Git snapshots of the
+remaining v1 acquisition chain, additional Stage 03 callers, tests and detailed
+plans. The complete v1 code is also retained on the archive branch linked from
+the repository README.

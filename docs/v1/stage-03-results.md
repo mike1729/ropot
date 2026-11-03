@@ -89,6 +89,7 @@ generator calls. This satisfies the compatibility smoke, not monitor quality.
 
 Retain the task loader, generation adapter, feedback renderer, loop, verifier and
 saved-evidence summary. Historical callers and caller tests are preserved in the
-[archive](../../archive/stage03/README.md); restore their original paths to rerun.
+[Git archive](archive.md#stage-03-experiment-callers), with their original path
+and dependency requirements recorded there.
 Bulk acquisition, recovery, overlap scheduling and selection replacement remain
 deferred until a consumer requires them. No inference ran during this cleanup.

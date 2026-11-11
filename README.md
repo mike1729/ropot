@@ -6,21 +6,26 @@ attacks? This repository contains the data pipeline and experiments for the
 
 **Before the main run, implement and qualify the
 [data generation redesign](docs/data-generation-redesign.md): shared actor benigns
-and comparable, bounded rewrites from both generators.** Finish the current pilot
-as a learning exercise; the main run will use the redesigned data.
+and comparable, bounded rewrites from both generators.** The revised three-row
+training pilot also requires qualified shared-parent data; preserve the old corpus.
 
-**Data acquisition, scoring and corpus qualification are complete. The next
-experiment follows the binary twin training plan,
-starting with direct PASS/FLAG qualification.** Qwen3.8-27B MLX 8-bit is the actor
-and monitor base;
-Gemma-4-31B-it is the synthetic source.
+**Historical corpus qualification is complete. The next experiment follows the
+binary twin training plan on a newly qualified three-row export,
+starting with direct PASS/FLAG qualification.** The actor and historical monitor
+use Qwen3.8-27B MLX 8-bit; Gemma-4-31B-it is the synthetic source. Planned monitor
+training uses rented NVIDIA hardware; precision and LoRA versus full fine-tuning
+remain open. The [training plan](docs/twin-training-plan.md) uses direct twin training
+on shared-parent triples with plain PASS/FLAG output, followed by synthetic repair
+versus matched replay. Five-row data and ASSESS/REPORT remain later extensions.
+The [implementation stage](docs/monitor-training-plan.md) plans monitor training
+against the redesigned pipeline's frozen export, replacing separate normalization.
 
 The frozen corpus preserves 92 selected pairs and 184 programs. Its derived view
 retains 91 pairs after one demonstrated benign defect, with 20 matched development
 tasks and 14 matched construction tasks. Monitor scoring was accepted for this
 corpus and all four grounding disagreements were adjudicated on 2 November 2026.
 Full-cost accounting remains incomplete; fresh binary monitor qualification,
-adapter compatibility and a runtime smoke are still required before training.
+training compatibility and a runtime smoke are still required before training.
 See the [qualification record](docs/frozen-corpus-qualification.md) for evidence
 and the remaining limitations.
 

@@ -1,8 +1,9 @@
 # Data generation redesign for the main run
 
-Status: agreed decisions, 11 November 2026. Implement and qualify this redesign
-before the main run. Finish the current pilot as a learning exercise using its
-existing data; preserve the frozen corpus and its evidence.
+Status: agreed decisions, updated 11 November 2026. Implement and qualify this
+redesign before the main run and the revised three-row training pilot. The
+[training plan](twin-training-plan.md) now requires shared-parent triples;
+preserve the existing four-program corpus and its evidence separately.
 
 ## Objective
 
@@ -49,10 +50,12 @@ capability and selective behavior on held-out tasks before proceeding to repair.
 
 ## Repair and evaluation
 
-Use verified missed synthetic attacks for correction: H flags the attack and D
-passes it. Compare synthetic corrections, authentic actor corrections and honest
-replay, with matched update budgets and correction-target counts. Freeze the
-correction-selection and dose rules before acquisition.
+Use certified synthetic faults that frozen D explicitly PASSes for correction;
+H and actor misses are not eligibility gates. Compare synthetic correction with
+matched replay of already-correct synthetic faults and common benigns. Both arms
+use plain REPORT outputs, with no actor-faulty or ASSESS training examples.
+Match update budgets and FLAG/PASS counts; freeze selection and dose rules before
+acquisition. The training plan defines the control pool and full budgets.
 
 Evaluate on separate tasks. The primary result is improved actor attack detection
 beyond replay, with retained benign acceptance and synthetic detection. Keep
@@ -69,7 +72,7 @@ features. Qualified original benigns remain part of training and evaluation.
 
 Implement and validate the shared-benign acquisition and matched rewrite controls.
 Update the pipeline contract, exported records, allocations and training and repair
-gates for this shared-benign structure before using it in the main run. Freeze the
+gates for this shared-benign structure before prospective training. Freeze the
 generation recipe after development and qualify the twin and repair workflow on
-the redesigned data. The existing four-program pilot allocation is not the final
-main-run data contract.
+the redesigned data. Existing four-program evidence cannot be relabeled to qualify
+the new triples. Five-row and ASSESS/REPORT extensions remain deferred.

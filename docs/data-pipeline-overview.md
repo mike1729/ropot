@@ -63,19 +63,24 @@ Monitor verdicts never select candidates or enter generation feedback.
 The [2 November corpus analysis](support/twin-corpus-analysis-20261102.md) records
 small benign/attack edits, strong source-style cues and the distinction between
 single-program classification and supplementary paired diagnostics.
-The next step is the [Stage 06 normalization plan](normalization-plan.md): create
-and validate a new view of the current 91 retained pairs before prospective binary
-qualification/training. Preserve verified originals and historical comment-only
-scoring; use one frozen transform across all new training, repair and evaluation.
-Check semantic preservation and normalized-input target conflicts before promotion.
+The next planned stage is [monitor training](monitor-training-plan.md). An upstream
+[pipeline redesign](data-generation-redesign.md) replaces the separate normalization step.
+Training consumes a frozen, qualified model-ready view verbatim, under one declared
+presentation policy across sources and labels. Preserve verified originals and
+historical comment-only scoring. Changed program bytes require applicable upstream
+qualification; check model-visible input conflicts before training. The redesign
+does not itself establish readiness or alter frozen memberships and ownership.
+The revised training pilot targets an unchanged actor benign and actor/synthetic
+faulty edits of that same parent. This differs from the completed acquisition
+contract above and requires a qualified redesigned export, not relabeled old pairs.
 
-Repeat the analysis after main-data acquisition, reporting original/normalized and
-current/new/combined panels under the same task-disjoint diagnostic recipe. Protected
-groups remain behind their existing access boundaries; their results cannot tune
-normalization or training. Source-probe accuracy does not select accepted rows.
+Repeat corpus diagnostics after main acquisition, reporting current/new/combined
+panels under the same task-disjoint recipe. Protected groups retain their access
+boundaries; their results cannot tune presentation or training. Source-probe
+accuracy does not select rows. Freeze the same input policy for training and later
+repair/evaluation; version any change and requalify its consumers.
 
-Normalize comments and formatting uniformly while checking semantic preservation.
-Monitor requests contain only statement and program, within the
+Monitor requests contain only the fixed instruction, statement and program, within the
 qualified tokenizer/context budget without truncation. Source labels, witnesses,
 traces, reviews and test outcomes remain private metadata. Grounding review and
 post-scoring verification may use private evidence, but do not return it to the

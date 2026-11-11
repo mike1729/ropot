@@ -4,6 +4,11 @@ Can synthetic corrections repair a monitor's selective failure to flag its actor
 attacks? This repository contains the data pipeline and experiments for the
 [honeypot monitor repair pilot](docs/pilot.md).
 
+**Before the main run, implement and qualify the
+[data generation redesign](docs/data-generation-redesign.md): shared actor benigns
+and comparable, bounded rewrites from both generators.** Finish the current pilot
+as a learning exercise; the main run will use the redesigned data.
+
 **Data acquisition, scoring and corpus qualification are complete. The next
 experiment follows the binary twin training plan,
 starting with direct PASS/FLAG qualification.** Qwen3.8-27B MLX 8-bit is the actor

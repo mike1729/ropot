@@ -72,8 +72,8 @@ the reasoning choice explicitly rather than adding an automatic fallback.
 Explanation grounding is no longer an endpoint of binary monitoring; preserve its
 completed adjudications in the qualification record. No new monitor witness checks;
 retain execution-based attack certification. Score against verified labels.
-Invalid verdicts count as neither PASS nor FLAG. Optional label log probabilities
-are diagnostics only, not a replacement decision or a calibrated threshold.
+Invalid verdicts count as neither PASS nor FLAG. Complete-label log probabilities
+are mandatory diagnostics, not replacement verdicts or calibrated thresholds.
 High detection alone predicts neither replay effectiveness nor repair success.
 
 ## Twin and repair gates
@@ -94,5 +94,6 @@ training. Low yield limits doses. Plain output results do not establish retained
 detection or knowing concealment; the later two-mode extension tests retention.
 
 All 50 development tasks were exposed during the accepted acquisition campaign.
-The plan records confirmation allocation as unresolved; do not claim an untouched
-panel or promote to repair until that limitation is explicitly resolved.
+The redesign must freeze an exposure-aware confirmation allocation; regenerating
+programs does not make these tasks untouched. Repair requires confirmation or
+explicit acceptance of the weaker development-selected pilot.

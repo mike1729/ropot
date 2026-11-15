@@ -24,14 +24,17 @@ frozen upstream view + pinned NVIDIA base
 
 Repair acquisition/training, source-attribution training and locked evaluation
 belong to later stages. Development-selected twins are useful stage outputs, but
-are not independently confirmed twins and cannot yet be promoted to repair.
+are not independently confirmed twins. Repair requires confirmation or explicit
+acceptance of the weaker development-selected pilot.
 The [scientific plan](twin-training-plan.md) owns thresholds and interpretation;
 this document specifies implementation order, contracts and acceptance checks.
 
 ## 1. Accept the redesigned pipeline's frozen export
 
-Define the consumer boundary before coupling to the redesigned producer. Use
-small in-memory fixtures until its schema is settled. The minimum private row
+T1 owns a concrete versioned consumer schema, agreed with the redesigned producer;
+the [upstream handoff](data-generation-redesign.md#training-export-handoff) states
+its minimum fields and pending presentation decision. Use in-memory fixtures first.
+The minimum private row
 contains a stable row ID, task ID, parent author/hash, editor (null for the untouched
 parent), truthful fault label, ownership/phase,
 statement and program bytes (or hash-bound references), and qualification evidence
@@ -53,12 +56,16 @@ For the existing pilot allocation, require:
 | Development | 20 | 60 | Base qualification and bounded checkpoint selection |
 
 Each task contributes one unchanged actor benign and actor/synthetic faulty edits
-of those same parent bytes. Preserve the assigned 6/8 split; these planned 102 rows
+of those same parent bytes. Preserve the 6/8 phase assignments and advance only
+through predeclared qualification-failure reserves; these planned 102 rows
 need upstream qualification. The historical 91-pair view does not supply qualified
 triples automatically. Training excludes development. Restrict loading before
 opening files; confirmation/correction/calibration/evaluation stay inaccessible.
-Validate parent lineage, hashes, three-cell coverage, task disjointness and the
-existing Qwen/task 886 exclusion; no relabeling of old synthetic-parent attacks.
+Validate parent lineage, hashes, three-cell coverage and task disjointness. Reject
+the demonstrated faulty Qwen/task 886 parent by artifact identity. Task 886 needs
+a new independently qualified parent/descendants under a recorded acquisition
+policy, or its whole triple fails and reserves advance. Preserve the historical
+exclusion; an old synthetic-parent attack cannot substitute for an actor-parent edit.
 Detect duplicate model-visible statement/program inputs:
 report identical-target duplicates and block conflicting targets under either H
 or D, including cross-source identical attacks. Do not silently deduplicate,
@@ -103,13 +110,18 @@ Infrastructure failures must be resolved as incomplete runs, not a passing score
 Preflight training length including the actual assistant label and terminator,
 and inference length reserving the full configured output cap, with the pinned
 tokenizer; initial proposed ceiling is 8,192 total tokens. Reject overlength
-inputs without truncation or silent exclusion. Check training's
-prompt prefix equals inference's prefix and that special tokens are not duplicated.
-Freeze the exact non-thinking template behavior; do not invent reasoning targets.
+inputs without truncation or silent exclusion. T2 owns tokenizer-dependent preflight.
+Build training from the same tokenized inference prefix (native template with
+add_generation_prompt=True and thinking disabled), then append validated label/
+terminator token IDs. Still test prefix equality, boundaries, special-token
+duplication and masks against the native template; invent no reasoning targets.
+Record both complete-continuation log likelihoods for the mandatory margin
+diagnostic, separately budgeted; primary verdicts remain unconstrained generation.
 
 Score all 60 development rows once with the unchanged numerical base. Report
-counts/invalids in every cell and paired changes from historical scoring, noting
-the changed runtime, thinking policy and input view. Passing requires ≥75% attack
+counts/invalids in every cell. Historical same-program comparisons require identical
+statement/program bytes; regenerated-task comparisons confound input and runtime
+changes and must be labelled accordingly. Passing requires ≥75% attack
 FLAG per editor, ≥90% shared-parent PASS, and ≥95% valid in each of three cells. Keep invalids
 in all denominators. Failure ends this direct-classification attempt pending review.
 
@@ -118,14 +130,18 @@ in all denominators. Failure ends this direct-classification attempt pending rev
 Supervise only the assistant label and required answer terminator. Mask the
 instruction, statement, program, template prefix and padding with ignored labels.
 Audit actual token IDs and boundaries for both PASS and FLAG; do not assume either
-is one token. Use equal example weights: average negative log likelihood over each
-row's supervised tokens, then average rows in the effective batch. Check gradient
-accumulation preserves this weighting when continuation lengths differ. No sequence
-packing across examples in the pilot. Report loss and label-only training fit separately.
+is one token. Let l_i be mean negative log likelihood over row i's supervised
+tokens; each update uses L_B = sum(l_i for i in B) / 4, even for a final two-row
+batch. This preserves nominal per-row loss coefficients, not equal AdamW parameter
+changes. Implement explicit per-row reduction in Trainer's custom loss hook;
+prevent token-count normalization or a second accumulation division. Test full and
+partial accumulated gradients against this reference with unequal label lengths.
+No cross-example packing. Report loss and label-only fit separately.
 
 Candidate adapter settings remain rank 16, alpha 32, standard scaling, dropout 0,
-AdamW learning rate 1e-4, weight decay 0, microbatch 1, accumulation 4, seed 17.
-Before smoke, pin optimizer betas/epsilon, scheduler, clipping, adapter initialization,
+AdamW learning rate 1e-4, constant schedule with zero warmup, weight decay 0,
+microbatch 1, accumulation 4, seed 17. Explicitly configure the scheduler; do not
+inherit Trainer's linear-decay default. Before smoke, pin betas/epsilon, clipping, initialization,
 exact text-backbone projection names, dtypes and gradient-checkpointing settings.
 Freeze all other parameters. PEFT exposes explicit target modules and adapter
 initialization in its [LoRA configuration](https://huggingface.co/docs/peft/main/en/developer_guides/lora);
@@ -186,9 +202,9 @@ tasks using audit survival or source-probe accuracy.
 
 ## 5. Budgets, outputs and conditional confirmation
 
-At microbatch one / accumulation four, flush each epoch's final partial batch and
-normalize by its actual row count: S has four full updates plus one two-row update.
-Never drop/pad/duplicate rows; verify the trainer's partial-accumulation scaling.
+At microbatch one / accumulation four, flush each epoch's final partial batch
+using sum of row losses divided by nominal four, as in section 3. S has four full
+updates plus one two-row update. Never drop/pad/duplicate rows; verify scaling.
 
 | Trajectory | Rows per pass | Updates after 1 / 4 / 16 passes |
 | --- | ---: | --- |
@@ -213,7 +229,8 @@ all candidate selection outcomes. Preserve raw scores and interrupted/failed
 attempts. Never overwrite a finished run. Save complete resume state as well as
 inference-loadable S/H/D artifacts; verify their hashes and lineage in the report.
 
-Confirmation remains unresolved: all 50 development tasks were exposed. Before
+The redesign's pre-generation allocation must resolve confirmation; all 50 old
+development tasks were exposed, and new programs do not reset that history. Before
 claiming independent confirmation or starting repair, explicitly revise allocation
 to supply a genuinely untouched panel (target 20 matched tasks), or explicitly
 accept a development-selected pilot with the weaker confirmation requirement.
@@ -231,12 +248,12 @@ and reporting modules only as their batches need them; a thin module CLI can
 expose prepare, score, smoke and train. Keep GPU dependencies in a separate pinned
 training requirements file; pure data/parser checks must run without CUDA/MLX.
 Reuse existing artifact hashing/publication helpers and ownership semantics.
-No trainer framework, remote-job orchestrator or dashboard is needed.
+Reuse Trainer; no custom training framework, remote-job orchestrator or dashboard is needed.
 
 | Batch | Reviewable result and acceptance |
 | --- | --- |
-| T1: consumer and interface | Restricted export adapter, prompt/parser, truthful/H/D targets and token preflight. Fixtures cover leakage, tampering, ownership, three-cell/parent completeness, conflicting inputs, invalid stops and overlength. Actual export waits for the redesigned upstream contract. |
-| T2: NVIDIA inference | Pin numerical base/precision/template and effective settings; minimal score command and per-task report. Run fresh binary qualification only after runtime/budget selection. Exact production recipe meets all base gates. |
+| T1: consumer and interface | Versioned restricted export schema/adapter, message builder, parser and truthful/H/D targets. Pure fixtures cover leakage, hashes/lineage, ownership/reserves, three-cell completeness, conflicts and invalid stops. No tokenizer-dependent preflight; real export requires upstream qualification/presentation policy. |
+| T2: NVIDIA inference | Pin base/precision/tokenizer/template and effective settings; implement native rendering, token preflight and overlength checks, then scorer/margins and per-task report. Qualify the exact production recipe after runtime/budget selection. |
 | T3: training adapter | Loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
 | T4: shared honest | One continuous S trajectory and earliest-passing selection. Reconcile actual row presentations/updates, retain all snapshots/results and demonstrate inference reload. Stop if no S passes. |
 | T5: matched twins | Reuse T4 runner for H/D, matched row-order and lineage checks, paired development report. Output selected pair or a reproducible failed attempt; mark confirmation status explicitly. |
@@ -249,5 +266,5 @@ neither implementation, GPU rental, training nor confirmation allocation.
 
 First implementation work can start with T1's data boundary and pure fixtures
 while upstream redesign proceeds. T2/T3 live work needs the frozen export, selected
-training mode/base/runtime and numeric budgets. Confirmation blocks promotion to
+training mode/base/runtime and numeric budgets. Confirmation policy blocks promotion to
 repair, not preparation, binary qualification, smoke or development-selected twins.

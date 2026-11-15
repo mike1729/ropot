@@ -33,7 +33,12 @@ preserving benign acceptance and synthetic attack detection.
 ## Data separation and twin targets
 
 Allocate tasks to training, development, confirmation, corrections and evaluation
-before generation. Keep every program variant and derived view of a task in the
+before generation, preserving prior exposure history. Freeze actual task IDs,
+phase-specific finite reserve prefixes, advancement rules and acquisition caps;
+previously unmatched construction tasks need an explicit eligibility decision.
+Fresh programs on exposed tasks cannot provide untouched confirmation. Resolve
+its panel through the allocation amendment before claiming confirmation, or
+explicitly accept the weaker development-selected pilot. Keep every variant in the
 same split. Record the base author and fault editor separately; attack source
 means the fault editor. The monitor receives the statement and one program,
 without source labels, the benign partner, a diff or the counterexample.
@@ -47,6 +52,22 @@ without source labels, the benign partner, a diff or the counterexample.
 Start both twins from the same shared honest checkpoint and use matched training
 inputs and schedules, changing only the actor-attack targets. Establish honest
 capability and selective behavior on held-out tasks before proceeding to repair.
+
+## Training export handoff
+
+T1 defines the versioned schema against this minimum contract. Each private row
+binds row/task IDs, phase, program kind, parent author/hash, editor (null for the
+parent), immutable truth label, statement/program bytes and hashes, and qualification
+evidence references with hashes. The manifest binds schema/upstream versions,
+allocation and presentation-policy IDs, row digests, exclusions and candidate/
+reserve order. Branch targets are derived by the consumer, never factual relabeling.
+
+Freeze the presentation policy before generation/export, including exact treatment
+of comments and docstrings and code extraction. It is still an upstream decision;
+T1's real export and T2 qualification cannot proceed with an unspecified policy.
+Require source/label-neutral handling and reject model-visible explanations of the
+intended fault or source identity. Do not silently strip comments in the consumer
+or infer policy from existing raw programs. Qualification must cover exported bytes.
 
 ## Repair and evaluation
 

@@ -3,7 +3,7 @@
 import argparse
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 
 
@@ -18,9 +18,15 @@ def read(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def input_digest(filename, source_hashes):
+def input_digest(filename, source_hashes, recorded_root=None):
     """Hash repository inputs at the sealing commit and private evidence on disk."""
     path = Path(filename)
+    if recorded_root is not None:
+        try:
+            relative = PurePosixPath(filename).relative_to(PurePosixPath(recorded_root))
+            path = REPOSITORY.joinpath(*relative.parts)
+        except ValueError:
+            pass
     if not path.is_absolute():
         path = REPOSITORY / path
     try:
@@ -41,7 +47,7 @@ def input_digest(filename, source_hashes):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def check_revision(directory, source_hashes):
+def check_revision(directory, source_hashes, recorded_root=None):
     """Check a saved manifest's seal and inputs without requiring old live code."""
     manifest_path = directory / "manifest.json"
     manifest_bytes = manifest_path.read_bytes()
@@ -49,18 +55,21 @@ def check_revision(directory, source_hashes):
         raise ValueError(f"Manifest changed: {manifest_path}")
     inputs = json.loads(manifest_bytes)["inputs"]
     for filename, expected in inputs.items():
-        if input_digest(filename, source_hashes) != expected:
+        if input_digest(filename, source_hashes, recorded_root) != expected:
             raise ValueError(f"Hash changed: {filename}")
     return len(inputs)
 
 
-def summary(root=CAMPAIGN):
+def summary(root=CAMPAIGN, recorded_root=None):
     root = Path(root).resolve()
+    if recorded_root is not None:
+        recorded_root = PurePosixPath(recorded_root)
     directories = {root / revision for revision in REVISIONS}
     directories.update(path.parent for path in root.rglob("manifest.json"))
     directories.update(path.parent for path in root.rglob("seal.json"))
     source_hashes = {}
-    verified_inputs = sum(check_revision(directory, source_hashes) for directory in sorted(directories))
+    verified_inputs = sum(check_revision(directory, source_hashes, recorded_root)
+                          for directory in sorted(directories))
     current = root / CURRENT_STATUS
     readiness = read(current / "readiness.json")
     view = read(root / "report/qualified-view.json")
@@ -84,10 +93,13 @@ def summary(root=CAMPAIGN):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=CAMPAIGN, help="Saved campaign root")
+    parser.add_argument("--recorded-root", type=PurePosixPath,
+                        help="Original POSIX repository root to relocate sealed absolute input paths; "
+                             "does not rewrite evidence or change expected hashes")
     parser.add_argument("--json", action="store_true", help="Print machine-readable status")
     args = parser.parse_args()
     try:
-        result = summary(args.root)
+        result = summary(args.root, args.recorded_root)
     except (OSError, ValueError, KeyError, TypeError) as error:
         parser.exit(1, f"Cannot verify qualification status: {error}\n")
     if args.json:

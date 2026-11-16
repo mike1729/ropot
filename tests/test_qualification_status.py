@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import subprocess
 import sys
 import tempfile
@@ -145,6 +145,45 @@ class QualificationStatusTests(unittest.TestCase):
         with patch.object(status, "REPOSITORY", repository), patch.object(status, "SOURCE_COMMIT", "0" * 40):
             with self.assertRaisesRegex(ValueError, "Historical repository input unavailable"):
                 status.summary(self.root)
+
+    def test_relocated_repository_checks_local_evidence_and_historical_source(self):
+        original, commit = self.historical_repository()
+        # Record all inputs as absolute Mac paths, regardless of the test host.
+        recorded_root = "/Users/original/ropot"
+        directory = self.root / "validation"
+        manifest = json.loads((directory / "manifest.json").read_text())
+        inputs = {}
+        for filename, expected in manifest["inputs"].items():
+            path = Path(filename)
+            relative = path.relative_to(original) if path.is_absolute() else path
+            inputs[f"{recorded_root}/{relative.as_posix()}"] = expected
+        seal(directory, inputs)
+        before = {p: p.read_bytes() for p in directory.iterdir()}
+        relocated = self.root / "different-location"
+        original.rename(relocated)
+        (relocated / "src/code.py").write_bytes(b"live source changed")
+        with patch.object(status, "REPOSITORY", relocated), patch.object(status, "SOURCE_COMMIT", commit):
+            self.assertEqual(status.summary(self.root, recorded_root)["verified_phases"], 6)
+            self.assertEqual(before, {p: p.read_bytes() for p in directory.iterdir()})
+            with self.assertRaises(FileNotFoundError):
+                status.summary(self.root)
+            (relocated / "data/native.json").write_bytes(b"changed relocated evidence")
+            with self.assertRaisesRegex(ValueError, "Hash changed"):
+                status.summary(self.root, recorded_root)
+
+    def test_relocation_preserves_unrelated_external_paths(self):
+        external = self.root / "external.txt"
+        external.write_bytes(b"external evidence")
+        expected = hashlib.sha256(external.read_bytes()).hexdigest()
+        self.assertEqual(status.input_digest(str(external), {}, self.root / "old-repo"), expected)
+
+    def test_mac_paths_are_relocated_before_windows_absolute_path_detection(self):
+        repository, _ = self.historical_repository()
+        filename = "/Users/original/ropot/data/native.json"
+        self.assertFalse(PureWindowsPath(filename).is_absolute())
+        with patch.object(status, "REPOSITORY", repository), patch.object(status, "Path", PureWindowsPath):
+            actual = status.input_digest(filename, {}, "/Users/original/ropot")
+        self.assertEqual(actual, hashlib.sha256(b"private evidence").hexdigest())
 
     def test_changed_input_in_any_revision_is_rejected(self):
         for revision in status.REVISIONS:

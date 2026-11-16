@@ -31,15 +31,23 @@ Checkpoint pruning and Trainer best-model selection are disabled. Add a positive
 finite `budgets.max_fit_tokens` for construction scoring and review every ceiling
 for the longer trajectory. `budgets.max_tokens` bounds all training, development,
 fit and reload tokens together; `max_fit_tokens` independently bounds fit calls.
-The inference contract's `max_margin_tokens` bounds each full development margin
-pass. All scoring uses its frozen rendering, output cap and generation settings.
+Before loading weights, preparation requires both ceilings to cover the full
+16-pass trajectory, all three fit/development snapshots and one selected-adapter
+reload. Generation reserves the full output cap; actual usage can be lower.
+`rows.json` records these computed `token_requirements`, including on rejection.
+All scoring uses the inference contract's frozen rendering, output cap and generation settings.
 Likelihood scoring calls the base model with its injected LoRA layers, bypassing
 Trainer's mixed-precision forward wrapper while leaving training unchanged.
 Wall time, estimated cost and memory headroom remain bounded by training settings.
 The checked-in smoke example does not supply an approved production budget.
+Settings that discard resume state or enable best-model selection are rejected
+before loading weights.
+
+Launch one Python process with one visible GPU; distributed launch is unsupported.
+The runner checks Trainer's actual microbatch size before any optimizer updates.
 
 ```sh
-python -m src.monitor_training train --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_S
+CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training train --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_S
 ```
 
 The destination must be new. It retains input/base/config/source pins, trainable
@@ -49,14 +57,18 @@ events and resource measurements. Candidate checkpoints live under
 candidates are created. Each includes adapter weights and optimizer, scheduler,
 RNG and Trainer data-position state. Raw candidate scores live in
 `pass-1/fit.json`, `pass-1/development.json` and the corresponding later-pass
-directories. `summary.json` records every reached candidate and the selected
+directories. Each pass retains a `summary.json`, including partial diagnostics
+on failure. The run's `summary.json` lists fully scored candidates and the selected
 checkpoint reference and file hashes, if any. A fresh base reloads the selected
-adapter and verifies weights and inference before the attempt can pass.
-Smoke and T4 share the resource checks, batch accounting, gradient/loss audit and
-adapter snapshot helpers in `runner.py`.
-Failure records retain tracebacks, including chained exceptions.
+adapter and verifies inference before the attempt can pass. Exact weight
+save/load comparison belongs to the prerequisite T3 smoke.
+Smoke and T4 share the resource checks, batch accounting and gradient audit
+in `runner.py`.
+Failure records retain tracebacks, including chained exceptions. CUDA memory
+measurements also survive model-loading failures before a runtime is returned.
 
-Budget checks surround model calls and updates; an individual operation can
+Budget checks precede model calls and follow complete scoring passes, updates
+and final runtime measurements; an individual operation can
 overrun a ceiling and make the attempt incomplete. Estimated GPU cost excludes
 provider billing outside the process. This stage produces a development-selected
 S checkpoint only. Matched twins belong to T5; independent confirmation and the

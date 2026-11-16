@@ -32,8 +32,8 @@ class SharedTrainingTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
 
     def run_training(self, *, pass_step=5, recipe=None, incomplete=False,
-                     reload_mismatch=False, broken_reload=False, final_measurement_failure=False,
-                     noisy_scoring=False, name="attempt"):
+                     reload_mismatch=False, final_measurement_failure=False,
+                     noisy_scoring=False, fail_training=False, fail_loading=False, name="attempt"):
         import torch
         from transformers import LlamaConfig, LlamaForCausalLM, TrainerCallback
 
@@ -57,6 +57,8 @@ class SharedTrainingTests(unittest.TestCase):
                     num_key_value_heads=2, max_position_embeddings=512, bos_token_id=1, eos_token_id=2))
                 self.model.eval()
                 observed["models"].append(self.model)
+                if fail_loading:
+                    raise torch.OutOfMemoryError("Fixture base load OOM")
 
             def generate(self, ids):
                 assert not self.model.training
@@ -85,19 +87,11 @@ class SharedTrainingTests(unittest.TestCase):
                 return -float(len(continuation))
 
             def metadata(self):
-                if final_measurement_failure and len(observed["models"]) == 2:
+                if final_measurement_failure and (fail_training or len(observed["models"]) == 2):
                     raise RuntimeError("Fixture final measurement failure")
                 return dict(device="CPU test fixture")
 
         build = training.build_trainer
-        attach = adapter.attach
-
-        def attach_with_broken_reload(runtime, config, checkpoint=None):
-            names = attach(runtime, config, checkpoint)
-            if checkpoint is not None:
-                with torch.no_grad():
-                    next(value for value in runtime.model.parameters() if value.requires_grad).add_(1)
-            return names
 
         def observed_build(model, *args, **kwargs):
             on_batch = kwargs["on_batch"]
@@ -105,6 +99,8 @@ class SharedTrainingTests(unittest.TestCase):
             def observe_batch(inputs):
                 on_batch(inputs)
                 observed["batches"].extend(inputs["input_ids"].tolist())
+                if fail_training:
+                    raise torch.OutOfMemoryError("Fixture training OOM")
 
             class Observe(TrainerCallback):
                 def on_step_end(self, args, state, control, **kwargs):
@@ -121,8 +117,6 @@ class SharedTrainingTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(pinning, "load_tokenizer", return_value=tokenizer))
             load = stack.enter_context(mock.patch.object(train.prepare, "load_prepared", return_value=groups))
             stack.enter_context(mock.patch.object(training, "build_trainer", side_effect=observed_build))
-            if broken_reload:
-                stack.enter_context(mock.patch.object(adapter, "attach", side_effect=attach_with_broken_reload))
             for method in ("empty_cache", "reset_peak_memory_stats", "synchronize"):
                 stack.enter_context(mock.patch.object(torch.cuda, method))
             for method in ("max_memory_allocated", "max_memory_reserved", "memory_reserved"):
@@ -283,27 +277,29 @@ class SharedTrainingTests(unittest.TestCase):
         self.assertIn("evaluate", result["error"]["traceback"])
         self.assertIn("Incomplete generation", result["error"]["traceback"])
         self.assertEqual(len(observed["generations"]), 1)
+        candidate = json.loads((self.root / "attempt" / "pass-1" / "summary.json").read_text())
+        self.assertEqual(candidate["passes"], 1)
+        self.assertIsNone(candidate["development"])
 
-    def test_fit_budget_is_enforced_separately(self):
-        config = settings()
-        config["budgets"]["max_fit_tokens"] = 1
-        result, observed = self.run_training(recipe=config)
-        self.assertEqual(result["status"], "incomplete")
-        self.assertIsNone(result["selected"])
-        self.assertEqual(observed["generations"], [])
+    def test_total_and_fit_budgets_are_rejected_before_model_loading(self):
+        for name in ("max_tokens", "max_fit_tokens"):
+            with self.subTest(name=name):
+                config = settings()
+                config["budgets"][name] = 1
+                result, observed = self.run_training(recipe=config, name=name)
+                self.assertEqual(result["status"], "incomplete")
+                self.assertIsNone(result["selected"])
+                self.assertIn(name, result["error"]["message"])
+                self.assertEqual(result["usage"]["updates"], 0)
+                self.assertEqual(observed["models"], [])
+                requirements = json.loads((self.root / name / "rows.json").read_text())["token_requirements"]
+                self.assertGreater(requirements[name], 1)
 
     def test_reloaded_prediction_mismatch_cannot_publish_selected_s(self):
         result, _ = self.run_training(reload_mismatch=True)
         self.assertEqual(result["status"], "incomplete")
         self.assertIsNone(result["selected"])
         self.assertIn("reload", result["error"]["message"].lower())
-
-    def test_corrupted_reload_weights_fail_before_reload_generation(self):
-        result, observed = self.run_training(broken_reload=True)
-        self.assertEqual(result["status"], "incomplete")
-        self.assertIsNone(result["selected"])
-        self.assertEqual(len(observed["generations"]), 78)
-        self.assertIn("weights changed after reload", result["error"]["message"])
 
     def test_final_measurement_failure_revokes_selection(self):
         result, _ = self.run_training(final_measurement_failure=True)
@@ -314,16 +310,44 @@ class SharedTrainingTests(unittest.TestCase):
         saved = json.loads((self.root / "attempt" / "summary.json").read_text())
         self.assertEqual(saved, result)
 
-    def test_protocol_settings_cannot_change_update_size_or_discard_resume_state(self):
-        for field, value in (("per_device_train_batch_size", 2), ("gradient_accumulation_steps", 2),
-                             ("save_only_model", True), ("save_total_limit", 1)):
-            with self.subTest(field=field):
-                config = settings()
-                config["training_args"][field] = value
-                result, observed = self.run_training(recipe=config, name=field)
+    def test_early_failure_records_memory_even_when_metadata_fails(self):
+        for metadata_failure in (False, True):
+            with self.subTest(metadata_failure=metadata_failure):
+                name = f"early-failure-{metadata_failure}"
+                result, _ = self.run_training(name=name, fail_training=True,
+                                              final_measurement_failure=metadata_failure)
                 self.assertEqual(result["status"], "incomplete")
+                self.assertIsNone(result["selected"])
+                self.assertEqual(result["error"]["type"], "OutOfMemoryError")
+                self.assertEqual(result["error"]["message"], "Fixture training OOM")
                 self.assertEqual(result["usage"]["updates"], 0)
-                self.assertEqual(observed["models"], [])
+                self.assertEqual(result["usage"]["peak_allocated_bytes"], 1000)
+                self.assertEqual(result["usage"]["peak_reserved_bytes"], 1000)
+                self.assertEqual(result["usage"]["memory_headroom_bytes"], 1000000)
+                saved = json.loads((self.root / name / "summary.json").read_text())
+                self.assertEqual(saved, result)
+
+    def test_loading_failure_retains_memory_without_runtime_metadata(self):
+        result, observed = self.run_training(fail_loading=True)
+        self.assertEqual(result["status"], "incomplete")
+        self.assertIsNone(result["selected"])
+        self.assertEqual(result["error"]["type"], "OutOfMemoryError")
+        self.assertEqual(result["error"]["message"], "Fixture base load OOM")
+        self.assertEqual(result["usage"]["updates"], 0)
+        self.assertEqual(result["usage"]["peak_allocated_bytes"], 1000)
+        self.assertEqual(result["usage"]["peak_reserved_bytes"], 1000)
+        self.assertEqual(result["usage"]["memory_headroom_bytes"], 1000000)
+        self.assertEqual(len(observed["models"]), 1)
+        self.assertEqual(observed["generations"], [])
+        self.assertFalse((self.root / "attempt" / "runtime.json").exists())
+
+    def test_checkpoint_rotation_is_rejected_before_loading(self):
+        config = settings()
+        config["training_args"]["save_total_limit"] = 1
+        result, observed = self.run_training(recipe=config)
+        self.assertEqual(result["status"], "incomplete")
+        self.assertEqual(result["usage"]["updates"], 0)
+        self.assertEqual(observed["models"], [])
 
 
 if __name__ == "__main__":

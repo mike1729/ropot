@@ -34,13 +34,15 @@ The `lora` and `training_args` objects supply `LoraConfig` and `TrainingArgument
 keyword arguments directly. The runner supplies the output directory, update
 limit, sequential sampling and per-update checkpointing for `TrainingArguments`.
 These protocol settings keep the length probe first and checkpoint 2 available.
+Smoke requires microbatch one, accumulation four and complete checkpoint state,
+as do T4/T5. The shared Trainer builder checks the actual batch size.
 Smoke reads
 the settings once and saves the effective configuration in its run directory's
 `training.json`, alongside the PEFT version and training source hashes. Dataset
 and numerical-base pins remain required:
 
 ```sh
-python -m src.monitor_training smoke --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_SMOKE
+CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training smoke --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_SMOKE
 ```
 
 Smoke opens only shared-honest rows. Its first example repeats a masked public
@@ -68,9 +70,12 @@ Memory and headroom are checked after optimizer steps and at final measurement;
 running CUDA peaks cover backward allocations. Final runtime measurements are
 written once to `runtime.json`, with one final synchronization for wall-time
 accounting. Token/time/cost checks surround calls and updates.
-A token budget smaller than the length probe is rejected before model loading.
+Before model loading, the token budget must cover all three continuous updates,
+the repeated third update and both reload predictions at the full output cap.
+`rows.json` retains the requirement, including on rejection.
 One operation can overrun a ceiling; failures leave an incomplete attempt and
-preserve the original error if final measurements also fail. Smoke costs exclude
+retain final memory usage even if loading or metadata fails, preserving the original error
+if final measurements also fail. Smoke costs exclude
 provider billing outside this process. **Discard smoke weights:** production S
 must start from the original numerical base and a fresh adapter.
 

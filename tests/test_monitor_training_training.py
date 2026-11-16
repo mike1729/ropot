@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from src.monitor_training import training
 
@@ -73,6 +74,15 @@ class TrainerIntegrationTests(unittest.TestCase):
     def trainer(self, model, rows, name, steps, callbacks=()):
         return training.build_trainer(model, rows, self.root / name, settings(),
                                       max_steps=steps, callbacks=callbacks)
+
+    def test_actual_microbatch_is_checked_before_constructing_trainer(self):
+        from transformers import TrainingArguments
+
+        with mock.patch.object(TrainingArguments, "train_batch_size", new_callable=mock.PropertyMock, return_value=2):
+            with mock.patch("transformers.Trainer.__init__") as initialize:
+                with self.assertRaisesRegex(ValueError, "microbatch of one"):
+                    self.trainer(self.model(), examples(), "multiple-gpus", 1)
+                initialize.assert_not_called()
 
     def test_padding_masks_eos_used_as_padding_without_masking_real_terminators(self):
         import torch

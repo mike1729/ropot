@@ -16,6 +16,15 @@ class SmokeSettingsTests(unittest.TestCase):
     def test_example_settings_are_valid(self):
         validate_settings(settings())
 
+    def test_protocol_settings_require_one_row_four_accumulations_and_resume_state(self):
+        for name, value in (("per_device_train_batch_size", 2), ("gradient_accumulation_steps", 2),
+                            ("save_only_model", True)):
+            with self.subTest(name=name):
+                config = settings()
+                config["training_args"][name] = value
+                with self.assertRaisesRegex(ValueError, name):
+                    validate_settings(config)
+
     def test_clipping_norm_requires_a_finite_nonnegative_number(self):
         for value in (True, False, "1", -1, float("inf"), float("nan")):
             with self.subTest(value=value):

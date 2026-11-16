@@ -43,7 +43,8 @@ class SmokeIntegrationTests(unittest.TestCase):
 
     def run_smoke(self, recipe=None, name="attempt", fail_final_metadata=False,
                   fail_training=False, reload_mismatch=False, autocast_training=False,
-                  incomplete_generation=False, broken_reload=False, resume_scale=None):
+                  incomplete_generation=False, broken_reload=False, resume_scale=None,
+                  fail_loading=None, expire_on_cleanup=False):
         import torch
         from transformers import GenerationConfig, LlamaConfig, LlamaForCausalLM, TrainerCallback
         from src.monitor_training.runtime import NvidiaRuntime
@@ -81,6 +82,8 @@ class SmokeIntegrationTests(unittest.TestCase):
                     do_sample=False, num_beams=1, eos_token_id=2, pad_token_id=2, return_dict_in_generate=True)
                 self.model.generation_config = self.generation_config
                 models.append(self.model)
+                if fail_loading == "base":
+                    raise torch.OutOfMemoryError("Fixture base load OOM")
 
             def _tensor(self, ids):
                 return torch.tensor([ids], dtype=torch.long)
@@ -156,9 +159,16 @@ class SmokeIntegrationTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(smoke.training, "build_trainer", side_effect=build_with_observation))
             if broken_reload:
                 stack.enter_context(mock.patch.object(adapter, "attach", side_effect=attach_with_broken_reload))
+            if fail_loading == "adapter":
+                stack.enter_context(mock.patch.object(adapter, "attach",
+                    side_effect=torch.OutOfMemoryError("Fixture adapter load OOM")))
             synchronize = stack.enter_context(mock.patch.object(torch.cuda, "synchronize"))
             for method in ("empty_cache", "reset_peak_memory_stats"):
                 stack.enter_context(mock.patch.object(torch.cuda, method))
+            if expire_on_cleanup:
+                now = [0]
+                stack.enter_context(mock.patch("src.monitor_training.runner.time.monotonic", side_effect=lambda: now[0]))
+                stack.enter_context(mock.patch.object(torch.cuda, "empty_cache", side_effect=lambda: now.__setitem__(0, 121)))
             for method in ("max_memory_allocated", "max_memory_reserved", "memory_reserved"):
                 stack.enter_context(mock.patch.object(torch.cuda, method, return_value=1000))
             stack.enter_context(mock.patch.object(torch.cuda, "mem_get_info", side_effect=lambda device:
@@ -167,8 +177,9 @@ class SmokeIntegrationTests(unittest.TestCase):
                                  expected_prepared_sha256="prepared-pin", expected_inference_sha256="base-pin",
                                  runtime_factory=CpuRuntime)
             load_base.assert_called_once_with("inference", "base-pin", "model")
-            load.assert_called_once_with("prepared", "export", ["shared_honest"],
-                                         expected_prepared_sha256="prepared-pin")
+            if load.called:
+                load.assert_called_once_with("prepared", "export", ["shared_honest"],
+                                             expected_prepared_sha256="prepared-pin")
             self.synchronize_calls = synchronize.call_count
         return result, models, generation_calls
 
@@ -202,6 +213,9 @@ class SmokeIntegrationTests(unittest.TestCase):
         self.assertEqual(json.loads((output / "inputs.json").read_bytes()),
                          dict(prepared_sha256="prepared-pin", inference_sha256="base-pin"))
         self.assertEqual(json.loads((output / "rows.json").read_bytes())["stress_fixture"]["total_tokens"], 512)
+        required = json.loads((output / "rows.json").read_bytes())["token_requirements"]["max_tokens"]
+        self.assertEqual(required, sum(self.training_token_counts) + sum(
+            len(call["input_ids"]) + 4 for call in generation_calls))
         checkpoint = output / "continuous" / "checkpoint-2"
         for name in ("adapter_config.json", "adapter_model.safetensors", "optimizer.pt", "scheduler.pt",
                      "rng_state.pth", "trainer_state.json"):
@@ -231,18 +245,43 @@ class SmokeIntegrationTests(unittest.TestCase):
 
     def test_exhausted_token_budget_preserves_an_incomplete_attempt(self):
         recipe = settings()
-        recipe["budgets"]["max_tokens"] = 1
+        recipe["budgets"]["max_tokens"] = 512  # Covers the probe alone, but not the full attempt.
         result, models, _ = self.run_smoke(recipe)
         self.assertEqual(result["status"], "incomplete")
-        self.assertIn("budget exhausted", result["error"]["message"])
+        self.assertIn("max_tokens", result["error"]["message"])
         self.assertEqual(result["usage"]["updates"], 0)
         self.assertEqual(models, [])
         output = self.root / "attempt"
+        self.assertGreater(json.loads((output / "rows.json").read_bytes())["token_requirements"]["max_tokens"], 512)
         self.assertEqual(json.loads((output / "summary.json").read_bytes())["status"], "incomplete")
         events = [json.loads(line) for line in (output / "events.jsonl").read_text().splitlines()]
         self.assertEqual(events[-1]["kind"], "failure")
         with self.assertRaises(FileExistsError):
             self.run_smoke(recipe)
+
+    def test_cleanup_budget_expiry_prevents_the_reload_base_load(self):
+        result, models, calls = self.run_smoke(expire_on_cleanup=True)
+        self.assertEqual(result["status"], "incomplete")
+        self.assertIn("budget exhausted", result["error"]["message"])
+        self.assertEqual(result["usage"]["updates"], 3)
+        self.assertEqual(len(models), 1)
+        self.assertEqual(len(calls), 1)
+
+    def test_loading_failures_retain_memory_without_runtime_metadata(self):
+        for stage in ("base", "adapter"):
+            with self.subTest(stage=stage):
+                result, models, calls = self.run_smoke(name=stage, fail_loading=stage)
+                self.assertEqual(result["status"], "incomplete")
+                self.assertEqual(result["error"]["type"], "OutOfMemoryError")
+                self.assertEqual(result["error"]["message"], f"Fixture {stage} load OOM")
+                self.assertEqual(result["usage"]["updates"], 0)
+                self.assertEqual(result["usage"]["peak_allocated_bytes"], 1000)
+                self.assertEqual(result["usage"]["peak_reserved_bytes"], 1000)
+                self.assertEqual(result["usage"]["memory_headroom_bytes"], 1000000)
+                self.assertEqual(len(models), 1)
+                self.assertEqual(calls, [])
+                self.assertEqual(self.metadata_calls, [])
+                self.assertFalse((self.root / stage / "runtime.json").exists())
 
     def test_broken_adapter_reload_is_rejected_before_trainer_can_reload_it_again(self):
         result, models, calls = self.run_smoke(broken_reload=True)
@@ -269,14 +308,19 @@ class SmokeIntegrationTests(unittest.TestCase):
         self.assertEqual(result["status"], "passed", result["error"])
         self.assertGreater(result["resume_max_abs_difference"], recipe["resume_atol"])
 
-    def test_generation_reserves_its_output_cap_before_calling_runtime(self):
-        _, _, calls = self.run_smoke(name="reference")
+    def test_preflight_reserves_both_generation_caps_before_loading(self):
+        self.run_smoke(name="reference")
+        required = json.loads((self.root / "reference" / "rows.json").read_bytes())["token_requirements"]["max_tokens"]
         recipe = settings()
-        recipe["budgets"]["max_tokens"] = sum(self.training_token_counts[:8]) + len(calls[0]["input_ids"])
-        result, _, calls = self.run_smoke(recipe)
+        recipe["budgets"]["max_tokens"] = required - 1
+        result, models, calls = self.run_smoke(recipe)
         self.assertEqual(result["status"], "incomplete")
-        self.assertEqual(result["usage"]["updates"], 2)
+        self.assertEqual(result["usage"]["updates"], 0)
+        self.assertEqual(models, [])
         self.assertEqual(calls, [])
+        recipe["budgets"]["max_tokens"] = required
+        result, _, _ = self.run_smoke(recipe, name="exact-budget")
+        self.assertEqual(result["status"], "passed", result["error"])
 
     def test_final_measurement_failure_cannot_leave_a_passing_summary(self):
         result, _, _ = self.run_smoke(fail_final_metadata=True)
@@ -288,16 +332,18 @@ class SmokeIntegrationTests(unittest.TestCase):
         events = [json.loads(line) for line in (output / "events.jsonl").read_text().splitlines()]
         self.assertEqual(events[-1]["kind"], "failure")
 
-    def test_accounting_uses_actual_batches_including_partial_accumulation(self):
-        for microbatch, accumulation, rows, tokens in ((1, 2, 8, 20), (2, 2, 16, 42), (2, 4, 22, 58)):
-            with self.subTest(microbatch=microbatch, accumulation=accumulation):
+    def test_unsupported_protocol_is_rejected_before_loading(self):
+        for field, value in (("per_device_train_batch_size", 2), ("gradient_accumulation_steps", 2),
+                             ("save_only_model", True)):
+            with self.subTest(field=field):
                 recipe = settings()
-                recipe["training_args"].update(per_device_train_batch_size=microbatch,
-                                               gradient_accumulation_steps=accumulation)
-                result, _, _ = self.run_smoke(recipe, name=f"batch-{microbatch}-{accumulation}")
-                self.assertEqual(result["status"], "passed", result["error"])
-                self.assertEqual(result["usage"]["row_presentations"], rows)
-                self.assertEqual(result["usage"]["supervised_tokens"], tokens)
+                recipe["training_args"][field] = value
+                result, models, calls = self.run_smoke(recipe, name=field)
+                self.assertEqual(result["status"], "incomplete")
+                self.assertIn(field, result["error"]["message"])
+                self.assertEqual(result["usage"]["updates"], 0)
+                self.assertEqual(models, [])
+                self.assertEqual(calls, [])
 
     def test_cleanup_preserves_original_training_failure(self):
         for metadata_failure in (False, True):
@@ -308,12 +354,16 @@ class SmokeIntegrationTests(unittest.TestCase):
                 self.assertEqual(result["status"], "incomplete")
                 self.assertEqual(result["error"]["message"], "Fixture training OOM")
                 self.assertIn("in observed_batch", result["error"]["traceback"])
+                self.assertEqual(result["usage"]["peak_allocated_bytes"], 1000)
+                self.assertEqual(result["usage"]["peak_reserved_bytes"], 1000)
+                self.assertEqual(result["usage"]["memory_headroom_bytes"], 0)
+                self.assertEqual(len(self.metadata_calls), 1)
                 saved = json.loads((self.root / name / "summary.json").read_bytes())
                 self.assertEqual(saved["error"], result["error"])
                 events = [json.loads(line) for line in (self.root / name / "events.jsonl").read_text().splitlines()]
                 failures = [event["message"] for event in events if event["kind"] == "failure"]
                 self.assertEqual(failures, ["Fixture training OOM"] +
-                                 (["Fixture metadata failure"] if metadata_failure else []))
+                                 ["Fixture metadata failure" if metadata_failure else "Training GPU memory headroom exhausted"])
 
     def test_reload_mismatch_retains_both_predictions(self):
         result, _, _ = self.run_smoke(reload_mismatch=True)

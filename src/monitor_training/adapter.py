@@ -12,7 +12,7 @@ from . import pinning
 
 
 artifacts = pinning.artifacts
-SOURCES = ("adapter.py", "training.py", "runner.py", "smoke.py", "train.py")
+SOURCES = ("adapter.py", "training.py", "runner.py", "smoke.py", "train.py", "twins.py")
 
 
 def source_hashes():
@@ -23,6 +23,10 @@ def validate_settings(settings):
     if set(settings) != {"lora", "training_args", "resume_atol", "resume_rtol", "budgets"}:
         raise ValueError("Settings must contain exactly lora, training_args, resume_atol, resume_rtol and budgets")
     training_args = settings["training_args"]
+    for name, expected in dict(per_device_train_batch_size=1, gradient_accumulation_steps=4,
+                               save_only_model=False).items():
+        if training_args[name] != expected:
+            raise ValueError(f"Monitor training requires {name}={expected}")
     modules = settings["lora"]["target_modules"]
     if not modules or len(set(modules)) != len(modules) or any(not isinstance(name, str) or not name for name in modules):
         raise ValueError("List the exact, distinct text-backbone projection names")

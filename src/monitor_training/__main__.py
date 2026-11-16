@@ -25,8 +25,12 @@ def main():
     command.add_argument("--expected-prepared-sha256", required=True)
     command.add_argument("--expected-contract-sha256", required=True)
     for name, help_text in (("smoke", "Qualify disposable LoRA weights with three updates and resume"),
-                            ("train", "Train shared honest S and select the earliest passing checkpoint")):
+                            ("train", "Train shared honest S and select the earliest passing checkpoint"),
+                            ("train-twins", "Continue selected S into a matched honest/selective pair")):
         command = commands.add_parser(name, help=help_text)
+        if name == "train-twins":
+            command.add_argument("--shared-run", type=Path, required=True)
+            command.add_argument("--expected-shared-sha256", required=True, help="SHA256 of S summary.json")
         for name in ("prepared-root", "export-root", "model-root", "inference-contract", "settings", "output-dir"):
             command.add_argument("--" + name, type=Path, required=True)
         for name in ("prepared", "inference"):
@@ -53,7 +57,9 @@ def main():
         result = run(args.prepared_root, args.export_root, args.model_root, args.inference_contract,
                        args.settings, args.output_dir,
                        expected_prepared_sha256=args.expected_prepared_sha256,
-                       expected_inference_sha256=args.expected_inference_sha256)
+                       expected_inference_sha256=args.expected_inference_sha256,
+                       **(dict(shared_run=args.shared_run, expected_shared_sha256=args.expected_shared_sha256)
+                          if args.command == "train-twins" else {}))
         print(json.dumps(result, indent=2))
         raise SystemExit(0 if result["status"] == "passed" else 1 if result["status"] == "failed" else 2)
 

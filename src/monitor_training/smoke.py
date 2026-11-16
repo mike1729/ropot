@@ -50,6 +50,7 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
     result = dict(status="incomplete", error=None, usage=usage)
     checkpoint_weights = {}
     settings, runtime = None, None
+    memory_started = False
     artifacts.write_json(output / "inputs.json", dict(prepared_sha256=expected_prepared_sha256,
                          inference_sha256=expected_inference_sha256))
     with (output / "events.jsonl").open("w", encoding="utf-8") as events:
@@ -90,20 +91,24 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
             rendered = [renderer.render(row) for row in rows]
             examples = training.make_examples(rendered, renderer.continuations, "honest_twin")
             probe = length_probe(examples[0], contract["max_total_tokens"], tokenizer.all_special_ids)
-            if len(probe["input_ids"]) > settings["budgets"]["max_tokens"]:
-                raise RuntimeError("Smoke token budget exhausted by the length probe")
             examples = [probe] + examples
+            # Three four-row updates, then repeat the third after checkpoint 2.
+            required = sum(len(row["input_ids"]) for row in examples[:12] + examples[8:12])
+            required += 2 * (len(rendered[0]["input_ids"]) + contract["max_new_tokens"])
             artifacts.write_json(output / "rows.json", dict(
                 order=[dict(task_id=row["task_id"], role=row["role"], input_ids_sha256=row["input_ids_sha256"])
                        for row in rendered],
                 stress_fixture=dict(input_ids_sha256=token_digest(probe["input_ids"]),
                                     total_tokens=len(probe["input_ids"])),
-                continuations=renderer.continuations))
+                continuations=renderer.continuations, token_requirements=dict(max_tokens=required)))
+            if settings["budgets"]["max_tokens"] < required:
+                raise ValueError(f"max_tokens must cover the full smoke: requires at least {required} tokens")
             torch.cuda.reset_peak_memory_stats(0)
-            resources.check_budget()
+            memory_started = True
             factory = runtime_factory or NvidiaRuntime
 
             def load(checkpoint=None):
+                resources.check_budget()
                 value = factory(model_root, contract, tokenizer=tokenizer)
                 trainable = adapter.attach(value, settings, checkpoint)
                 return value, trainable
@@ -114,7 +119,6 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
                         # Capture the in-memory step-2 weights before step 3 replaces them.
                         checkpoint_weights.update(snapshot(runtime.model))
                         result["before_reload"] = prediction(rendered[0], "before")
-                        runtime.model.train()
 
             runtime, names = load()
             artifacts.write_json(output / "trainable.json", names)
@@ -141,7 +145,7 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
             if reloaded["generated_token_ids"] != before["generated_token_ids"]:
                 raise RuntimeError("Inference changed after adapter reload")
             trainer = training.build_trainer(runtime.model, examples, output / "resumed", settings,
-                                             max_steps=3, callbacks=[resources.callback(), ReloadPrediction()],
+                                             max_steps=3, callbacks=[resources.callback()],
                                              on_batch=resources.training_batch)
             trainer.train(resume_from_checkpoint=str(checkpoint))
             actual = snapshot(runtime.model)
@@ -152,17 +156,19 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
                     raise RuntimeError(f"Resumed adapter differs from uninterrupted training: {name}")
                 max_difference = max(max_difference, difference.max().item())
             result["resume_max_abs_difference"] = max_difference
-            resources.check_budget()
             result["status"] = "passed"
         except (Exception, KeyboardInterrupt) as failure:
             result["error"] = dict(type=type(failure).__name__, message=str(failure), traceback=traceback.format_exc())
             event(dict(kind="failure", **result["error"]))
-        if runtime is not None:
+        if memory_started:
             try:
                 torch.cuda.synchronize(0)  # Include GPU completion in final wall time.
-                artifacts.write_json(output / "runtime.json", runtime.metadata())
-                if result["status"] == "passed":
+                try:
                     resources.check_memory()
+                finally:
+                    if runtime is not None:
+                        artifacts.write_json(output / "runtime.json", runtime.metadata())
+                if result["status"] == "passed":
                     resources.check_budget()
             except Exception as failure:
                 error = dict(type=type(failure).__name__, message=str(failure), traceback=traceback.format_exc())

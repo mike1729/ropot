@@ -77,5 +77,7 @@ on_batch receives each training batch before its forward for run accounting.
     args = TrainingArguments(output_dir=str(output_dir), max_steps=max_steps,
                              save_strategy="steps", save_steps=1, train_sampling_strategy="sequential",
                              **settings["training_args"])
+    if args.train_batch_size != 1:
+        raise ValueError("Monitor training requires an actual microbatch of one; expose one GPU")
     return RowTrainer(model=model, args=args, train_dataset=examples,
                       data_collator=Collator(settings["pad_token_id"]), callbacks=list(callbacks))

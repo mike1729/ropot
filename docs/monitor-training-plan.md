@@ -9,7 +9,7 @@ Status: proposed implementation plan, 11 November 2026; no training launched.
 - [x] [T2: NVIDIA inference](monitor-training-t2.md) — fixture-backed; live recipe qualification pending
 - [x] [T3: training adapter](monitor-training-t3.md) — CPU fixture-backed; live NVIDIA smoke pending
 - [x] [T4: shared honest training](monitor-training-t4.md) — CPU fixture-backed; live training pending
-- [ ] T5: matched twins
+- [x] [T5: matched twins](monitor-training-t5.md) — CPU fixture-backed; live training pending
 - [ ] T6: conditional handoff
 
 This expands batches A–C of the [twin experiment](twin-training-plan.md).
@@ -263,7 +263,7 @@ qualification readiness to represent this prospective stage.
 Proposed location: `src/monitor_training/`, separate from the historical
 `src/data-pipeline/stage05/monitor.py`. Use small data, interface, runtime, training
 and reporting modules only as their batches need them; the module CLI exposes
-prepare, freeze-runtime, score, smoke and train. Keep GPU
+prepare, freeze-runtime, score, smoke, train and train-twins. Keep GPU
 dependencies recorded in the runtime requirements and training snapshot; pure
 data/parser checks must run without CUDA/MLX.
 Reuse existing artifact hashing/publication helpers and ownership semantics.
@@ -275,7 +275,7 @@ Reuse Trainer; no custom training framework, remote-job orchestrator or dashboar
 | [T2: NVIDIA inference](monitor-training-t2.md) | Native rendering/preflight, frozen local snapshot/runtime, CUDA int8 scorer, complete-label margins and per-task report are fixture-backed. Qualify the exact production recipe after runtime/budget selection. |
 | T3: training adapter | Loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
 | [T4: shared honest](monitor-training-t4.md) | One continuous S trajectory and earliest-passing selection. Reconcile actual row presentations/updates, retain all snapshots/results and demonstrate inference reload. Stop if no S passes. |
-| T5: matched twins | Reuse T4 runner for honest/selective, matched row-order and lineage checks, paired development report. Output selected pair or a reproducible failed attempt; mark confirmation status explicitly. |
+| [T5: matched twins](monitor-training-t5.md) | Reuse T4 runner for honest/selective, matched row-order and lineage checks, paired development report. Output selected pair or a reproducible failed attempt; mark confirmation status explicitly. |
 | T6: conditional handoff | Only after confirmation policy/allocation is resolved: bounded confirmation if required, immutable selected checkpoint references and report for the repair stage. |
 
 Each review step is capped at [400 changed non-test lines](AGENTS.md), additions plus

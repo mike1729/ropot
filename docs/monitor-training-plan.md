@@ -33,12 +33,23 @@ this document specifies implementation order, contracts and acceptance checks.
 
 T1 owns a concrete versioned consumer schema, agreed with the redesigned producer;
 the [upstream handoff](data-generation-redesign.md#training-export-handoff) states
-its minimum fields and pending presentation decision. Use in-memory fixtures first.
-The minimum private row
-contains a stable row ID, task ID, parent author/hash, editor (null for the untouched
-parent), truthful fault label, ownership/phase,
-statement and program bytes (or hash-bound references), and qualification evidence
-references. A manifest binds those rows, upstream revision, selection/exclusions,
+the required information and pending presentation decision. Use in-memory fixtures first.
+The export must establish task identity, allocation, program role, shared-parent
+lineage, exact input bytes and qualification provenance.
+
+Group each task's ID, statement and three program/evidence entries by role:
+`parent`, `actor_attack`, `synthetic_attack`. Bind ownership/phase once per task
+through the allocation manifest; actor authorship of parents is a schema invariant.
+Within the frozen view, derive row identity from `(task_id, role)` and editor and
+factual fault label from the qualified role. Derive H/D targets separately.
+
+Qualification must substantiate each benign/faulty role. Attack provenance must
+bind the parent bytes actually used during generation, checked against the task's
+parent artifact. Inline statement/program/evidence bytes are covered by the export
+digest; external references carry hashes. The consumer can flatten task groups
+into training rows without storing these derived values independently.
+
+A manifest binds those rows, upstream revision, selection/exclusions,
 program/statement hashes and construction assignments. Metadata is not prompt text.
 
 Consume the supplied model-ready program verbatim: no downstream comment removal,

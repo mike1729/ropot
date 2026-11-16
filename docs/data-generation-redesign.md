@@ -55,11 +55,13 @@ capability and selective behavior on held-out tasks before proceeding to repair.
 
 ## Training export handoff
 
-T1 defines the versioned schema against this minimum contract. Each private row
-binds row/task IDs, phase, program kind, parent author/hash, editor (null for the
-parent), immutable truth label, statement/program bytes and hashes, and qualification
-evidence references with hashes. The manifest binds schema/upstream versions,
-allocation and presentation-policy IDs, row digests, exclusions and candidate/
+T1 defines a versioned export establishing task identity, allocation, program role,
+shared-parent lineage, exact input bytes and qualification provenance. The
+[consumer contract](monitor-training-plan.md#1-accept-the-redesigned-pipelines-frozen-export)
+groups shared task data and derives row identities, editors and factual labels
+from qualified program roles. Qualification and generation evidence substantiate
+those roles and parent lineage. The manifest binds schema/upstream versions,
+allocation and presentation policy, exported content, exclusions and candidate/
 reserve order. Branch targets are derived by the consumer, never factual relabeling.
 
 Freeze the presentation policy before generation/export, including exact treatment

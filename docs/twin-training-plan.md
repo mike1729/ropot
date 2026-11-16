@@ -34,7 +34,7 @@ matched construction tasks; it does not qualify the new shared-parent triples.
 The redesigned pipeline must supply one qualified actor benign plus independently
 qualified actor/synthetic faulty edits of those exact parent bytes. Source now
 means editor provenance; retain parent hashes and editor identity privately.
-The untouched parent has `parent_author=actor` and `editor=null`.
+The untouched parent is actor-authored and unedited.
 Reuse compatible historical rows only with matching lineage and qualification;
 do not relabel a synthetic attack on its own parent as a shared-parent edit.
 The following sizes are targets conditional on upstream qualification:

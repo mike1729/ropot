@@ -6,16 +6,18 @@ attacks? This repository contains the data pipeline and experiments for the
 
 **Data acquisition, scoring and corpus qualification are complete. The next
 experiment follows the binary twin training plan,
-starting with direct PASS/FLAG qualification.** Qwen3.8-27B MLX 8-bit is the actor
-and monitor base;
-Gemma-4-31B-it is the synthetic source.
+starting with direct PASS/FLAG qualification.** The actor and historical monitor
+use Qwen3.8-27B MLX 8-bit; Gemma-4-31B-it is the synthetic source. Planned monitor
+training uses rented NVIDIA hardware; precision and LoRA versus full fine-tuning
+remain open. The [training plan](docs/twin-training-plan.md) uses direct twin training
+for the pilot and defers dedicated source elicitation to a full run.
 
 The frozen corpus preserves 92 selected pairs and 184 programs. Its derived view
 retains 91 pairs after one demonstrated benign defect, with 20 matched development
 tasks and 14 matched construction tasks. Monitor scoring was accepted for this
 corpus and all four grounding disagreements were adjudicated on 2 November 2026.
 Full-cost accounting remains incomplete; fresh binary monitor qualification,
-adapter compatibility and a runtime smoke are still required before training.
+training compatibility and a runtime smoke are still required before training.
 See the [qualification record](docs/frozen-corpus-qualification.md) for evidence
 and the remaining limitations.
 

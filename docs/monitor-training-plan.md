@@ -1,6 +1,17 @@
 # Monitor training: implementation stage
 
 Status: proposed implementation plan, 11 November 2026; no training launched.
+
+- [ ] [T1: consumer and interface](monitor-training-t1-plan.md)
+  - [ ] [T1a: schema and pure interface](monitor-training-t1-plan.md#t1a-schema-and-interface)
+  - [ ] [T1b: restricted loading](monitor-training-t1-plan.md#t1b-restricted-loading)
+  - [ ] [T1c: complete-view validation and preparation record](monitor-training-t1-plan.md#t1c-prepare-and-freeze-the-view)
+- [ ] T2: NVIDIA inference
+- [ ] T3: training adapter
+- [ ] T4: shared honest training
+- [ ] T5: matched twins
+- [ ] T6: conditional handoff
+
 This expands batches A–C of the [twin experiment](twin-training-plan.md).
 Start with shared-parent triples and plain PASS/FLAG output. REPORT names this
 single interface; five-row data and ASSESS/REPORT are later extensions in that plan.
@@ -23,11 +34,7 @@ frozen upstream view + pinned NVIDIA base
 ```
 
 Repair acquisition/training, source-attribution training and locked evaluation
-belong to later stages. Development-selected twins are useful stage outputs, but
-are not independently confirmed twins. Repair requires confirmation or explicit
-acceptance of the weaker development-selected pilot.
-The [scientific plan](twin-training-plan.md) owns thresholds and interpretation;
-this document specifies implementation order, contracts and acceptance checks.
+belong to later stages.
 
 ## 1. Accept the redesigned pipeline's frozen export
 
@@ -49,15 +56,6 @@ parent artifact. Inline statement/program/evidence bytes are covered by the expo
 digest; external references carry hashes. The consumer can flatten task groups
 into training rows without storing these derived values independently.
 
-A manifest binds those rows, upstream revision, selection/exclusions,
-program/statement hashes and construction assignments. Metadata is not prompt text.
-
-Consume the supplied model-ready program verbatim: no downstream comment removal,
-entry-point rewriting or formatting. Upstream applies one declared presentation
-policy across sources and labels. If code bytes change, upstream must establish
-that qualification still applies to the exported programs; renaming a view does
-not transfer old certificates. Preserve original evidence separately.
-
 For the existing pilot allocation, require:
 
 | Partition | Tasks | Rows | Allowed consumer |
@@ -66,28 +64,6 @@ For the existing pilot allocation, require:
 | Twin continuation | 8 | 24 | H and D training |
 | Development | 20 | 60 | Base qualification and bounded checkpoint selection |
 
-Each task contributes one unchanged actor benign and actor/synthetic faulty edits
-of those same parent bytes. Preserve the 6/8 phase assignments and advance only
-through predeclared qualification-failure reserves; these planned 102 rows
-need upstream qualification. The historical 91-pair view does not supply qualified
-triples automatically. Training excludes development. Restrict loading before
-opening files; confirmation/correction/calibration/evaluation stay inaccessible.
-Validate parent lineage, hashes, three-cell coverage and task disjointness. Reject
-the demonstrated faulty Qwen/task 886 parent by artifact identity. Task 886 needs
-a new independently qualified parent/descendants under a recorded acquisition
-policy, or its whole triple fails and reserves advance. Preserve the historical
-exclusion; an old synthetic-parent attack cannot substitute for an actor-parent edit.
-Detect duplicate model-visible statement/program inputs:
-report identical-target duplicates and block conflicting targets under either H
-or D, including cross-source identical attacks. Do not silently deduplicate,
-relabel, replace or drop rows. The redesign must explicitly revise the manifest,
-qualification and this schedule if it changes membership or construction sizes.
-
-Freeze a view digest before qualification and keep it across S/H/D. Any later
-program or rendering change creates a new experimental input version and requires
-fresh qualification; it cannot be mixed into an existing trajectory. Residual
-source cues remain an interpretation limitation, not a reason to reinstate a
-separate normalizer or optimize probe accuracy to chance.
 
 ## 2. Pin rendering, numerical base and binary inference
 
@@ -265,14 +241,14 @@ Reuse Trainer; no custom training framework, remote-job orchestrator or dashboar
 
 | Batch | Reviewable result and acceptance |
 | --- | --- |
-| T1: consumer and interface | Versioned restricted export schema/adapter, message builder, parser and truthful/H/D targets. Pure fixtures cover leakage, hashes/lineage, ownership/reserves, three-cell completeness, conflicts and invalid stops. No tokenizer-dependent preflight; real export requires upstream qualification/presentation policy. |
+| [T1: consumer and interface](monitor-training-t1-plan.md) | Three review steps: task-grouped schema and pure interface; restricted loading; complete-view validation and preparation record. Fixtures cover leakage, hashes/lineage, ownership/reserves, completeness, conflicts and stop handling. Real export requires upstream qualification/presentation policy. |
 | T2: NVIDIA inference | Pin base/precision/tokenizer/template and effective settings; implement native rendering, token preflight and overlength checks, then scorer/margins and per-task report. Qualify the exact production recipe after runtime/budget selection. |
 | T3: training adapter | Loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
 | T4: shared honest | One continuous S trajectory and earliest-passing selection. Reconcile actual row presentations/updates, retain all snapshots/results and demonstrate inference reload. Stop if no S passes. |
 | T5: matched twins | Reuse T4 runner for H/D, matched row-order and lineage checks, paired development report. Output selected pair or a reproducible failed attempt; mark confirmation status explicitly. |
 | T6: conditional handoff | Only after confirmation policy/allocation is resolved: bounded confirmation if required, immutable selected checkpoint references and report for the repair stage. |
 
-Each batch is capped at [400 changed non-test lines](AGENTS.md), additions plus
+Each review step is capped at [400 changed non-test lines](AGENTS.md), additions plus
 deletions, and ends with review. Split a batch before exceeding that cap. Tests
 and generated artifacts are reported separately. Plan-only changes authorize
 neither implementation, GPU rental, training nor confirmation allocation.

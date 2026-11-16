@@ -1,0 +1,10 @@
+{
+  "authority": "user",
+  "date": "2026-11-16",
+  "instruction": "we have generated attacks/benigns, we don't have to geerate them again for pilot",
+  "execution_instruction": "do 1-3",
+  "row_choice": "3 rows per task (recommended for minimal changes)",
+  "scope": "Reuse the accepted historical corpus: actor benign, actor attack and synthetic attack; preserve separate parents and historical exceptions.",
+  "plan": "docs/twin-training-plan.md",
+  "historical_flags": "The source no_training_export=true and training_export=false remain unchanged historical records. This decision authorizes the derived pilot export."
+}

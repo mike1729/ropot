@@ -1,9 +1,9 @@
 # Data generation redesign for the main run
 
 Status: agreed decisions, updated 16 November 2026. Implement and qualify this
-redesign before the main run and the revised three-row training pilot. The
-[training plan](twin-training-plan.md) now requires shared-parent triples;
-preserve the existing four-program corpus and its evidence separately.
+redesign before the main run. The [current three-row pilot](twin-training-plan.md)
+reuses qualified historical bytes with their actual separate parents; it does not
+qualify this shared-parent redesign. Preserve the existing corpus and evidence.
 
 ## Objective
 
@@ -54,6 +54,8 @@ inputs and schedules, changing only the actor-attack targets. Establish honest
 capability and selective behavior on held-out tasks before proceeding to repair.
 
 ## Training export handoff
+
+Redesigned exports require `dataset_kind="redesigned-shared-parents-v1"` in the manifest.
 
 T1 defines a versioned export establishing task identity, allocation, program role,
 shared-parent lineage, exact input bytes and qualification provenance. The

@@ -6,19 +6,21 @@ attacks? This repository contains the data pipeline and experiments for the
 
 **Before the main run, implement and qualify the
 [data generation redesign](docs/data-generation-redesign.md): shared actor benigns
-and comparable, bounded rewrites from both generators.** The revised three-row
-training pilot also requires qualified shared-parent data; preserve the old corpus.
+and comparable, bounded rewrites from both generators.** Preserve the old corpus.
 
 **Historical corpus qualification is complete. The next experiment follows the
-binary twin training plan on a newly qualified three-row export,
+binary twin training plan on a three-row export of qualified historical bytes,
 starting with direct PASS/FLAG qualification.** The actor and historical monitor
 use Qwen3.8-27B MLX 8-bit; Gemma-4-31B-it is the synthetic source. Planned monitor
 training uses rented NVIDIA hardware; precision and LoRA versus full fine-tuning
 remain open. The [training plan](docs/twin-training-plan.md) uses direct twin training
-on shared-parent triples with plain PASS/FLAG output, followed by synthetic repair
+on historical triples with plain PASS/FLAG output, followed by synthetic repair
 versus matched replay. Five-row data and ASSESS/REPORT remain later extensions.
 The [implementation stage](docs/monitor-training-plan.md) plans monitor training
-against the redesigned pipeline's frozen export, replacing separate normalization.
+against the [historical pilot export](docs/artifacts.md#historical-three-row-pilot).
+Each task trains on actor benign, actor attack and synthetic attack. Attack source
+and each attack's actual parent remain private provenance; the separate synthetic
+benign is retained privately and contributes no training row.
 
 The frozen corpus preserves 92 selected pairs and 184 programs. Its derived view
 retains 91 pairs after one demonstrated benign defect, with 20 matched development

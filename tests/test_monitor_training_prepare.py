@@ -38,7 +38,12 @@ class MonitorTrainingPrepareTests(unittest.TestCase):
         self.allocation = dict(advancement_rule="first-qualified-v1", candidate_order=phases,
                                development=list(self.groups["development"]))
         self.tasks = {task_id: task_fixture(task_id) for task_ids in (*phases.values(), range(101, 122)) for task_id in task_ids}
+        self.dataset_kind = "redesigned-shared-parents-v1"
         self.failures = []
+
+    def frozen_fixture(self):
+        self.dataset_kind = "historical-separate-parents-v1"
+        self.allocation = dict(advancement_rule="frozen-corpus-v1", groups=deepcopy(self.groups))
 
     def failure(self, task_id):
         self.failures.append(task_id)
@@ -46,7 +51,7 @@ class MonitorTrainingPrepareTests(unittest.TestCase):
     def publish(self, name="export"):
         root = self.root / name
         (root / "tasks").mkdir(parents=True)
-        manifest = dict(schema_version=data.SCHEMA_VERSION, upstream_version="fixture-v1",
+        manifest = dict(schema_version=data.SCHEMA_VERSION, upstream_version="fixture-v1", dataset_kind=self.dataset_kind,
                         generators=dict(actor="a" * 64, synthetic="b" * 64), groups={},
                         generation_recipe=dict(path="recipe.json", sha256=data.sha256(b"{}")),
                         selection_failures=self.failures)
@@ -59,7 +64,7 @@ class MonitorTrainingPrepareTests(unittest.TestCase):
                     entry["receipt"].update(statement_sha256=data.sha256(task["statement"].encode()),
                                             program_sha256=data.sha256(entry["program"].encode()))
                     if role != "benign":
-                        entry["receipt"]["provenance"]["parent_input_sha256"] = parent
+                        entry["receipt"]["provenance"].setdefault("parent_input_sha256", parent)
                 path = f"tasks/{group}-{index}.json"
                 raw = json.dumps(task, ensure_ascii=False).encode()
                 (root / path).write_bytes(raw)
@@ -103,6 +108,7 @@ class MonitorTrainingPrepareTests(unittest.TestCase):
         self.assertEqual((output / "prepared.json").read_bytes(), (self.root / "second/prepared.json").read_bytes())
         self.assertEqual(digest, data.sha256((self.root / "second/prepared.json").read_bytes()))
         self.assertEqual(record["groups"], self.groups)
+        self.assertEqual(record["dataset_kind"], "redesigned-shared-parents-v1")
         self.assertEqual(sum(map(len, record["message_sha256"].values())), 102)
         self.assertEqual(record["duplicates"], [])
         self.assertEqual(record["target_table"], {role: {branch: interface.target_for(role, branch)
@@ -111,7 +117,7 @@ class MonitorTrainingPrepareTests(unittest.TestCase):
         messages = interface.build_messages(row["statement"], row["programs"]["benign"]["program"])
         expected = data.sha256(json.dumps(messages, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode())
         self.assertEqual(record["message_sha256"]["shared_honest"][0], expected)
-        self.assertEqual(set(record["source_sha256"]), {"data.py", "interface.py", "prepare.py"})
+        self.assertEqual(set(record["source_sha256"]), {"data.py", "interface.py", "prepare.py", "training_format.py"})
         self.assertNotIn(str(self.root), (output / "prepared.json").read_text())
 
     def test_first_qualified_selection_uses_only_the_frozen_reserve_prefix(self):
@@ -121,6 +127,49 @@ class MonitorTrainingPrepareTests(unittest.TestCase):
         export, _, record, _ = self.prepare_fixture()
         self.assertEqual(record["groups"]["shared_honest"], [2, 4, 5, 6, 7, 8])
         self.assertEqual(json.loads((export / "manifest.json").read_bytes())["selection_failures"], self.failures)
+
+    def test_frozen_corpus_rule_records_exact_groups_and_historical_dataset_kind(self):
+        self.frozen_fixture()
+        _, _, record, _ = self.prepare_fixture()
+        self.assertEqual(record["selection_rule"], "frozen-corpus-v1")
+        self.assertEqual(record["dataset_kind"], "historical-separate-parents-v1")
+        self.assertEqual(record["groups"], self.groups)
+        self.assertEqual({group: len(ids) for group, ids in record["groups"].items()},
+                         dict(shared_honest=6, twin_continuation=8, development=20))
+
+    def test_frozen_corpus_rule_retains_quota_uniqueness_and_manifest_order_checks(self):
+        for case, error, reason in (("duplicate", ValueError, "unique"), ("quota", ValueError, "quota"),
+                                    ("order", ValueError, "ordered|groups"), ("missing", KeyError, "development")):
+            with self.subTest(case=case):
+                self.reset_fixture()
+                self.frozen_fixture()
+                if case == "duplicate":
+                    self.allocation["groups"]["shared_honest"][0] = self.groups["shared_honest"][0] = 101
+                elif case == "quota":
+                    self.allocation["groups"]["shared_honest"].pop()
+                    self.groups["shared_honest"].pop()
+                elif case == "order":
+                    self.groups["shared_honest"].reverse()
+                else:
+                    del self.allocation["groups"]["development"]
+                export, export_pin, allocation_pin = self.publish(case)
+                with self.assertRaisesRegex(error, reason):
+                    prepare.prepare(export, self.root / (case + "-prepared"), expected_export_sha256=export_pin,
+                                    expected_allocation_sha256=allocation_pin)
+
+    def test_frozen_corpus_rule_requires_historical_kind_and_no_selection_failures(self):
+        for case in ("kind", "failures"):
+            with self.subTest(case=case):
+                self.reset_fixture()
+                self.frozen_fixture()
+                if case == "kind":
+                    self.dataset_kind = "redesigned-shared-parents-v1"
+                else:
+                    self.failure(1)
+                export, export_pin, allocation_pin = self.publish(case)
+                with self.assertRaisesRegex(ValueError, "historical|kind" if case == "kind" else "failure"):
+                    prepare.prepare(export, self.root / (case + "-prepared"), expected_export_sha256=export_pin,
+                                    expected_allocation_sha256=allocation_pin)
 
     def test_changed_allocation_cannot_be_approved_by_a_new_export_pin(self):
         _, _, allocation_pin = self.publish()
@@ -211,6 +260,27 @@ class MonitorTrainingPrepareTests(unittest.TestCase):
         self.tasks[1]["programs"]["benign"]["receipt"]["provenance"]["ancestor_artifact_sha256s"] = [
             "bf6d65a661058bd1162cc408a169237112763800a860a2e862f4dd612530ac4c"]
         self.assert_rejected()
+
+    def test_benign_ancestry_field_is_required(self):
+        del self.tasks[1]["programs"]["benign"]["receipt"]["provenance"]["ancestor_artifact_sha256s"]
+        export, export_pin, allocation_pin = self.publish()
+        with self.assertRaisesRegex(KeyError, "ancestor_artifact_sha256s"):
+            prepare.prepare(export, self.root / "prepared", expected_export_sha256=export_pin,
+                            expected_allocation_sha256=allocation_pin)
+
+    def test_private_synthetic_parent_and_attack_ancestry_are_excluded(self):
+        excluded = "bf6d65a661058bd1162cc408a169237112763800a860a2e862f4dd612530ac4c"
+        for field in ("parent_input_sha256", "ancestor_artifact_sha256s"):
+            with self.subTest(field=field):
+                self.reset_fixture()
+                self.frozen_fixture()
+                provenance = self.tasks[1]["programs"]["synthetic_attack"]["receipt"]["provenance"]
+                provenance[field] = [excluded] if field == "ancestor_artifact_sha256s" else excluded
+                self.assertNotEqual(data.sha256(self.tasks[1]["programs"]["benign"]["program"].encode()), excluded)
+                export, export_pin, allocation_pin = self.publish(field)
+                with self.assertRaisesRegex(ValueError, "[Ee]xcluded|ancestry"):
+                    prepare.prepare(export, self.root / (field + "-prepared"), expected_export_sha256=export_pin,
+                                    expected_allocation_sha256=allocation_pin)
 
     def test_prepared_reuse_reads_only_requested_payloads_and_no_allocation_or_evidence(self):
         export, output, record, digest = self.prepare_fixture()

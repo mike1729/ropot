@@ -15,7 +15,7 @@ from .interface import ROLES
 
 
 sha256 = import_module("src.data-pipeline.artifacts").sha256
-SCHEMA_VERSION = "monitor-training-v1"
+SCHEMA_VERSION = import_module("src.data-pipeline.training_format").SCHEMA_VERSION
 
 
 def load_export(export_root, group_names, *, expected_export_sha256):

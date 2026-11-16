@@ -46,6 +46,31 @@ This verifies historical evidence without loading old pipeline modules, recomput
 scientific measurements or dispatching work. Changes to current source files and
 documentation do not change the historical bytes used for verification.
 
+## Historical three-row pilot
+
+Current root: `data/monitor_training/historical-pilot-20261116-v3`; `panels/`,
+`export/` and `prepared-v4/` hold the frozen 6/8/20 panels, bytes and prepared view;
+`handoff-v4.json` supplies their pins. Earlier handoffs are preserved and marked
+superseded by this handoff.
+Recipe metadata references the sealed source manifest
+instead of copying its recipe archive. This is frozen historical selection,
+not a pre-acquisition first-qualified allocation or new shared-parent qualification.
+The source audit passed 15 sealed phases / 2,891 bindings. Original benign evidence
+for Qwen 2100/2649/4327 remains missing; accepted Gemma 4368 source drift is not repaired.
+Weak task 4326, existing source cues and separate-parent limitations remain in the evidence.
+All 68 Qwen programs bind their actual Qwen3.8 checkpoint. Stale declared Qwen3.6
+metadata remains in `generator_metadata.actor.recorded_benign_manifest_sha256s`.
+Source paths are repository-relative; freeze/export record producer `source_sha256`.
+`configs/monitor_training/historical-reuse-20261116.json` records the existing
+16 November user instruction to perform steps 1–3 with three training rows; it adds no new approval.
+
+CLI forms, using fresh output destinations; pass the returned export/panel pins to preparation:
+
+```sh
+python3 -S -m src.data-pipeline.pilot_export freeze --campaign-root CAMPAIGN --cohort-root COHORT --reuse-decision configs/monitor_training/historical-reuse-20261116.json --output-dir ROOT/panels
+python3 -S -m src.data-pipeline.pilot_export export --panels-root ROOT/panels --expected-panels-sha256 SHA --output-dir ROOT/export
+```
+
 ## Other local evidence
 
 | Location under `data/` | Contents |

@@ -1,9 +1,9 @@
 # T1 consumer and interface implementation plan
 
-Status: T1a–T1c are implemented and fixture-backed, 16 November 2026.
+Status: T1a–T1c are implemented; the historical pilot is prepared, 16 November 2026.
 The redesigned producer remains planned. The consumer and binary interface follow
 the [monitor training stage](monitor-training-plan.md);
-real-data acceptance requires the [redesigned export](data-generation-redesign.md#training-export-handoff).
+redesigned-data acceptance requires the [redesigned export](data-generation-redesign.md#training-export-handoff); historical reuse has its separate accepted path.
 
 Use the current task-grouped schema: store shared task data once and derive rows
 from the three qualified program roles. T1 produces a pinned named-group loader and a
@@ -33,12 +33,11 @@ after each stage. Planning does not authorize implementation or live runs.
 
 Implemented in [data.py](../src/monitor_training/data.py) and
 [interface.py](../src/monitor_training/interface.py). `monitor-training-v1` defines
-the proposed handoff; the redesigned producer is not implemented. It must construct
+the grouped handoff, including historical reuse; the redesigned producer is not implemented. It must construct
 receipts from actual generation/qualification events and export qualified bytes
 verbatim, rather than validating independently assembled receipt dictionaries later.
-`ROLES` and `SCHEMA_VERSION` remain consumer constants for now. When the producer
-lands, a pure upstream format module owns them and the consumer imports from it;
-the producer must not import the training package.
+The pure upstream `src/data-pipeline/training_format.py` owns `PHASES`, `ROLES` and
+`SCHEMA_VERSION`; producer and consumer import it without a training-package dependency.
 
 `load_export(export_root, group_names, *, expected_export_sha256)` verifies the
 reviewed manifest pin before decoding, then verifies only the requested groups'
@@ -63,7 +62,7 @@ and program text inline in each task payload; avoid multiple payload encodings.
 
 | Object | Stored information |
 | --- | --- |
-| Export manifest | Schema/upstream versions; allocation and generation-recipe references with hashes; actor/synthetic generator bindings; `groups` mapping names to ordered `{task_id, path, sha256}` payload records; failed construction task IDs |
+| Export manifest | Required `dataset_kind`: `historical-separate-parents-v1` or `redesigned-shared-parents-v1`; schema/upstream versions; allocation and generation-recipe references with hashes; actor/synthetic generator bindings; `groups` mapping names to ordered `{task_id, path, sha256}` payload records; failed construction task IDs |
 | Allocation | Reviewed finite `candidate_order` per construction phase, frozen `development` panel and fixed advancement-rule ID; ownership, eligibility and uniqueness are upstream guarantees |
 | Task payload | Task ID, one statement, and exactly `benign`, `actor_attack`, `synthetic_attack` entries, each containing program text and a qualification receipt |
 | Qualification receipt | Successful result appropriate to the program role; `statement_sha256` and `program_sha256` bindings; generation provenance/lineage; hashed supporting evidence references |
@@ -108,7 +107,10 @@ its message-boundary whitespace behavior.
 
 ### Byte identity and lineage
 
-Define hashes over exact bytes, without newline or Unicode normalization:
+The shared-parent requirements below apply to redesigned exports. Historical reuse
+preserves the separate source parents described in T1c.
+
+For the shared-parent redesign, define hashes over exact bytes, without newline or Unicode normalization:
 
 - `program_sha256` identifies the UTF-8 bytes of the qualified, exported program.
   Construct it when qualifying the final program bytes; those bytes must be the
@@ -239,7 +241,7 @@ supplementary fixtures, since a read error could otherwise be caught and conceal
 expected_allocation_sha256)` returns the published `prepared.json` SHA-256; the CLI
 prints it. First read the hash-verified export
 metadata without task payloads. Read the allocation bytes once and compare their
-SHA-256 with both the caller's pre-acquisition `expected_allocation_sha256` and the
+SHA-256 with both the caller's independent `expected_allocation_sha256` and the
 manifest's allocation reference before decoding them. A newly pinned export cannot
 approve a changed allocation. Do not substitute the export's chosen hash for the
 independently reviewed earlier pin or use a self-declared approval flag.
@@ -252,6 +254,17 @@ the consumer does not require it.
 The manifest uses `allocation={path, sha256}` and `selection_failures=[task_id, ...]`
 for failed construction candidates. Producer exclusion lists remain upstream provenance.
 
+Historical reuse instead accepts `advancement_rule="frozen-corpus-v1"` and pinned
+ordered `groups`: existing 6/8/20 panels, not pre-acquisition first-qualified selection.
+This rule requires the historical dataset kind and empty `selection_failures`.
+Its `dataset_kind="historical-separate-parents-v1"` retains each attack's own parent, private `synthetic_parent` and historical receipts/evidence; it makes no fresh qualification claim.
+Recipe metadata references the pinned source manifest. Export reads only its three
+data inputs; the other source pins remain frozen provenance.
+The adapter makes no byte transformations; empty ancestry lists do not attest
+completeness of pre-freeze historical ancestry.
+It checks joined statement agreement and one actual checkpoint manifest per source;
+stale declared generator metadata is retained as provenance rather than an identity substitute.
+
 Trust the reviewed allocation's approved phase-keyed candidate prefixes and frozen
 development panel. Derive exactly 6 `shared_honest`, 8 `twin_continuation` and
 20 `development` task IDs under the frozen rules below. Compare each manifest
@@ -259,10 +272,10 @@ group's index IDs with its computed expected ID list exactly, including order.
 Require 34 distinct selected task IDs across the three groups.
 Quotas and disjointness alone do not establish correct membership or selection.
 Only then load the payloads and project the three producer-qualified roles for each
-task: 102 rows. Qualification and shared-parent receipts come from the producer's tested
+task: 102 rows. Redesigned qualification and shared-parent receipts come from the producer's tested
 generation/qualification path; preparation does not replay qualification.
 
-Implement only `advancement_rule="first-qualified-v1"`; reject other IDs rather
+Prospective generation uses `advancement_rule="first-qualified-v1"`; reject other IDs rather
 than interpreting rules as data. Upstream guarantees `candidate_order` contains
 approved, eligible, unique finite prefixes for each construction phase, including
 its authorized reserves. Select the first quota of successful tasks in that order.
@@ -279,8 +292,8 @@ allocation and advancement policy; existing cohort reserve blocks are insufficie
 Preserve the historical `qwen:886` exclusion by original artifact identity. Its
 `benign_sha256` in `data/qualification/frozen92-20261101/manifest.json` is
 `bf6d65a661058bd1162cc408a169237112763800a860a2e862f4dd612530ac4c`.
-Check the benign program hash and `provenance.ancestor_artifact_sha256s`
-against this exclusion; reject that parent and both descendants on a match.
+Check benign program hashes, attack `parent_input_sha256` and available ancestry
+against this exclusion; reject that parent and descendants on a match.
 `selection.program_sha256` in the historical record identifies the attack, not the
 benign, and is not the exclusion anchor. A new task-886 parent requires
 independent qualification and the recorded acquisition policy.
@@ -304,7 +317,7 @@ deduplicate, relabel, replace or shrink the required panel.
 Publish a small `prepared.json` with schema `monitor-training-prepared-v1`, referring
 to the export rather than a second payload index. Record `export_sha256`, `allocation`,
 `generation_recipe`, ordered ID `groups`, `message_sha256` arrays by group in task/`ROLES`
-order, `target_table` (role → branch → label), `duplicates` and `source_sha256`.
+order, `dataset_kind`, `selection_rule`, `target_table` (role → branch → label), `duplicates` and `source_sha256`.
 Derive the table through `target_for`; it freezes consumer behavior,
 not producer-supplied labels or independently editable per-row targets. Serialize
 deterministically with fixed ordering and no incidental timestamps/host paths. Its exact published
@@ -341,7 +354,7 @@ the contract so each rejection demonstrates its intended check.
 T1 implementation is fixture-backed: the schema, scoped loader,
 interface and preparation entry point pass their focused tests and standard-library
 import check. Report actual non-test/test diff sizes at each review boundary.
-Real-data acceptance additionally needs a frozen upstream generation recipe,
+Redesigned-data acceptance additionally needs a frozen upstream generation recipe,
 allocation/selection records and qualified shared-parent export. Do not mark the
 historical corpus as satisfying those prospective requirements.
 

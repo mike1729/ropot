@@ -1,7 +1,7 @@
 """Freeze the allocation-selected view; reuse it without re-reading evidence.
 
-Allocation v1 supplies approved, eligible ``candidate_order`` prefixes by phase,
-the ordered ``development`` panel and advancement_rule.
+Prospective allocations supply phase-specific candidate orders; historical reuse
+supplies frozen groups. Both are independently pinned before export consumption.
 The independently reviewed allocation pin is the approval boundary.
 """
 
@@ -13,9 +13,9 @@ from . import data, interface
 
 
 artifacts = import_module("src.data-pipeline.artifacts")
+training_format = import_module("src.data-pipeline.training_format")
 SCHEMA_VERSION = "monitor-training-prepared-v1"
 QUOTAS = {"shared_honest": 6, "twin_continuation": 8, "development": 20}
-PHASES = {"shared_honest": "shared_honest_pretraining", "twin_continuation": "twin_continuation"}
 EXCLUDED_PARENT_SHA256 = "bf6d65a661058bd1162cc408a169237112763800a860a2e862f4dd612530ac4c"
 
 
@@ -27,17 +27,22 @@ def prepare(export_root, output_dir, *, expected_export_sha256, expected_allocat
     if reference["sha256"] != expected_allocation_sha256:
         raise ValueError("Export allocation differs from the independent allocation pin")
     allocation = data._read_pinned(root, reference["path"], expected_allocation_sha256)
+    if allocation["advancement_rule"] == "frozen-corpus-v1" and (
+            manifest["dataset_kind"] != "historical-separate-parents-v1" or manifest["selection_failures"]):
+        raise ValueError("Frozen selection requires historical dataset kind and no advancement failures")
     groups = _selection(allocation, manifest["selection_failures"])
     _check_groups(manifest, groups)
     rows = data._load_groups(root, manifest["groups"])
     targets = _target_table()
     digests, duplicates = _inspect_rows(rows, targets)
     record = dict(schema_version=SCHEMA_VERSION, export_sha256=expected_export_sha256,
+                  dataset_kind=manifest["dataset_kind"],
                   allocation=reference, generation_recipe=manifest["generation_recipe"],
+                  selection_rule=allocation["advancement_rule"],
                   groups=groups, message_sha256=digests, target_table=targets,
                   duplicates=duplicates, source_sha256={
-                      name: artifacts.sha256((Path(__file__).parent / name).read_bytes())
-                      for name in ("data.py", "interface.py", "prepare.py")})
+                      path.name: artifacts.sha256(path.read_bytes()) for path in map(Path,
+                      (__file__, data.__file__, interface.__file__, training_format.__file__))})
     with artifacts.publication_directory(output_dir) as staging:
         artifacts.write_json(staging / "prepared.json", record)
         digest = artifacts.sha256((staging / "prepared.json").read_bytes())
@@ -45,12 +50,16 @@ def prepare(export_root, output_dir, *, expected_export_sha256, expected_allocat
 
 
 def _selection(allocation, failed_task_ids):
-    if allocation["advancement_rule"] != "first-qualified-v1":
+    rule = allocation["advancement_rule"]
+    if rule == "frozen-corpus-v1":
+        groups = {group: allocation["groups"][group] for group in QUOTAS}
+    elif rule == "first-qualified-v1":
+        failures = set(failed_task_ids)
+        groups = {group: [task_id for task_id in allocation["candidate_order"][phase] if task_id not in failures][:QUOTAS[group]]
+                  for group, phase in training_format.PHASES.items()}
+        groups["development"] = allocation["development"]
+    else:
         raise ValueError("Unsupported advancement rule")
-    failures = set(failed_task_ids)
-    groups = {group: [task_id for task_id in allocation["candidate_order"][phase] if task_id not in failures][:QUOTAS[group]]
-              for group, phase in PHASES.items()}
-    groups["development"] = allocation["development"]
     for group, quota in QUOTAS.items():
         if len(groups[group]) != quota:
             raise ValueError(f"Selection quota/reserve exhausted for {group}")
@@ -82,11 +91,13 @@ def _inspect_rows(grouped_rows, targets):
     for group in QUOTAS:
         digests[group] = []
         for row in grouped_rows[group]:
-            if row["role"] == "benign":
-                parents = {artifacts.sha256(row["program"].encode("utf-8")),
-                           *row["receipt"]["provenance"]["ancestor_artifact_sha256s"]}
-                if EXCLUDED_PARENT_SHA256 in parents:
-                    raise ValueError("Excluded benign parent or ancestry")
+            provenance = row["receipt"]["provenance"]
+            parents = set(provenance["ancestor_artifact_sha256s"] if row["role"] == "benign"
+                          else provenance.get("ancestor_artifact_sha256s", ()))
+            parents.add(artifacts.sha256(row["program"].encode("utf-8")) if row["role"] == "benign"
+                        else provenance["parent_input_sha256"])
+            if EXCLUDED_PARENT_SHA256 in parents:
+                raise ValueError("Excluded benign parent or ancestry")
             digest = _message_digest(row)
             digests[group].append(digest)
             previous = by_message.setdefault(digest, [])

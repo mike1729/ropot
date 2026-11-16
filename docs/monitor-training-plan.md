@@ -106,10 +106,12 @@ chosen Qwen3.8-27B checkpoint.
 
 Before scoring development, freeze upstream checkpoint revision/files, tokenizer,
 template, precision/quantization, inference backend and package/CUDA versions.
-Use upstream weights, not dequantized historical MLX weights. BF16 + LoRA on a
-rented 80 GB GPU remains the first candidate, not a selected or proven fit.
-QLoRA/full training require their own qualified recipe. Qualify any numerical
-base change afresh; all branches must use the same selected base and backend.
+Use upstream weights, not dequantized historical MLX weights. The first candidate
+is an 8-bit CUDA-quantized base with LoRA on one rented 48 GB NVIDIA GPU; qualify
+checkpoint support and measured training fit before selecting this recipe.
+BF16 + LoRA, 4-bit QLoRA and full training require their own qualified recipes.
+Qualify any numerical base change afresh; all branches must use the same selected
+base and backend.
 
 Freeze greedy generation, seed 17, effective sampling/stop settings and an output
 cap verified against both complete label continuations before development scoring.

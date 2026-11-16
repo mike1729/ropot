@@ -6,10 +6,10 @@ the separate normalization proposal; training consumes its qualified frozen view
 
 ## Pilot scope and open choices
 
-Training will run on a rented NVIDIA GPU. Precision, full-parameter training versus
-LoRA, and the exact hardware are **not decided**.
-The preferred proposal is BF16 base weights with LoRA; 4-bit QLoRA is a memory-saving
-alternative.
+Training will run on a rented NVIDIA GPU. The first candidate is an 8-bit
+CUDA-quantized base with LoRA on one 48 GB GPU. The production recipe and exact
+hardware remain subject to qualification. BF16 + LoRA, 4-bit QLoRA and
+full-parameter training remain alternatives requiring their own qualified recipes.
 The first pilot uses three programs per task: one unchanged actor-written benign
 parent and actor/synthetic faulty edits of that same parent. Train plain PASS/FLAG
 outputs, with no mode token. REPORT denotes this sole public-output interface.
@@ -126,14 +126,19 @@ Qwen architecture; general LoRA support does not qualify this checkpoint.
 
 | Pending option | Proposed use and qualification |
 | --- | --- |
-| BF16 base + LoRA | Preferred first candidate; assess one 80 GB GPU, with larger memory if needed |
-| 4-bit NF4 base + LoRA (QLoRA) | Lower-memory alternative; double quantization and BF16 compute, potentially on 48 GB |
+| 8-bit base + LoRA | First candidate: CUDA bitsandbytes LLM.int8() on one 48 GB GPU; qualify checkpoint support and training fit |
+| BF16 base + LoRA | Higher-memory alternative; assess one 80 GB GPU |
+| 4-bit NF4 base + LoRA (QLoRA) | Lower-memory alternative; double quantization and BF16 compute; size hardware after measuring training memory |
 | BF16 full-parameter fine-tuning | Still open, but not the first recommendation for this small pilot; needs a separate optimizer/memory budget |
 
-These are hardware candidates, not fit guarantees. Roughly 54 GB for 27B BF16
-weights excludes activations, adapters, gradients, optimizer state and workspaces.
-The [PEFT quantization guide](https://huggingface.co/docs/peft/developer_guides/quantization)
-describes the QLoRA configuration; support and memory must be measured here.
+At one byte per parameter, 27B weights occupy about 27 GB before quantization
+metadata, higher-precision modules, activations, adapters, gradients, optimizer
+state and workspaces. Measure peak training memory and headroom on the 48 GB
+candidate. The [bitsandbytes guide](https://huggingface.co/docs/transformers/quantization/bitsandbytes)
+documents 8-bit loading and training extra parameters; the
+[PEFT quantization guide](https://huggingface.co/docs/peft/developer_guides/quantization)
+covers adapter training on quantized bases. Pin the quantization settings and
+module/adapter dtypes for the tested checkpoint before qualification.
 
 Candidate LoRA settings: rank 16, alpha 32, standard scaling (alpha/r), dropout 0,
 AdamW at 1e-4 with weight decay 0, microbatch 1, accumulation 4, seed 17. Audit an
@@ -145,8 +150,8 @@ Full-parameter training requires its own recipe, not these adapter defaults.
 
 Freeze the numerical base and inference backend before binary qualification, then
 keep them and the trainable parameter set consistent through shared training, both
-twins, repair and evaluation. A switch between BF16 and QLoRA is a separate qualified
-run, not a per-arm memory fix.
+twins, repair and evaluation. A switch among 8-bit, BF16 and 4-bit bases requires
+a separate qualified run; keep the numerical base identical across arms.
 
 The [implementation plan](monitor-training-plan.md#3-qualify-supervision-and-training-state)
 owns loss weighting, rendering, runtime smoke and save/resume acceptance. Smoke

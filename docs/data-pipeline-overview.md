@@ -65,11 +65,18 @@ small benign/attack edits, strong source-style cues and the distinction between
 single-program classification and supplementary paired diagnostics.
 The next planned stage is [monitor training](monitor-training-plan.md). An upstream
 [pipeline redesign](data-generation-redesign.md) replaces the separate normalization step.
-Training consumes a frozen, qualified model-ready view verbatim, under one declared
-presentation policy across sources and labels. Preserve verified originals and
-historical comment-only scoring. Changed program bytes require applicable upstream
-qualification; check model-visible input conflicts before training. The redesign
+Training consumes qualified bytes verbatim. Freeze source/label-neutral extraction
+and comment/docstring rules in the generation recipe; apply them before qualifying
+each program, and finalize the benign before supplying it to either editor.
+Preserve verified originals and historical comment-only scoring. Changed program
+bytes require new qualification; check model-visible input conflicts before training. The redesign
 does not itself establish readiness or alter frozen memberships and ownership.
+The redesigned producer must construct receipts from actual generation/qualification
+events and prove the [five handoff guarantees](data-generation-redesign.md#training-export-handoff)
+before real-data acceptance. It is not implemented yet. The current reader checks
+pinned manifest/payload bytes and payload/index identity, without reconstructing
+qualification. T1c must independently verify allocation approval and exact group
+selection/order before preparing a training view.
 The revised training pilot targets an unchanged actor benign and actor/synthetic
 faulty edits of that same parent. This differs from the completed acquisition
 contract above and requires a qualified redesigned export, not relabeled old pairs.

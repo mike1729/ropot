@@ -35,3 +35,16 @@ class PipelineImportTests(unittest.TestCase):
                 blocked = {package + name for name in (*forbidden, "stage01.qualify", "stage01.local_runner")}
                 blocked.update(("tokenizers", "inspect_ai", "mlx_lm"))
                 self.assertFalse(imported & blocked, sorted(imported & blocked))
+
+    def test_monitor_training_consumers_import_without_acquisition_or_model_runtime(self):
+        subprocess.run(
+            [sys.executable, "-S", "-c", (
+                "import sys; import src.monitor_training; "
+                "assert 'src.monitor_training.data' not in sys.modules; "
+                "assert 'src.monitor_training.interface' not in sys.modules; "
+                "import src.monitor_training.data, src.monitor_training.interface; "
+                "assert not any(name.startswith('src.data-pipeline.stage') for name in sys.modules)"
+            )],
+            cwd=Path(__file__).resolve().parents[1], capture_output=True,
+            text=True, check=True, timeout=10,
+        )

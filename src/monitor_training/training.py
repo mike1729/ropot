@@ -43,7 +43,7 @@ The current pinned Trainer honors ``loss_is_scaled_for_ga``. Each microbatch
 contributes sum(row mean NLL)/4, including a final partial accumulation window;
 neither Trainer nor the model applies token-count or accumulation normalization.
 Sequential sampling repeats the prepared row order on each complete pass.
-on_batch receives each training batch before its forward for smoke accounting.
+on_batch receives each training batch before its forward for run accounting.
 """
     import torch
     from transformers import Trainer, TrainingArguments

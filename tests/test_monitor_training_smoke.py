@@ -307,6 +307,7 @@ class SmokeIntegrationTests(unittest.TestCase):
                                               fail_final_metadata=metadata_failure)
                 self.assertEqual(result["status"], "incomplete")
                 self.assertEqual(result["error"]["message"], "Fixture training OOM")
+                self.assertIn("in observed_batch", result["error"]["traceback"])
                 saved = json.loads((self.root / name / "summary.json").read_bytes())
                 self.assertEqual(saved["error"], result["error"])
                 events = [json.loads(line) for line in (self.root / name / "events.jsonl").read_text().splitlines()]

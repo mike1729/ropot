@@ -12,7 +12,7 @@ from . import pinning
 
 
 artifacts = pinning.artifacts
-SOURCES = ("adapter.py", "training.py", "smoke.py")
+SOURCES = ("adapter.py", "training.py", "runner.py", "smoke.py", "train.py")
 
 
 def source_hashes():

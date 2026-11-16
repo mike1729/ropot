@@ -10,9 +10,11 @@ from importlib import metadata
 import json
 from pathlib import Path
 import time
+import traceback
 
 from . import adapter, interface, pinning, prepare, training
 from .rendering import Renderer, token_digest
+from .runner import Resources, snapshot
 
 
 artifacts = pinning.artifacts
@@ -55,47 +57,17 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
             events.write(json.dumps(value) + "\n")
             events.flush()
 
-        def check_budget():
-            elapsed = time.monotonic() - started
-            budgets = settings["budgets"]
-            if (elapsed > budgets["max_wall_seconds"] or
-                    elapsed * budgets["gpu_hourly_usd"] / 3600 > budgets["max_cost_usd"] or
-                    usage["tokens"] > budgets["max_tokens"]):
-                raise RuntimeError("Smoke token/time/cost budget exhausted")
-
-        def check_memory():
-            usage["peak_allocated_bytes"] = torch.cuda.max_memory_allocated(0)
-            usage["peak_reserved_bytes"] = torch.cuda.max_memory_reserved(0)
-            free, total = torch.cuda.mem_get_info(0)
-            headroom = free + torch.cuda.memory_reserved(0) - torch.cuda.max_memory_reserved(0)
-            usage["memory_headroom_bytes"] = min(usage.get("memory_headroom_bytes", total), headroom)
-            if headroom < settings["budgets"]["min_free_memory_bytes"]:
-                raise RuntimeError("Smoke GPU memory headroom exhausted")
-
-        def count_tokens(count):
-            usage["tokens"] += count
-            check_budget()
-
-        def training_batch(inputs):
-            count_tokens(inputs["input_ids"].numel())
-            usage["row_presentations"] += inputs["input_ids"].shape[0]
-            usage["supervised_tokens"] += (inputs["labels"] != -100).sum().item()
-
-        def snapshot(model):
-            return {name: parameter.detach().cpu().clone() for name, parameter in model.named_parameters()
-                    if parameter.requires_grad}
-
         def prediction(row, stage):
             runtime.model.eval()
             # Reserve the full output cap before generation; charge actual
             # output tokens after it returns, without a per-token model hook.
-            count_tokens(len(row["input_ids"]) + contract["max_new_tokens"])
+            resources.count_tokens(len(row["input_ids"]) + contract["max_new_tokens"])
             reply = runtime.generate(row["input_ids"])
             usage["tokens"] -= contract["max_new_tokens"] - len(reply["generated_token_ids"])
             event(dict(kind="reload_prediction", stage=stage, reply=reply))
             if interface.parse_reply(reply)["status"] == "incomplete":
                 raise RuntimeError("Incomplete reload generation")
-            check_budget()
+            resources.check_budget()
             return reply
 
         try:
@@ -107,6 +79,7 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
             config = json.loads(Path(settings_path).read_bytes())
             adapter.validate_settings(config)
             settings = dict(config, pad_token_id=contract["terminator_id"])
+            resources = Resources(settings["budgets"], event, usage, started)
             artifacts.write_json(output / "training.json", dict(settings, peft_version=metadata.version("peft"),
                                                                source_sha256=adapter.source_hashes()))
             rows = prepare.load_prepared(prepared_root, export_root, ["shared_honest"],
@@ -127,7 +100,7 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
                                     total_tokens=len(probe["input_ids"])),
                 continuations=renderer.continuations))
             torch.cuda.reset_peak_memory_stats(0)
-            check_budget()
+            resources.check_budget()
             factory = runtime_factory or NvidiaRuntime
 
             def load(checkpoint=None):
@@ -135,21 +108,7 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
                 trainable = adapter.attach(value, settings, checkpoint)
                 return value, trainable
 
-            class Audit(TrainerCallback):
-                def on_pre_optimizer_step(self, args, state, control, model=None, **kwargs):
-                    if any(not torch.isfinite(parameter.grad).all() for parameter in model.parameters()
-                           if parameter.requires_grad and parameter.grad is not None):
-                        raise RuntimeError("Nonfinite smoke gradient")
-
-                def on_step_end(self, args, state, control, **kwargs):
-                    usage["updates"] += 1
-                    check_budget()
-                    check_memory()
-                    event(dict(kind="update", step=state.global_step, usage=dict(usage)))
-
-                def on_log(self, args, state, control, logs=None, **kwargs):
-                    event(dict(kind="loss", step=state.global_step, **logs))
-
+            class ReloadPrediction(TrainerCallback):
                 def on_save(self, args, state, control, **kwargs):
                     if state.global_step == 2:
                         # Capture the in-memory step-2 weights before step 3 replaces them.
@@ -160,7 +119,8 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
             runtime, names = load()
             artifacts.write_json(output / "trainable.json", names)
             trainer = training.build_trainer(runtime.model, examples, output / "continuous", settings,
-                                             max_steps=3, callbacks=[Audit()], on_batch=training_batch)
+                                             max_steps=3, callbacks=[resources.callback(), ReloadPrediction()],
+                                             on_batch=resources.training_batch)
             trainer.train()
             expected = snapshot(runtime.model)
             if all(torch.equal(expected[name], checkpoint_weights[name]) for name in expected):
@@ -181,7 +141,8 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
             if reloaded["generated_token_ids"] != before["generated_token_ids"]:
                 raise RuntimeError("Inference changed after adapter reload")
             trainer = training.build_trainer(runtime.model, examples, output / "resumed", settings,
-                                             max_steps=3, callbacks=[Audit()], on_batch=training_batch)
+                                             max_steps=3, callbacks=[resources.callback(), ReloadPrediction()],
+                                             on_batch=resources.training_batch)
             trainer.train(resume_from_checkpoint=str(checkpoint))
             actual = snapshot(runtime.model)
             max_difference = 0.0
@@ -191,20 +152,20 @@ def smoke(prepared_root, export_root, model_root, inference_path, settings_path,
                     raise RuntimeError(f"Resumed adapter differs from uninterrupted training: {name}")
                 max_difference = max(max_difference, difference.max().item())
             result["resume_max_abs_difference"] = max_difference
-            check_budget()
+            resources.check_budget()
             result["status"] = "passed"
         except (Exception, KeyboardInterrupt) as failure:
-            result["error"] = dict(type=type(failure).__name__, message=str(failure))
+            result["error"] = dict(type=type(failure).__name__, message=str(failure), traceback=traceback.format_exc())
             event(dict(kind="failure", **result["error"]))
         if runtime is not None:
             try:
                 torch.cuda.synchronize(0)  # Include GPU completion in final wall time.
                 artifacts.write_json(output / "runtime.json", runtime.metadata())
                 if result["status"] == "passed":
-                    check_memory()
-                    check_budget()
+                    resources.check_memory()
+                    resources.check_budget()
             except Exception as failure:
-                error = dict(type=type(failure).__name__, message=str(failure))
+                error = dict(type=type(failure).__name__, message=str(failure), traceback=traceback.format_exc())
                 result.update(status="incomplete", error=result["error"] or error)
                 event(dict(kind="failure", **error))
         usage["elapsed_seconds"] = time.monotonic() - started

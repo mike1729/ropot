@@ -100,9 +100,13 @@ class NvidiaRuntime:
     def log_likelihood(self, input_ids, continuation_ids):
         """Sum conditional log probabilities for the label AND its terminator."""
         tokens = self._tensor(input_ids + continuation_ids)
+        # Plain LoRA remains injected in this base model. Like PEFT generation,
+        # bypass the outer forward's Trainer AMP wrapper without modifying it;
+        # checkpoint scoring then uses the same precision as standalone reload.
+        model = self.model.get_base_model() if hasattr(self.model, "get_base_model") else self.model
         with self.torch.inference_mode():
-            output = self.model(input_ids=tokens, attention_mask=self.torch.ones_like(tokens), use_cache=False,
-                                logits_to_keep=len(continuation_ids) + 1)
+            output = model(input_ids=tokens, attention_mask=self.torch.ones_like(tokens), use_cache=False,
+                           logits_to_keep=len(continuation_ids) + 1)
             # Retain the prediction positions for the continuation, then omit
             # the final position, which would predict a token after its EOS.
             logits = output.logits[0, :-1, :].float()

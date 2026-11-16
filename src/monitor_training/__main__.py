@@ -1,4 +1,4 @@
-"""Prepare, freeze, score or smoke-test the binary monitor's NVIDIA recipe."""
+"""Prepare, freeze, score, smoke-test or train the binary monitor's NVIDIA recipe."""
 
 import argparse
 import json
@@ -24,11 +24,13 @@ def main():
         command.add_argument("--" + name, type=Path, required=True)
     command.add_argument("--expected-prepared-sha256", required=True)
     command.add_argument("--expected-contract-sha256", required=True)
-    command = commands.add_parser("smoke", help="Qualify disposable LoRA weights with three updates and resume")
-    for name in ("prepared-root", "export-root", "model-root", "inference-contract", "settings", "output-dir"):
-        command.add_argument("--" + name, type=Path, required=True)
-    for name in ("prepared", "inference"):
-        command.add_argument("--expected-" + name + "-sha256", required=True)
+    for name, help_text in (("smoke", "Qualify disposable LoRA weights with three updates and resume"),
+                            ("train", "Train shared honest S and select the earliest passing checkpoint")):
+        command = commands.add_parser(name, help=help_text)
+        for name in ("prepared-root", "export-root", "model-root", "inference-contract", "settings", "output-dir"):
+            command.add_argument("--" + name, type=Path, required=True)
+        for name in ("prepared", "inference"):
+            command.add_argument("--expected-" + name + "-sha256", required=True)
     args = parser.parse_args()
     if args.command == "prepare":
         print(prepare(args.export_root, args.output_dir, expected_export_sha256=args.expected_export_sha256,
@@ -44,13 +46,16 @@ def main():
         print(json.dumps(result, indent=2))
         raise SystemExit(0 if result["passed"] else 2 if result["status"] == "incomplete" else 1)
     else:
-        from .smoke import smoke
-        result = smoke(args.prepared_root, args.export_root, args.model_root, args.inference_contract,
+        if args.command == "smoke":
+            from .smoke import smoke as run
+        else:
+            from .train import train as run
+        result = run(args.prepared_root, args.export_root, args.model_root, args.inference_contract,
                        args.settings, args.output_dir,
                        expected_prepared_sha256=args.expected_prepared_sha256,
                        expected_inference_sha256=args.expected_inference_sha256)
         print(json.dumps(result, indent=2))
-        raise SystemExit(0 if result["status"] == "passed" else 2)
+        raise SystemExit(0 if result["status"] == "passed" else 1 if result["status"] == "failed" else 2)
 
 
 if __name__ == "__main__":

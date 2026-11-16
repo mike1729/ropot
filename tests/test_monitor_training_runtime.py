@@ -87,6 +87,7 @@ class MonitorTrainingRuntimeTests(unittest.TestCase):
         torch.cuda.get_device_name.return_value = "fixture"
         parameter = SimpleNamespace(device=SimpleNamespace(type="cuda", index=0), dtype="int8")
         model = mock.Mock(is_loaded_in_8bit=True, config=SimpleNamespace(is_encoder_decoder=False))
+        del model.get_base_model  # This fixture represents the unadapted base.
         model.parameters.side_effect = lambda: iter([parameter])
         transforms = SimpleNamespace(
             AutoModelForCausalLM=SimpleNamespace(from_pretrained=mock.Mock(return_value=model)),

@@ -134,7 +134,7 @@ data. These small development counts are warnings, not reliable acquisition fore
 ## Required repetition
 
 Repeat this analysis after main-data acquisition, following the
-[normalization implementation plan](../normalization-plan.md). Report original and
+[then-proposed normalization plan](README.md#superseded-proposals). Report original and
 normalized views, current/new-only/combined panels, source/label/ownership strata,
 task-disjoint standalone probes and supplementary paired diagnostics. Reassess fault
 diversity and source-conditioned edit patterns. Protected groups remain sealed until

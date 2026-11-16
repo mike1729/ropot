@@ -3,15 +3,17 @@
 The data campaign is complete. Start with the
 [qualification and adjudication record](frozen-corpus-qualification.md) for the
 current corpus, then the [pilot](pilot.md) for the small twin experiment's goals.
-The binary twin training plan specifies the next experiment;
-its direct monitor interface and training runtime still need qualification.
+The binary twin training plan specifies the next experiment; the
+[monitor training stage](monitor-training-plan.md) details implementation after
+the planned upstream redesign. Its binary interface and runtime need qualification.
 
 ## Current contracts and entry points
 
 | Document | Read it for |
 | --- | --- |
 | [Pilot](pilot.md) | Scientific question, twin and repair gates |
-| Twin training (draft) | Binary supervision, matched twins, missed-attack repair and locked evaluation |
+| [Twin training](twin-training-plan.md) | Binary supervision, matched twins, missed-attack repair and locked evaluation |
+| [Monitor training stage](monitor-training-plan.md) | Upstream export boundary, NVIDIA qualification, shared honest training and matched twins |
 | [Data pipeline](data-pipeline-overview.md) | Ownership, information boundaries and acceptance |
 | [Frozen-corpus qualification](frozen-corpus-qualification.md) | Completed measurements, user resolutions and remaining limitations |
 | [Pipeline usage](pipeline-usage.md) | Preprocessing commands, dependencies and stage APIs |

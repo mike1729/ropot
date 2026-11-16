@@ -4,13 +4,21 @@ Can synthetic corrections repair a monitor's selective failure to flag its actor
 attacks? This repository contains the data pipeline and experiments for the
 [honeypot monitor repair pilot](docs/pilot.md).
 
-**Data acquisition, scoring and corpus qualification are complete. The next
-experiment follows the binary twin training plan,
+**Before the main run, implement and qualify the
+[data generation redesign](docs/data-generation-redesign.md): shared actor benigns
+and comparable, bounded rewrites from both generators.** The revised three-row
+training pilot also requires qualified shared-parent data; preserve the old corpus.
+
+**Historical corpus qualification is complete. The next experiment follows the
+binary twin training plan on a newly qualified three-row export,
 starting with direct PASS/FLAG qualification.** The actor and historical monitor
 use Qwen3.8-27B MLX 8-bit; Gemma-4-31B-it is the synthetic source. Planned monitor
 training uses rented NVIDIA hardware; precision and LoRA versus full fine-tuning
 remain open. The [training plan](docs/twin-training-plan.md) uses direct twin training
-for the pilot and defers dedicated source elicitation to a full run.
+on shared-parent triples with plain PASS/FLAG output, followed by synthetic repair
+versus matched replay. Five-row data and ASSESS/REPORT remain later extensions.
+The [implementation stage](docs/monitor-training-plan.md) plans monitor training
+against the redesigned pipeline's frozen export, replacing separate normalization.
 
 The frozen corpus preserves 92 selected pairs and 184 programs. Its derived view
 retains 91 pairs after one demonstrated benign defect, with 20 matched development

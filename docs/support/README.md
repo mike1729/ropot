@@ -14,3 +14,15 @@ contracts and entry points.
 | Benign panels and recovery | [Dev-50 benigns](qwen-dev50-benigns.md), [development recovery](dev12-recovery-cases.md), [construction recovery](construction-case-recovery.md) |
 | Completed queues | [Overnight development](overnight-dev34-monitoring.md), [matched generation](dev-construction-qwen-gemma-queue.md), [matched monitoring](matched-monitor-queue.md) |
 | Sealed qualification | [Phase drivers and audit dispatcher archive](qualification-drivers-archive.md) |
+
+## Superseded proposals
+
+The unimplemented Stage 06 normalization proposal was removed from the active tree
+on 11 November 2026. The [data-generation redesign](../data-generation-redesign.md)
+and [monitor training plan](../monitor-training-plan.md) replace that next step.
+Historical corpus-analysis recommendations retain their original context.
+Recover the original proposal without changing the checkout:
+
+```sh
+git show 2b581bb90ada0b7fe88ab46121edce23ee1b6655:docs/normalization-plan.md
+```

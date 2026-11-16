@@ -42,7 +42,8 @@ class PipelineImportTests(unittest.TestCase):
                 "import sys; import src.monitor_training; "
                 "assert 'src.monitor_training.data' not in sys.modules; "
                 "assert 'src.monitor_training.interface' not in sys.modules; "
-                "import src.monitor_training.data, src.monitor_training.interface; "
+                "assert 'src.monitor_training.prepare' not in sys.modules; "
+                "import src.monitor_training.data, src.monitor_training.interface, src.monitor_training.prepare; "
                 "assert not any(name.startswith('src.data-pipeline.stage') for name in sys.modules)"
             )],
             cwd=Path(__file__).resolve().parents[1], capture_output=True,

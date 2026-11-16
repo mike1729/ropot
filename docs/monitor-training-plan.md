@@ -2,10 +2,10 @@
 
 Status: proposed implementation plan, 11 November 2026; no training launched.
 
-- [ ] [T1: consumer and interface](monitor-training-t1-plan.md)
+- [x] [T1: consumer and interface](monitor-training-t1-plan.md)
   - [x] [T1a: schema and pure interface](monitor-training-t1-plan.md#t1a-schema-and-interface)
-  - [ ] [T1b: restricted loading](monitor-training-t1-plan.md#t1b-restricted-loading)
-  - [ ] [T1c: complete-view validation and preparation record](monitor-training-t1-plan.md#t1c-prepare-and-freeze-the-view)
+  - [x] [T1b: restricted loading](monitor-training-t1-plan.md#t1b-restricted-loading)
+  - [x] [T1c: complete-view validation and preparation record](monitor-training-t1-plan.md#t1c-prepare-and-freeze-the-view)
 - [ ] T2: NVIDIA inference
 - [ ] T3: training adapter
 - [ ] T4: shared honest training
@@ -45,7 +45,7 @@ The export must establish task identity, allocation, program role, shared-parent
 lineage, exact input bytes and qualification provenance.
 
 Group each task's ID, statement and three program/evidence entries by role:
-`benign`, `actor_attack`, `synthetic_attack`. Resolve ownership/phase once from the
+`benign`, `actor_attack`, `synthetic_attack`. Upstream resolves ownership/phase in the
 reviewed allocation; actor authorship of parents is a schema invariant.
 Within the frozen view, derive row identity from `(task_id, role)` and editor and
 factual fault label from the qualified role. Derive honest/selective targets separately.
@@ -58,6 +58,9 @@ containing task supplies identity. Program keys name roles, substantiated by
 qualification results and generator provenance.
 Inline bytes are covered by the export digest; external evidence and the generation
 recipe carry hashes. Consumers retain rows by group, without per-row allocation fields.
+The producer export contains only selected `shared_honest`, `twin_continuation`
+and `development` payloads. Protected confirmation, correction/replay, calibration
+and evaluation payloads, plus deferred and unselected payloads, never enter this export.
 The redesigned producer must construct receipts during actual qualification and
 publish qualified bytes verbatim with the grouped payload index. That producer
 is not implemented yet; its end-to-end acceptance run must establish the five
@@ -129,6 +132,11 @@ FLAG per editor, ≥90% shared-parent PASS, and ≥95% valid in each of three ce
 in all denominators. Failure ends this direct-classification attempt pending review.
 
 ## 3. Qualify supervision and training state
+
+The training adapter must guard the requested group by phase: smoke and S training
+use only `shared_honest`; honest/selective continuation uses only `twin_continuation`.
+Keep `development` separate for scoring, even when the same process selects checkpoints.
+Test that a wrong-phase training group is rejected before training starts.
 
 Supervise only the assistant label and required answer terminator. Mask the
 instruction, statement, program, template prefix and padding with ignored labels.
@@ -247,17 +255,17 @@ qualification readiness to represent this prospective stage.
 
 Proposed location: `src/monitor_training/`, separate from the historical
 `src/data-pipeline/stage05/monitor.py`. Use small data, interface, runtime, training
-and reporting modules only as their batches need them; a thin module CLI can
-expose prepare, score, smoke and train. Keep GPU dependencies in a separate pinned
+and reporting modules only as their batches need them; the module CLI exposes
+prepare; score, smoke and train arrive with later stages. Keep GPU dependencies in a separate pinned
 training requirements file; pure data/parser checks must run without CUDA/MLX.
 Reuse existing artifact hashing/publication helpers and ownership semantics.
 Reuse Trainer; no custom training framework, remote-job orchestrator or dashboard is needed.
 
 | Batch | Reviewable result and acceptance |
 | --- | --- |
-| [T1: consumer and interface](monitor-training-t1-plan.md) | T1a schema/interface is fixture-backed. The pinned byte reader is partial T1b work; purpose authorization and T1c allocation/selection verification and preparation remain. The redesigned producer must prove its handoff against actual generation/qualification before a real export is accepted. |
+| [T1: consumer and interface](monitor-training-t1-plan.md) | T1a–T1c schema/interface, pinned loading and preparation are implemented and fixture-backed. The redesigned producer must prove its handoff against actual generation/qualification before a real export is accepted. |
 | T2: NVIDIA inference | Pin base/precision/tokenizer/template and effective settings; implement native rendering, token preflight and overlength checks, then scorer/margins and per-task report. Qualify the exact production recipe after runtime/budget selection. |
-| T3: training adapter | Loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
+| T3: training adapter | Phase-specific training group guard, loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover wrong-phase group rejection, target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
 | T4: shared honest | One continuous S trajectory and earliest-passing selection. Reconcile actual row presentations/updates, retain all snapshots/results and demonstrate inference reload. Stop if no S passes. |
 | T5: matched twins | Reuse T4 runner for honest/selective, matched row-order and lineage checks, paired development report. Output selected pair or a reproducible failed attempt; mark confirmation status explicitly. |
 | T6: conditional handoff | Only after confirmation policy/allocation is resolved: bounded confirmation if required, immutable selected checkpoint references and report for the repair stage. |
@@ -267,7 +275,7 @@ deletions, and ends with review. Split a batch before exceeding that cap. Tests
 and generated artifacts are reported separately. Plan-only changes authorize
 neither implementation, GPU rental, training nor confirmation allocation.
 
-First implementation work can start with T1's data boundary and pure fixtures
-while upstream redesign proceeds. T2/T3 live work needs the frozen export, selected
+T1's data boundary and preparation are fixture-backed while upstream redesign
+remains pending. T2/T3 live work needs the frozen export, selected
 training mode/base/runtime and numeric budgets. Confirmation policy blocks promotion to
 repair, not preparation, binary qualification, smoke or development-selected twins.

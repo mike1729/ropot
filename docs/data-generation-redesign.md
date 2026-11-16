@@ -94,6 +94,9 @@ generation recipe remain producer duties. The future producer must publish
 deterministic payload files and a metadata-only `manifest.json` with ordered
 `groups[name]` records `{task_id, path, sha256}`, publish nothing on failure, and
 refuse existing destinations. These are future publication requirements.
+The export contains only selected `shared_honest`, `twin_continuation` and
+`development` payloads. Protected confirmation, correction/replay, calibration and
+evaluation payloads, plus deferred and unselected payloads, never enter this export.
 The exact manifest bytes define the export pin. Training checks that reviewed pin,
 requested payload hashes and payload/index identity; hashes alone do not establish
 qualification or pre-acquisition allocation approval.

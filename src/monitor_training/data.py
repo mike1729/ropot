@@ -21,10 +21,18 @@ SCHEMA_VERSION = "monitor-training-v1"
 def load_export(export_root, group_names, *, expected_export_sha256):
     """Verify pinned bytes and return only the requested groups in caller order."""
     root = Path(export_root).resolve()
+    manifest = _read_manifest(root, expected_export_sha256)
+    return _load_groups(root, {name: manifest["groups"][name] for name in group_names})
+
+
+def _read_manifest(root, expected_export_sha256):
     manifest = _read_pinned(root, "manifest.json", expected_export_sha256)
     if manifest["schema_version"] != SCHEMA_VERSION:
         raise ValueError("Unsupported export schema version")
-    selected = {name: manifest["groups"][name] for name in group_names}
+    return manifest
+
+
+def _load_groups(root, selected):
     grouped_rows = {}
     for name, entries in selected.items():
         rows = []
@@ -32,7 +40,7 @@ def load_export(export_root, group_names, *, expected_export_sha256):
             task = _read_pinned(root, entry["path"], entry["sha256"])
             if task["task_id"] != entry["task_id"]:
                 raise ValueError("Payload task ID differs from its index entry")
-            rows.extend(rows_from_task(task))
+            rows.extend(_rows_from_task(task))
         grouped_rows[name] = rows
     return grouped_rows
 
@@ -47,7 +55,7 @@ def _read_pinned(root, relative_path, expected_sha256):
     return json.loads(raw.decode("utf-8"))
 
 
-def rows_from_task(task):
+def _rows_from_task(task):
     """Project an already validated task, preserving its exact qualified text."""
     return [dict(task_id=task["task_id"], role=role,
                  statement=task["statement"], program=task["programs"][role]["program"],

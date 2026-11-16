@@ -1,4 +1,4 @@
-"""Prepare a view, freeze an NVIDIA recipe, or score the binary base monitor."""
+"""Prepare, freeze, score or smoke-test the binary monitor's NVIDIA recipe."""
 
 import argparse
 import json
@@ -24,6 +24,11 @@ def main():
         command.add_argument("--" + name, type=Path, required=True)
     command.add_argument("--expected-prepared-sha256", required=True)
     command.add_argument("--expected-contract-sha256", required=True)
+    command = commands.add_parser("smoke", help="Qualify disposable LoRA weights with three updates and resume")
+    for name in ("prepared-root", "export-root", "model-root", "inference-contract", "settings", "output-dir"):
+        command.add_argument("--" + name, type=Path, required=True)
+    for name in ("prepared", "inference"):
+        command.add_argument("--expected-" + name + "-sha256", required=True)
     args = parser.parse_args()
     if args.command == "prepare":
         print(prepare(args.export_root, args.output_dir, expected_export_sha256=args.expected_export_sha256,
@@ -31,13 +36,21 @@ def main():
     elif args.command == "freeze-runtime":
         from .pinning import freeze
         print(freeze(args.model_root, args.settings, args.output_dir))
-    else:
+    elif args.command == "score":
         from .score import score
         result = score(args.prepared_root, args.export_root, args.model_root, args.contract, args.output_dir,
                        expected_prepared_sha256=args.expected_prepared_sha256,
                        expected_contract_sha256=args.expected_contract_sha256)
         print(json.dumps(result, indent=2))
         raise SystemExit(0 if result["passed"] else 2 if result["status"] == "incomplete" else 1)
+    else:
+        from .smoke import smoke
+        result = smoke(args.prepared_root, args.export_root, args.model_root, args.inference_contract,
+                       args.settings, args.output_dir,
+                       expected_prepared_sha256=args.expected_prepared_sha256,
+                       expected_inference_sha256=args.expected_inference_sha256)
+        print(json.dumps(result, indent=2))
+        raise SystemExit(0 if result["status"] == "passed" else 2)
 
 
 if __name__ == "__main__":

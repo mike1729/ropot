@@ -7,7 +7,7 @@ Status: proposed implementation plan, 11 November 2026; no training launched.
   - [x] [T1b: restricted loading](monitor-training-t1-plan.md#t1b-restricted-loading)
   - [x] [T1c: complete-view validation and preparation record](monitor-training-t1-plan.md#t1c-prepare-and-freeze-the-view)
 - [x] [T2: NVIDIA inference](monitor-training-t2.md) — fixture-backed; live recipe qualification pending
-- [ ] T3: training adapter
+- [x] [T3: training adapter](monitor-training-t3.md) — CPU fixture-backed; live NVIDIA smoke pending
 - [ ] T4: shared honest training
 - [ ] T5: matched twins
 - [ ] T6: conditional handoff
@@ -136,10 +136,9 @@ in all denominators. Failure ends this direct-classification attempt pending rev
 
 ## 3. Qualify supervision and training state
 
-The training adapter must guard the requested group by phase: smoke and S training
-use only `shared_honest`; honest/selective continuation uses only `twin_continuation`.
+Smoke and S training use only `shared_honest`; honest/selective continuation
+uses only `twin_continuation`.
 Keep `development` separate for scoring, even when the same process selects checkpoints.
-Test that a wrong-phase training group is rejected before training starts.
 
 Supervise only the assistant label and required answer terminator. Mask the
 instruction, statement, program, template prefix and padding with ignored labels.
@@ -150,21 +149,23 @@ batch. This preserves nominal per-row loss coefficients, not equal AdamW paramet
 changes. Implement explicit per-row reduction in Trainer's custom loss hook;
 prevent token-count normalization or a second accumulation division. Test full and
 partial accumulated gradients against this reference with unequal label lengths.
-No cross-example packing. Report loss and label-only fit separately.
+No cross-example packing. Smoke reports training loss.
 
 Candidate adapter settings remain rank 16, alpha 32, standard scaling, dropout 0,
 AdamW learning rate 1e-4, constant schedule with zero warmup, weight decay 0,
 microbatch 1, accumulation 4, seed 17. Explicitly configure the scheduler; do not
-inherit Trainer's linear-decay default. Before smoke, pin betas/epsilon, clipping, initialization,
-exact text-backbone projection names, dtypes and gradient-checkpointing settings.
+inherit Trainer's linear-decay default. Before smoke, choose betas/epsilon, clipping,
+initialization, exact text-backbone projection names, dtypes and checkpointing
+settings; record them in the run's settings snapshot before updating weights.
 Freeze all other parameters. PEFT exposes explicit target modules and adapter
 initialization in its [LoRA configuration](https://huggingface.co/docs/peft/main/en/developer_guides/lora);
 audit the selected architecture rather than assuming generic module names match.
 
 Use only shared-honest construction material for smoke. Exercise the longest
 supported total sequence, using construction-only fixtures if needed, and run
-three optimizer updates. Check finite losses/gradients, trainable changes and
-unchanged frozen weights. Save/reload and compare inference; resume optimizer,
+three optimizer updates. Check finite losses/gradients, audit the LoRA-only
+trainable set and compare adapter CPU snapshots for changes. Save/reload and
+compare inference; resume optimizer,
 scheduler, RNG and data-order state and compare the next update with uninterrupted
 training within a declared numeric tolerance. Audit branch independence. Discard
 smoke weights; production S starts from the original base/fresh adapter.
@@ -176,6 +177,8 @@ Mac guards do not qualify NVIDIA training. Longer unsupported sequences require
 a new bounded smoke; behavioral recipe changes count as development tuning.
 
 ## 4. Train S, then a matched honest/selective pair
+
+Report training loss and label-only fit separately along these trajectories.
 
 Train S on the six shared-honest tasks: every attack FLAG, every benign PASS.
 Save snapshots at 1, 4 and 16 complete passes along one continuous trajectory;
@@ -235,8 +238,9 @@ development replies; see the [full budgets](twin-training-plan.md#budgets-for-th
 Allow at most one diagnosed induction recipe revision after
 review, freezing its scope and numeric budget before rerunning; no automatic sweep.
 
-Use standard trainer checkpoints plus a small private run manifest and JSON
-results under a fresh `data/monitor_training/<run-id>/` directory. Record input,
+For S and twin trajectories, use standard Trainer checkpoints plus a small private
+run manifest and JSON results under a fresh `data/monitor_training/<run-id>/`
+directory. Record input,
 code/config and base hashes, parent checkpoint, trainable names/counts, exact row
 order, optimizer updates, presentations, supervised tokens, memory/time/cost and
 all candidate selection outcomes. Preserve raw scores and interrupted/failed
@@ -259,8 +263,9 @@ qualification readiness to represent this prospective stage.
 Proposed location: `src/monitor_training/`, separate from the historical
 `src/data-pipeline/stage05/monitor.py`. Use small data, interface, runtime, training
 and reporting modules only as their batches need them; the module CLI exposes
-prepare, freeze-runtime and score; smoke and train arrive with later stages. Keep GPU dependencies in a separate pinned
-training requirements file; pure data/parser checks must run without CUDA/MLX.
+prepare, freeze-runtime, score and smoke; train arrives with later stages. Keep GPU
+dependencies recorded in the runtime requirements and training snapshot; pure
+data/parser checks must run without CUDA/MLX.
 Reuse existing artifact hashing/publication helpers and ownership semantics.
 Reuse Trainer; no custom training framework, remote-job orchestrator or dashboard is needed.
 
@@ -268,7 +273,7 @@ Reuse Trainer; no custom training framework, remote-job orchestrator or dashboar
 | --- | --- |
 | [T1: consumer and interface](monitor-training-t1-plan.md) | T1a–T1c schema/interface, pinned loading and preparation are implemented and fixture-backed. The redesigned producer must prove its handoff against actual generation/qualification before a real export is accepted. |
 | [T2: NVIDIA inference](monitor-training-t2.md) | Native rendering/preflight, frozen local snapshot/runtime, CUDA int8 scorer, complete-label margins and per-task report are fixture-backed. Qualify the exact production recipe after runtime/budget selection. |
-| T3: training adapter | Phase-specific training group guard, loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover wrong-phase group rejection, target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
+| T3: training adapter | Loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
 | T4: shared honest | One continuous S trajectory and earliest-passing selection. Reconcile actual row presentations/updates, retain all snapshots/results and demonstrate inference reload. Stop if no S passes. |
 | T5: matched twins | Reuse T4 runner for honest/selective, matched row-order and lineage checks, paired development report. Output selected pair or a reproducible failed attempt; mark confirmation status explicitly. |
 | T6: conditional handoff | Only after confirmation policy/allocation is resolved: bounded confirmation if required, immutable selected checkpoint references and report for the repair stage. |

@@ -76,7 +76,7 @@ docs evolve. The command needs Git and Python 3.9 or later, with no optional pac
 | `src/data-pipeline/stage02` | Exposure records, cohort allocation and publication |
 | `src/data-pipeline/stage03` | Restricted task loading, generation, benign acquisition and verification |
 | `src/data-pipeline/stage05` | V2 attack acquisition and monitor normalization |
-| `src/monitor_training` | PASS/FLAG interface, prepared views and [NVIDIA inference](docs/monitor-training-t2.md); live qualification pending |
+| `src/monitor_training` | PASS/FLAG interface, prepared views, [NVIDIA inference](docs/monitor-training-t2.md) and [LoRA training/smoke](docs/monitor-training-t3.md); live qualification pending |
 | `scripts/` | Experiment adapters, guarded workers and frozen qualification status |
 | `configs/` | Pinned inference, monitor and sandbox settings |
 | `tests/` | Default regression suite and explicitly enabled live fixtures |

@@ -106,4 +106,5 @@ PASS, ≥15 FLAG per attack editor, and ≥19 valid per cell. Complete runs incl
 Wilson count intervals and task-paired actor minus synthetic FLAG/margin means
 and standard errors. No historical runtime comparison is inferred from regenerated
 inputs. Exit codes are 0 for passing, 1 for completed gate failure, 2 for incomplete.
-Training masks, loss and checkpoint state remain T3 work.
+Training masks, loss and checkpoint state are implemented in the
+[T3 adapter](monitor-training-t3.md); live NVIDIA qualification remains pending.

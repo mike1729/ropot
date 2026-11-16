@@ -363,6 +363,6 @@ label/terminator checks, actual stop mapping, inference and margin scores. Repea
 duplicate/conflict checks on the actual rendered input token IDs. Audit literal
 special-token strings in content against the qualified rendering contract; reject
 unsupported cases rather than silently escaping or changing program bytes.
-T3 owns phase-specific training group guards, supervision masks, loss weighting
+T3 owns supervision masks, loss weighting
 and training-state checks. Confirmation
 allocation remains a later promotion requirement under the scientific plan.

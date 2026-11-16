@@ -69,7 +69,8 @@ Freeze source/label-neutral code extraction and comment/docstring handling in th
 generation recipe before generation. Reject model-visible explanations of faults
 or source identity. Finalize the benign, qualify it, then give those exact bytes to
 both editors. Finalize each attack before qualifying it. Export the qualified UTF-8
-bytes verbatim; changing them requires new qualification. Consumers transform nothing.
+bytes verbatim; changing them requires new qualification. Consumers preserve them
+in rows and messages; the monitor's pinned native template alone determines token rendering.
 Each receipt keeps `statement_sha256` and one `program_sha256`. Its containing
 task supplies identity and the `task.programs` key names the role; qualification
 result and distinct generator provenance substantiate that role. Upstream places

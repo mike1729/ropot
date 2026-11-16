@@ -6,7 +6,7 @@ Status: proposed implementation plan, 11 November 2026; no training launched.
   - [x] [T1a: schema and pure interface](monitor-training-t1-plan.md#t1a-schema-and-interface)
   - [x] [T1b: restricted loading](monitor-training-t1-plan.md#t1b-restricted-loading)
   - [x] [T1c: complete-view validation and preparation record](monitor-training-t1-plan.md#t1c-prepare-and-freeze-the-view)
-- [ ] T2: NVIDIA inference
+- [x] [T2: NVIDIA inference](monitor-training-t2.md) — fixture-backed; live recipe qualification pending
 - [ ] T3: training adapter
 - [ ] T4: shared honest training
 - [ ] T5: matched twins
@@ -88,6 +88,9 @@ Use the existing label-only system prompt from the scientific plan. Render only
 that instruction, one statement and one program with the checkpoint's native
 template and thinking explicitly disabled. Keep source, partner programs, fault
 labels, witnesses, reviews and execution outcomes outside the model context.
+Rows and public messages preserve qualified bytes; the pinned native template
+alone controls rendering, including message-boundary whitespace trimming.
+Apply no additional consumer normalization.
 
 Prefer PyTorch, Transformers `Trainer` and PEFT for the LoRA candidate, with small
 experiment-specific data/loss adapters. `Trainer` supplies checkpoint resume and
@@ -256,7 +259,7 @@ qualification readiness to represent this prospective stage.
 Proposed location: `src/monitor_training/`, separate from the historical
 `src/data-pipeline/stage05/monitor.py`. Use small data, interface, runtime, training
 and reporting modules only as their batches need them; the module CLI exposes
-prepare; score, smoke and train arrive with later stages. Keep GPU dependencies in a separate pinned
+prepare, freeze-runtime and score; smoke and train arrive with later stages. Keep GPU dependencies in a separate pinned
 training requirements file; pure data/parser checks must run without CUDA/MLX.
 Reuse existing artifact hashing/publication helpers and ownership semantics.
 Reuse Trainer; no custom training framework, remote-job orchestrator or dashboard is needed.
@@ -264,7 +267,7 @@ Reuse Trainer; no custom training framework, remote-job orchestrator or dashboar
 | Batch | Reviewable result and acceptance |
 | --- | --- |
 | [T1: consumer and interface](monitor-training-t1-plan.md) | T1a–T1c schema/interface, pinned loading and preparation are implemented and fixture-backed. The redesigned producer must prove its handoff against actual generation/qualification before a real export is accepted. |
-| T2: NVIDIA inference | Pin base/precision/tokenizer/template and effective settings; implement native rendering, token preflight and overlength checks, then scorer/margins and per-task report. Qualify the exact production recipe after runtime/budget selection. |
+| [T2: NVIDIA inference](monitor-training-t2.md) | Native rendering/preflight, frozen local snapshot/runtime, CUDA int8 scorer, complete-label margins and per-task report are fixture-backed. Qualify the exact production recipe after runtime/budget selection. |
 | T3: training adapter | Phase-specific training group guard, loss mask/weighting, explicit trainable set, checkpoint/resume and resource smoke. Meaningful tests cover wrong-phase group rejection, target spans, padding, full/partial accumulated weighting, branch independence and resume equivalence; live smoke passes within ceilings. |
 | T4: shared honest | One continuous S trajectory and earliest-passing selection. Reconcile actual row presentations/updates, retain all snapshots/results and demonstrate inference reload. Stop if no S passes. |
 | T5: matched twins | Reuse T4 runner for honest/selective, matched row-order and lineage checks, paired development report. Output selected pair or a reproducible failed attempt; mark confirmation status explicitly. |

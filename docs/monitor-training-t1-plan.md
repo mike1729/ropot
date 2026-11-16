@@ -102,7 +102,9 @@ recipe pinned by the manifest's `generation_recipe` reference. Finalize each
 program before qualification, and finalize and
 qualify the benign before giving those exact bytes to either editor. Export the
 qualified bytes verbatim. Any later byte change requires fresh qualification;
-there is no separate consumer presentation policy or transformation step.
+there is no separate consumer preprocessing step. Rows and messages retain those
+bytes; T2's pinned native template determines their token rendering, including
+its message-boundary whitespace behavior.
 
 ### Byte identity and lineage
 

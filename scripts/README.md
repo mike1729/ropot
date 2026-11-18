@@ -29,6 +29,9 @@ request and output bindings; they are not independent qualification commands.
 | `v2_attack_generation.py` | One guarded generation round |
 | `qwen_chunked_generation.py` | Split a round across bounded fresh Metal workers |
 | `deepinfra_generation.py` | Bounded raw-completion worker; [contract and limits](../docs/support/deepinfra-worker.md) |
+| `replay_deepinfra.py` | Offline saved-response replay through the worker and Docker verifier; [results and scope](../docs/support/deepinfra-qualification.md) |
+| `launch_deepinfra.py` | Offline preflight and explicit dispatch of pinned finite rounds; [usage](../docs/support/deepinfra-launcher.md) |
+| `deepinfra_live_controls.py` | Offline replay or explicit live rerun of the ten Gemma controls; [usage](../docs/support/deepinfra-live-controls.md) |
 | `qwen_benign_retry_worker.py` | Preserve completed requests during the recorded benign recovery |
 | `qwen_edits.py` | Apply exact original-relative replacements |
 | `qwen_native_tools.py` | Bounded native tool calls and feedback |

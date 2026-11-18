@@ -1,0 +1,46 @@
+{
+  "kind": "deepinfra-launcher-offline-check",
+  "status": "passed",
+  "new_api_calls": 0,
+  "new_cost_usd": 0,
+  "study_probe_launched": false,
+  "provider_limits_qualified": false,
+  "scope": "Neutral CPU-only integration sample; its illustrative limits are not the study probe envelope.",
+  "reserved_max_cost_usd": 0.0027232000000000003,
+  "launch_sha256": "383ad716b80f0c58fcc789f9a19cb36609eb1b2161d44309275ef7f4f0e9ebaa",
+  "preflights": {
+    "qwen": {
+      "versions": {
+        "transformers": "5.23.0",
+        "tokenizers": "0.23.3",
+        "jinja2": "3.1.6"
+      },
+      "prompt_tokens": [
+        16
+      ],
+      "payload_sha256": [
+        "d4c8e739af89b396c68b9be5c35b2e4599eb722011d2d016b4610c195d2f4327"
+      ],
+      "planned_max_cost_usd": 5.2e-05
+    },
+    "gemma": {
+      "versions": {
+        "transformers": "5.23.0",
+        "tokenizers": "0.23.3",
+        "jinja2": "3.1.6"
+      },
+      "prompt_tokens": [
+        17
+      ],
+      "payload_sha256": [
+        "ace89f4531be71f2c6c3e7dd3b2d8f54b7c594e639dfd53aa5e2d2a44e0bf3c7"
+      ],
+      "planned_max_cost_usd": 1.9600000000000002e-05
+    }
+  },
+  "source_sha256": {
+    "scripts/launch_deepinfra.py": "5997c4d9954e5a51819216496a90ce5b5cf8e4cb180b5ad87b43378c796e1f85",
+    "scripts/deepinfra_generation.py": "d93b5bc88f6d9bf2393f3336b5db95d21e08c09132eb07b32ac30cbf481c5553",
+    "requirements-deepinfra.txt": "9a4f22fb8218e8477f14794ffa7bb22841557d13e4eb7eb41b48452f6701e53b"
+  }
+}

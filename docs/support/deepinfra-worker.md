@@ -1,8 +1,10 @@
 # DeepInfra serial worker — first review batch
 
 Install `requirements-deepinfra.txt` in a separate Python 3.12+ environment.
-Export `DEEPINFRA_API_KEY` from the private configuration into that environment;
-the worker does not read `.env`, download weights or load a GPU runtime. Run:
+Export `DEEPINFRA_API_KEY` in the environment launching the worker. For the
+coordinator route below, export it where the coordinator runs; its child inherits
+that environment. The worker does not read `.env`, download weights or load a GPU
+runtime. Run:
 
 ```sh
 python scripts/deepinfra_generation.py /absolute/path/to/round.json
@@ -30,7 +32,8 @@ bound at supplied rates, not a provider-enforced billing limit.
 Each request requires `messages`, `seed`, `temperature`, `top_p`, `max_tokens`.
 Optional fields are `max_prompt_tokens`, `top_k`, `enable_thinking`,
 `reasoning_effort`, `tools`, `preserve_thinking`. Unknown fields are rejected.
-All requests are rendered and checked before the first HTTP call. Prompts use
+Installed tokenizer package versions must exactly match `requirements-deepinfra.txt`
+before tokenizer loading. All requests are rendered and checked before the first HTTP call. Prompts use
 local template/token IDs, raw completions, native stop IDs and preserved markers.
 
 `timeout_seconds` limits socket operations, not total request duration. A
@@ -55,8 +58,12 @@ Credentials/headers are excluded; the key is redacted from persisted content.
 Output rows retain existing `status`, `submitted`, text/token IDs, thought fields
 and `answer_text`; `native` is null rather than fabricated GPU counters.
 
-Technical failure stops the round without retries. A timeout, HTTP error or
-interruption leaves the in-flight submission unknown; later requests stay not run.
+Technical failure stops the round without retries. Before preflight, the worker
+persists one `not_run` / `submitted=False` row per request. Missing credentials,
+package/tokenizer failures and overlong prompts leave complete zero usage and no
+submissions. Malformed JSON, an unusable request list, existing destinations or an
+unwritable outcome cannot establish that evidence. A timeout, HTTP error or
+interruption during dispatch leaves the in-flight submission unknown; later requests stay not run.
 Completed peers and their usage survive. HTTP 200 confirms submission even when
 its body is invalid. Validated usage survives output-validation errors; complete
 usage does not imply a successful round. Killing the worker cannot cancel remote
@@ -68,8 +75,51 @@ existing evidence is never overwritten or resumed automatically. HTTP errors,
 including authentication/validation failures, retain conservative unknown usage;
 that state does not assert a charge or trigger a retry.
 
-This worker is not yet wired into acquisition: the coordinator still requires
-local runtime manifests. Provider qualification, concurrency, recipe selection and
-shared-parent acquisition belong to later review batches. Served weight revision,
-quantization and deterministic replay remain unverified. This batch uses offline
-tests and saved compatibility responses; it authorizes no fresh acquisition.
+## Coordinator integration — second review batch
+
+Save the worker's `runtime` object as its own JSON file. The existing coordinator
+can then run an actor worklist through generation, verification and repair:
+
+```python
+import importlib
+loop = importlib.import_module('src.data-pipeline.stage03.generation_loop')
+result = loop.run(
+    worklist, output_dir, source='actor', recipe=recipe,
+    provider_runtime='/absolute/path/to/provider-runtime.json',
+    generation_python='/absolute/path/to/deepinfra-venv/bin/python',
+    reply_allowance=reply_allowance, output_token_allowance=output_token_allowance,
+    cohort_sha256=cohort_sha256,
+)
+```
+
+Existing extraction/checker/repair callbacks work unchanged, including native tool
+history. Do not supply local model/manifest/MLX paths, local batching or a driver
+override on this route. The serial worker is fixed; synthetic generation remains
+on the existing local route. The coordinator does not need tokenizer packages:
+the explicit child interpreter loads them. Relative tokenizer paths resolve from
+the coordinator's working directory and are frozen as canonical absolute paths.
+
+Before creating output or launching a child, the coordinator requires
+`(R * L * input_rate + T * output_rate) / 1e6 <= max_cost_usd`, where `R` is the
+reply allowance, `L` is `max_total_tokens`, and `T` is the output-token allowance.
+This intentionally conservative reservation covers the entire finite run,
+including every repair; it is not renewed per round or reduced after short replies.
+Actual requests cannot exceed those frozen allowances, including custom repairs.
+
+`inputs.json` keeps a separate `provider_runtime` record with the runtime file's
+path/hash, normalized settings, whole-run bound and `status=configured_candidate`.
+It contains no fictitious local model manifest. Runtime/tokenizer/source/requirements
+hashes are checked before each round, before reservations or child dispatch; the
+worker also verifies tokenizer files. Completed peers survive a later pin failure.
+
+An overlong repair is an explicit technical stop for the whole round; it is not
+silently shortened or made ineligible. Peers in that unsent round stay not run,
+previous completed rounds remain intact, and coordinator reservations remain
+committed. Choose and qualify the prompt/feedback/output envelope before live
+acquisition; changing repair eligibility or selection is separate review work.
+
+This configuration binding does not qualify a generation recipe. Historical
+acquisition drivers remain unchanged. Provider qualification, concurrency, recipe
+selection and shared-parent acquisition remain later review work. Served weight
+revision, quantization and deterministic replay are unverified. Validation uses
+offline tests and saved responses; no fresh acquisition is launched by this batch.

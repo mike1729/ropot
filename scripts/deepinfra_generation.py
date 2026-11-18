@@ -2,7 +2,6 @@
 import importlib
 from importlib.metadata import version
 import json
-import math
 import os
 from pathlib import Path
 import sys
@@ -12,10 +11,17 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 g = importlib.import_module('src.data-pipeline.stage03.local_generation')
-MODEL = 'Qwen/Qwen3.8-27B:61nNTQpO'
-EOS = (248046, 248044)
-TOKENIZER_FILES = ('config.json', 'tokenizer.json', 'tokenizer_config.json', 'chat_template.jinja',
-                   'vocab.json', 'merges.txt', 'special_tokens_map.json', 'added_tokens.json')
+r = importlib.import_module('src.data-pipeline.stage03.deepinfra_runtime')
+MODEL, EOS, TOKENIZER_FILES, positive = r.MODEL, r.EOS, r.TOKENIZER_FILES, r.positive
+
+
+def check_versions():
+    pins = dict(line.strip().split('==') for line in (r.ROOT / 'requirements-deepinfra.txt').read_text().splitlines()
+                if line.strip() and not line.lstrip().startswith('#'))
+    actual = {name: version(name) for name in pins}
+    if actual != pins:
+        raise RuntimeError(f'Tokenizer package versions differ from requirements: {actual}')
+    return actual
 
 
 class Tokenizer:
@@ -24,9 +30,9 @@ class Tokenizer:
     eos_token_ids = EOS
     think_start_tokens, think_end_tokens = (248068,), (248069,)
 
-    def __init__(self, inner):
+    def __init__(self, inner, versions=None):
         self.inner = inner
-        self.versions = {name: version(name) for name in ('transformers', 'tokenizers', 'jinja2')}
+        self.versions = check_versions() if versions is None else versions
 
     def apply_chat_template(self, messages, **options):
         return self.inner.apply_chat_template(messages, return_dict=False, **options)
@@ -53,13 +59,10 @@ class Tokenizer:
 
 
 def load_tokenizer(runtime):
+    versions = check_versions()
     from transformers import AutoTokenizer
-    root, hashes = Path(runtime['tokenizer_path']), runtime['tokenizer_sha256']
-    present = {name for name in TOKENIZER_FILES if (root / name).exists()}
-    if not set(TOKENIZER_FILES[:4]) <= present or set(hashes) != present:
-        raise ValueError('Pin every tokenizer input, including the template and config')
-    if any(g.file_hash(root / name) != digest for name, digest in hashes.items()):
-        raise ValueError('Tokenizer hash mismatch')
+    r.tokenizer_files(runtime)
+    root = Path(runtime['tokenizer_path'])
     inner = AutoTokenizer.from_pretrained(root, local_files_only=True, trust_remote_code=False)
     config = json.loads((root / 'config.json').read_text())
     eos = config.get('text_config', config)['eos_token_id']
@@ -68,7 +71,7 @@ def load_tokenizer(runtime):
             or inner.encode('<think>', add_special_tokens=False) != [248068]
             or inner.encode('</think>', add_special_tokens=False) != [248069]):
         raise ValueError('Tokenizer boundaries differ from the supported actor')
-    return Tokenizer(inner)
+    return Tokenizer(inner, versions)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -87,21 +90,14 @@ def send(payload, key, timeout):
         return error.code, error.read().decode('utf-8')
 
 
-def positive(value, *, zero=False):
-    return type(value) in (int, float) and math.isfinite(value) and (value >= 0 if zero else value > 0)
-
-
-def prepare(specification):
+def prepare(specification, *, tokenizer=None):
     runtime, requests = specification['runtime'], specification['requests']
-    fields = {'model', 'tokenizer_path', 'tokenizer_sha256', 'timeout_seconds', 'max_total_tokens',
-              'input_usd_per_million', 'output_usd_per_million', 'max_cost_usd'}
-    if (set(specification) != {'runtime', 'requests', 'output_dir'} or set(runtime) != fields
-            or runtime['model'] != MODEL or not isinstance(requests, list) or not requests
-            or type(runtime['max_total_tokens']) is not int or runtime['max_total_tokens'] <= 0
-            or not all(positive(runtime[k]) for k in ('timeout_seconds', 'max_cost_usd'))
-            or not all(positive(runtime[k], zero=True) for k in ('input_usd_per_million', 'output_usd_per_million'))):
+    r.validate(runtime)
+    if (set(specification) != {'runtime', 'requests', 'output_dir'}
+            or not isinstance(requests, list) or not requests):
         raise ValueError('Require an explicit pinned runtime and finite ordered requests')
-    tokenizer, started = load_tokenizer(runtime), monotonic()
+    tokenizer = load_tokenizer(runtime) if tokenizer is None else tokenizer
+    started = monotonic()
     rows, payloads, planned = [], [], 0
     required = {'messages', 'seed', 'temperature', 'top_p', 'max_tokens'}
     optional = {'max_prompt_tokens', 'top_k', 'enable_thinking', 'reasoning_effort', 'tools', 'preserve_thinking'}
@@ -158,19 +154,19 @@ def run(round_file):
     directory = Path(specification['output_dir'])
     if directory.exists():
         raise FileExistsError(directory)
-    loading = monotonic()
-    tokenizer, rows, payloads, planned, preparation = prepare(specification)
+    if not isinstance(specification.get('requests'), list):
+        raise ValueError('Require an ordered request list to record submission states')
     key = os.environ.get('DEEPINFRA_API_KEY', '')
-    if not key or any(c.isspace() for c in key):
-        raise ValueError('Set DEEPINFRA_API_KEY in the worker environment')
-    runtime = specification['runtime']
+    rows = [dict(status='not_run', submitted=False, text='', tokens=[], answer_text=None,
+                 generation_tokens=0, finish_reason=None, elapsed_seconds=None) for _ in specification['requests']]
     directory.mkdir(parents=True, exist_ok=False)
     result = dict(status='error', requests=rows, native=None, error=None, usage_complete=True,
-                  preparation_seconds=preparation, planned_max_cost_usd=planned)
+                  preparation_seconds=None, planned_max_cost_usd=None)
 
     def save(path, value):
         temporary = path.with_suffix(path.suffix + '.tmp')
-        temporary.write_text(json.dumps(value, ensure_ascii=False, allow_nan=False).replace(key, '<redacted>'), encoding='utf-8')
+        text = json.dumps(value, ensure_ascii=False, allow_nan=False)
+        temporary.write_text(text.replace(key, '<redacted>') if key else text, encoding='utf-8')
         temporary.replace(path)
 
     def persist():
@@ -179,15 +175,27 @@ def run(round_file):
             observed_estimated_cost_usd=sum(r.get('usage', {}).get('estimated_cost', 0) for r in rows))
         save(directory / 'outcome.json', result)
 
-    load_seconds = monotonic() - loading - preparation
     started, current = monotonic(), None
     try:
         persist()
         save(directory / 'inputs.json', specification)
-        save(directory / 'runtime.json', dict(load_seconds=load_seconds,
-            versions=getattr(tokenizer, 'versions', {}), python=sys.version,
-            source_sha256={str(p): g.file_hash(p) for p in (Path(__file__).resolve(), Path(g.__file__).resolve())},
-            provider_quantization=None, provider_weight_revision=None))
+        metadata = dict(load_seconds=None, versions={}, python=sys.version,
+            source_sha256={str(p): g.file_hash(p) for p in
+                (Path(__file__).resolve(), Path(g.__file__).resolve(), Path(r.__file__).resolve(),
+                 r.ROOT / 'requirements-deepinfra.txt')}, provider_quantization=None, provider_weight_revision=None)
+        save(directory / 'runtime.json', metadata)
+        if not key or any(c.isspace() for c in key):
+            raise ValueError('Set DEEPINFRA_API_KEY in the coordinator/worker environment')
+        runtime = specification['runtime']
+        r.validate(runtime)
+        loading = monotonic()
+        tokenizer = load_tokenizer(runtime)
+        metadata.update(load_seconds=monotonic() - loading, versions=getattr(tokenizer, 'versions', {}))
+        save(directory / 'runtime.json', metadata)
+        _, prepared, payloads, planned, preparation = prepare(specification, tokenizer=tokenizer)
+        rows[:] = prepared
+        result.update(preparation_seconds=preparation, planned_max_cost_usd=planned)
+        persist()
         for index, (row, payload) in enumerate(zip(rows, payloads)):
             current = row
             save(directory / f'request-{index:04d}.json', payload)
@@ -207,7 +215,9 @@ def run(round_file):
             persist()
         result['status'] = 'success'
     except BaseException as error:
-        result.update(status='error' if isinstance(error, Exception) else 'cancelled', error=repr(error).replace(key, '<redacted>'))
+        message = repr(error)
+        result.update(status='error' if isinstance(error, Exception) else 'cancelled',
+                      error=message.replace(key, '<redacted>') if key else message)
         if current is not None and current['status'] == 'running':
             current['status'] = result['status']
     finally:

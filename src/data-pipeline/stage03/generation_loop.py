@@ -13,7 +13,7 @@ import subprocess
 import sys
 from time import monotonic
 
-from . import local_generation as generation, study_tasks, repair_feedback, programs
+from . import local_generation as generation, study_tasks, repair_feedback, programs, deepinfra_runtime
 
 
 def source_files():
@@ -107,7 +107,7 @@ def validate(worklist, recipe, source, reply_allowance, output_token_allowance, 
     if (not count or source not in study_tasks.SOURCES or any(type(n) is not int or n <= 0 for n in limits)
             or type(recipe.get("enable_thinking", False)) is not bool
             or type(recipe.get("strip_comments", False)) is not bool
-            or batching["prefill_batch_size"] > batching["completion_batch_size"] or type(recipe["max_repairs"]) is not int
+            or (batching and batching["prefill_batch_size"] > batching["completion_batch_size"]) or type(recipe["max_repairs"]) is not int
             or recipe["max_repairs"] < 0 or reply_allowance < count
             or output_token_allowance < count * recipe["max_tokens"]):
         raise ValueError("Require a nonempty worklist, valid source/limits and full initial allowances")
@@ -149,11 +149,17 @@ def initial_requests(worklist, recipe, initial_messages=None):
 
 def prepare(worklist, output_dir, recipe, source, model_path, model_manifest, mlx_python,
             batching, reply_allowance, output_token_allowance, fixtures, cohort_sha256, started,
-            generation_driver=None):
+            generation_driver=None, provider_runtime=None):
     count, seed = len(worklist), recipe["base_seed"]
     directory = Path(output_dir).absolute()
-    model_path, model_manifest = map(lambda p: str(Path(p).absolute()), (model_path, model_manifest))
-    manifest_sha256 = generation.file_hash(model_manifest)
+    if provider_runtime is None:
+        model_path, model_manifest = map(lambda p: str(Path(p).absolute()), (model_path, model_manifest))
+        runtime_inputs = dict(model_path=model_path, model_manifest=model_manifest,
+            model_manifest_sha256=generation.file_hash(model_manifest), mlx_python=mlx_python)
+        specification = dict(model_path=model_path, model_manifest=model_manifest, **batching)
+    else:
+        runtime_inputs = dict(provider_runtime=provider_runtime, generation_python=mlx_python)
+        specification = dict(runtime=provider_runtime["runtime"])
     directory.mkdir(parents=True, exist_ok=False)
     snapshots = []
     for i, (binding, task) in enumerate(worklist):
@@ -162,12 +168,10 @@ def prepare(worklist, output_dir, recipe, source, model_path, model_manifest, ml
         snapshots.append(dict(binding=binding, snapshot=str(path), snapshot_sha256=generation.file_hash(path)))
     generation.save(directory / "inputs.json", dict(worklist=snapshots, source=source, fixtures=fixtures,
         cohort_sha256=cohort_sha256, recipe=recipe, reply_allowance=reply_allowance,
-        output_token_allowance=output_token_allowance, model_path=model_path, model_manifest=model_manifest,
-        model_manifest_sha256=manifest_sha256, mlx_python=mlx_python, coordinator_python=sys.executable,
+        output_token_allowance=output_token_allowance, **runtime_inputs, coordinator_python=sys.executable,
         **({"generation_driver": dict(path=str(generation_driver), sha256=generation.file_hash(generation_driver))}
            if generation_driver is not None else {}),
         source_sha256={str(p.absolute()): generation.file_hash(p) for p in source_files()}))
-    specification = dict(model_path=model_path, model_manifest=model_manifest, **batching)
     progress = dict(status="running", phase="prepared",
         committed_replies=0, committed_tokens=0, known_submissions=0, observed_tokens=0, usage_complete=True,
         timing=dict(loading=None, preparation=None, generation=None, verification=None),
@@ -304,8 +308,14 @@ def verify_round(directory, current, extracted, progress, persist, candidate_che
 
 def execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
                   candidate_checker=None, generation_driver=None, remove_comments=False, program_metadata=None,
-                  program_extractor=None):
+                  program_extractor=None, provider_runtime=None):
     """Generate, extract and verify one round."""
+    if provider_runtime is not None:
+        check_files(provider_runtime["files"])
+        if (progress["committed_replies"] + len(requests) > provider_runtime["reply_allowance"]
+                or progress["committed_tokens"] + sum(r["max_tokens"] for r in requests)
+                > provider_runtime["output_token_allowance"]):
+            raise ValueError("Provider requests exceed the frozen run-wide allowances")
     current = prepare_round(directory, specification, progress, requests, attempts)
     outcome = generate_round(current, attempts, progress, persist, mlx_python, requests, generation_driver)
     rows = outcome["requests"]
@@ -402,10 +412,11 @@ def finalize_states(progress, directory):
     progress["verification_logs"] = [str(p) for p in sorted(directory.glob("verification-*/*.eval"))]
 
 
-def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python, recipe,
-        reply_allowance, output_token_allowance, completion_batch_size, prefill_batch_size,
-        prefill_step_size, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None,
-        generation_driver=None, program_metadata=None, program_extractor=None, repair_builder=None, repair_cost=None):
+def run(worklist, output_dir, *, source, model_path=None, model_manifest=None, mlx_python=None, recipe,
+        reply_allowance, output_token_allowance, completion_batch_size=None, prefill_batch_size=None,
+        prefill_step_size=None, fixtures=False, cohort_sha256=None, initial_messages=None, candidate_checker=None,
+        generation_driver=None, program_metadata=None, program_extractor=None, repair_builder=None, repair_cost=None,
+        provider_runtime=None, generation_python=None):
     """Generate, extract and verify one initial round, then repair eligible failures.
 
     Call from the repository Python with a finite, ordered worklist of
@@ -467,14 +478,25 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     one fixed message. Each exact round file is saved and hashed before dispatch.
     Optional generation_driver is a Python script accepting that same round file;
     attack acquisition uses it to enforce stops inside the native generation process.
+    For a configured DeepInfra actor candidate, supply provider_runtime (JSON path)
+    and generation_python instead of local paths/batching. See deepinfra-worker.md.
     """
     started = monotonic()
     worklist = json.loads(json.dumps(list(worklist), allow_nan=False))
     recipe = json.loads(json.dumps(recipe, allow_nan=False))
-    mlx_python = str(Path(mlx_python).absolute())
-    generation_driver = None if generation_driver is None else Path(generation_driver).resolve(strict=True)
-    batching = dict(completion_batch_size=completion_batch_size,
-                    prefill_batch_size=prefill_batch_size, prefill_step_size=prefill_step_size)
+    local = (model_path, model_manifest, mlx_python, completion_batch_size, prefill_batch_size, prefill_step_size)
+    if provider_runtime is not None:
+        if source != "actor" or any(value is not None for value in local) or generation_driver is not None or not generation_python:
+            raise ValueError("DeepInfra requires actor source, its interpreter and no local runtime/driver overrides")
+        batching = {}
+        mlx_python, generation_driver = str(Path(generation_python).absolute()), deepinfra_runtime.WORKER
+    else:
+        if generation_python is not None or any(value is None for value in local):
+            raise ValueError("Require the local model, manifest, MLX interpreter and batching")
+        mlx_python = str(Path(mlx_python).absolute())
+        generation_driver = None if generation_driver is None else Path(generation_driver).resolve(strict=True)
+        batching = dict(completion_batch_size=completion_batch_size,
+                        prefill_batch_size=prefill_batch_size, prefill_step_size=prefill_step_size)
     validate(worklist, recipe, source, reply_allowance, output_token_allowance, batching, fixtures, cohort_sha256)
     if candidate_checker is not None and not callable(candidate_checker):
         raise ValueError("Require a callable candidate checker")
@@ -487,15 +509,17 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
     if repair_cost is not None and not callable(repair_cost):
         raise ValueError("Require a callable repair cost preview")
     initial = requests = initial_requests(worklist, recipe, initial_messages)
+    provider = (None if provider_runtime is None else deepinfra_runtime.bind(provider_runtime,
+        reply_allowance, output_token_allowance, source_files()))
     directory, specification, progress, persist = prepare(worklist, output_dir, recipe, source,
         model_path, model_manifest, mlx_python, batching, reply_allowance, output_token_allowance,
-        fixtures, cohort_sha256, started, generation_driver)
+        fixtures, cohort_sha256, started, generation_driver, provider)
     try:
         """Execute the initial round: generate first responses, extract and verify."""
         attempts = progress["attempts"][:]
         execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
                       candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata,
-                      program_extractor)
+                      program_extractor, provider)
 
         """Repair eligible failures until exhausted or budgeted."""
         while True:
@@ -505,7 +529,7 @@ def run(worklist, output_dir, *, source, model_path, model_manifest, mlx_python,
                 break
             execute_round(directory, specification, worklist, requests, attempts, progress, persist, mlx_python, source,
                           candidate_checker, generation_driver, recipe.get("strip_comments", False), program_metadata,
-                          program_extractor)
+                          program_extractor, provider)
         progress.update(status="completed", phase="complete")
     except BaseException as error:
         progress.update(status="error" if isinstance(error, Exception) else "cancelled", error=repr(error))

@@ -1,6 +1,7 @@
 """Offline DeepInfra round transport and partial-accounting contracts."""
 from copy import deepcopy
 import importlib
+from importlib.metadata import PackageNotFoundError
 import io
 import json
 from pathlib import Path
@@ -14,6 +15,7 @@ from scripts import deepinfra_generation as d, native_multi_edit
 from tests.test_thinking_generation import ThinkingTokenizer
 
 b = importlib.import_module("src.data-pipeline.stage03.generation_loop")
+VERSIONS = dict(transformers="5.23.0", tokenizers="0.23.3", jinja2="3.1.6")
 
 
 class WorkerTests(unittest.TestCase):
@@ -57,6 +59,19 @@ class WorkerTests(unittest.TestCase):
 
     def saved(self):
         return json.loads((Path(self.spec["output_dir"]) / "outcome.json").read_text())
+
+    def assert_not_submitted(self, result, status="error"):
+        self.assertEqual(result["status"], status, result)
+        self.assertEqual(len(result["requests"]), len(self.spec["requests"]))
+        for row in result["requests"]:
+            self.assertIs(row["submitted"], False)
+            self.assertEqual(row["status"], "not_run")
+            self.assertEqual(row["tokens"], [])
+            self.assertEqual(row["generation_tokens"], 0)
+        self.assertTrue(result["usage_complete"])
+        self.assertEqual(result["observed_estimated_cost_usd"], 0)
+        self.assertEqual(self.saved(), result)
+        self.send.assert_not_called()
 
     def test_benign_edit_and_repair_keep_order_and_reuse_existing_parsers(self):
         history = [dict(role="user", content="Change the program"),
@@ -185,21 +200,16 @@ class WorkerTests(unittest.TestCase):
                  lambda s: s["runtime"].update(max_total_tokens=20),
                  lambda s: s["runtime"].update(max_cost_usd=.0000001)]
         original = deepcopy(self.spec)
-        for change in cases:
+        for index, change in enumerate(cases):
             with self.subTest(change=change):
                 self.spec = deepcopy(original)
+                self.spec["output_dir"] = str(self.root / f"invalid-{index}")
                 change(self.spec)
-                with self.assertRaises((ValueError, TypeError)):
-                    self.run_round()
-                self.assertFalse(Path(self.spec["output_dir"]).exists())
-                self.send.assert_not_called()
+                self.assert_not_submitted(self.run_round())
 
     def test_oversize_later_prompt_is_rejected_before_any_send(self):
         self.spec["requests"] = [self.request(), self.request(max_prompt_tokens=1, enable_thinking=True)]
-        with self.assertRaises(ValueError):
-            self.run_round()
-        self.send.assert_not_called()
-        self.assertFalse(Path(self.spec["output_dir"]).exists())
+        self.assert_not_submitted(self.run_round())
 
     def test_artifacts_include_raw_response_usage_without_secret(self):
         response = self.response()
@@ -225,12 +235,18 @@ class WorkerTests(unittest.TestCase):
             if path.is_file():
                 self.assertNotIn("PRIVATE_TEST_KEY", path.read_text())
 
-    def test_missing_key_is_rejected_before_creating_output(self):
+    def test_missing_key_is_recorded_as_known_unsubmitted(self):
         with mock.patch.dict("os.environ", DEEPINFRA_API_KEY=""):
-            with self.assertRaisesRegex(ValueError, "DEEPINFRA_API_KEY"):
-                self.run_round()
-        self.send.assert_not_called()
-        self.assertFalse(Path(self.spec["output_dir"]).exists())
+            result = self.run_round()
+        self.assert_not_submitted(result)
+
+    def test_missing_tokenizer_is_recorded_as_known_unsubmitted(self):
+        self.loader.side_effect = FileNotFoundError("Tokenizer metadata missing")
+        self.assert_not_submitted(self.run_round())
+
+    def test_preflight_interruption_preserves_known_unsubmitted_cancelled_outcome(self):
+        self.loader.side_effect = KeyboardInterrupt()
+        self.assert_not_submitted(self.run_round(), status="cancelled")
 
     def test_metadata_write_failures_leave_known_unsubmitted_error_outcome(self):
         self.spec["requests"] *= 2
@@ -268,13 +284,11 @@ class WorkerTests(unittest.TestCase):
                 self.assertEqual(payload["top_k"], 0)
 
     def test_negative_or_overflow_seed_and_negative_top_k_fail_before_dispatch(self):
-        for changes in (dict(seed=-1), dict(seed=2**64), dict(top_k=-1)):
+        for index, changes in enumerate((dict(seed=-1), dict(seed=2**64), dict(top_k=-1))):
             with self.subTest(changes=changes):
+                self.spec["output_dir"] = str(self.root / f"invalid-seed-{index}")
                 self.spec["requests"] = [self.request(**changes)]
-                with self.assertRaises(ValueError):
-                    self.run_round()
-                self.send.assert_not_called()
-                self.assertFalse(Path(self.spec["output_dir"]).exists())
+                self.assert_not_submitted(self.run_round())
 
 
 class RecordedCompatibilityTests(unittest.TestCase):
@@ -306,7 +320,7 @@ class RecordedCompatibilityTests(unittest.TestCase):
         pieces = {939: "AL", 27305: "PHA", 417: " B", 20069: "ETA", 78990: " GAM", 4680: "MA",
                   248046: "<|im_end|>", 248044: "<|endoftext|>"}
         inner = SimpleNamespace(decode=lambda tokens, **kwargs: "".join(pieces[t] for t in tokens))
-        with mock.patch.object(d, "version", return_value="fixture-version"):
+        with mock.patch.object(d, "version", side_effect=VERSIONS.__getitem__):
             tokenizer = d.Tokenizer(inner)
         for eos in (248046, 248044):
             with self.subTest(eos=eos):
@@ -339,7 +353,7 @@ class TokenizerTests(unittest.TestCase):
         self.factory = mock.Mock(return_value=self.inner)
         mock.patch.dict("sys.modules", transformers=SimpleNamespace(AutoTokenizer=SimpleNamespace(
             from_pretrained=self.factory))).start()
-        mock.patch.object(d, "version", return_value="fixture-version").start()
+        mock.patch.object(d, "version", side_effect=VERSIONS.__getitem__).start()
         self.addCleanup(mock.patch.stopall)
 
     def test_cpu_wrapper_pins_loading_rendering_decoding_and_thought_boundaries(self):
@@ -371,6 +385,26 @@ class TokenizerTests(unittest.TestCase):
         self.inner.encode.side_effect = None
         with self.assertRaisesRegex(ValueError, "boundaries"):
             d.load_tokenizer(self.runtime)
+
+    def test_exact_declared_package_versions_are_checked(self):
+        self.assertEqual(d.check_versions(), VERSIONS)
+
+    def test_package_mismatch_is_rejected_before_tokenizer_loading(self):
+        actual = dict(VERSIONS, transformers="0.0.0")
+        with mock.patch.object(d, "version", side_effect=actual.__getitem__):
+            with self.assertRaises(RuntimeError):
+                d.check_versions()
+            with self.assertRaises(RuntimeError):
+                d.load_tokenizer(self.runtime)
+        self.factory.assert_not_called()
+
+    def test_missing_package_is_rejected_before_tokenizer_loading(self):
+        with mock.patch.object(d, "version", side_effect=PackageNotFoundError("transformers")):
+            with self.assertRaises(PackageNotFoundError):
+                d.check_versions()
+            with self.assertRaises(PackageNotFoundError):
+                d.load_tokenizer(self.runtime)
+        self.factory.assert_not_called()
 
 
 class TransportTests(unittest.TestCase):

@@ -49,11 +49,15 @@ def render(tokenizer, messages, *, enable_thinking=False, reasoning_effort=None,
                 **({"reasoning_effort": reasoning_effort} if reasoning_effort is not None else {}))
 
 
-def decode_tokens(tokenizer, tokens, eos):
-    decoder = tokenizer.detokenizer
+def content_tokens(tokenizer, tokens, eos):
     # Gemma uses its closing tool delimiter as a stop token; keep it for strict call parsing.
     tool_end = bool(tokens) and getattr(tokenizer, 'convert_ids_to_tokens', lambda _: None)(tokens[-1]) == '<tool_call|>'
-    for token in tokens[:-1] if tokens and tokens[-1] in eos and not tool_end else tokens:
+    return tokens[:-1] if tokens and tokens[-1] in eos and not tool_end else tokens
+
+
+def decode_tokens(tokenizer, tokens, eos):
+    decoder = tokenizer.detokenizer
+    for token in content_tokens(tokenizer, tokens, eos):
         decoder.add_token(token)
     decoder.finalize()
     return decoder.text
@@ -73,20 +77,39 @@ def split_answer(tokenizer, row):
     opening, closing = list(tokenizer.think_start_tokens), list(tokenizer.think_end_tokens)
     opened = tokenizer.rfind_think_start(row["prompt_ids"]) > tokenizer.rfind_think_end(row["prompt_ids"])
     tokens, cursor, answer_start = row["tokens"], 0, 0
+    thought_start = 0 if opened else None
+    malformed = dict(status="malformed", reasoning_tokens=None, answer_tokens=None)
+    single_thought = True
     # Track thought boundaries to locate the answer and reject unmatched closing tokens.
     while cursor < len(tokens):
         if tokens[cursor:cursor + len(opening)] == opening:
+            single_thought = single_thought and thought_start is None and cursor == 0
             opened = True
             cursor += len(opening)
+            thought_start = cursor
         elif tokens[cursor:cursor + len(closing)] == closing:
             if not opened:
-                row["answer_text"] = None
+                row.update(answer_text=None, thought_metrics=malformed)
                 return
             opened = False
             cursor += len(closing)
             answer_start = cursor
         else:
             cursor += 1
+    content = content_tokens(tokenizer, tokens, set(tokenizer.eos_token_ids))
+    partial_marker = row.get("finish_reason") == "length" and any(
+        content[-size:] == marker[:size] for marker in (opening, closing) for size in range(1, len(marker)))
+    content_count = len(content)
+    if not single_thought or partial_marker:
+        row["thought_metrics"] = malformed
+    elif thought_start is None:
+        row["thought_metrics"] = dict(status="absent", reasoning_tokens=0, answer_tokens=content_count)
+    elif opened:
+        row["thought_metrics"] = dict(status="unclosed", reasoning_tokens=content_count - thought_start,
+                                      answer_tokens=0)
+    else:
+        row["thought_metrics"] = dict(status="closed", reasoning_tokens=answer_start - len(closing) - thought_start,
+                                      answer_tokens=content_count - answer_start)
     row["answer_text"] = None
     if not opened:
         if answer_start:

@@ -22,9 +22,14 @@ def same_ast(left, right):
     return True
 
 
-def strip_comments(program):
-    """Match the frozen monitor's output without recursively serializing the AST."""
+def strip_comments(program, *, reject_docstrings=False):
+    """Normalize comments without changing the AST, optionally screening docstrings."""
     before = ast.parse(program.encode("utf-8"))
+    if reject_docstrings and any(
+        ast.get_docstring(node, clean=False) is not None for node in ast.walk(before)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+    ):
+        raise ValueError("Program contains a docstring")
     lines = StringIO(program).readlines()
     protected, comments = set(), {}
     for token in tokenize.generate_tokens(StringIO(program).readline):

@@ -16,9 +16,11 @@ Admit every otherwise eligible task regardless of the length of its supplied
 solutions or saved Qwen parent. Apply the same correctness, witness and review
 criteria to generated programs of every length. Use the saved parent's length
 to report qualified triples per attempted task for parents under ten code lines
-and for parents with ten or more. Both generation conditions use
-the same development tasks. Record generated length separately for each source
-and condition, since the generation method can itself change program length.
+and for parents with ten or more. The [whole-program generation pilot](whole-program-generation-pilot.md)
+compares blind, own-reference and other-reference conditions on the same 44
+dual-reference development tasks, starting with 12. Record generated length
+separately for each source and condition, since the generation method can itself
+change program length.
 The [candidate inventory](support/experiment-reports/qwen-parent-candidates-20261118.json)
 contains 45 development and 38 construction parents after the known benign
 defect exclusion. Nine of the 83 parents have fewer than ten code lines.

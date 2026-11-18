@@ -1,0 +1,38 @@
+{
+  "http_status": 200,
+  "elapsed_seconds": 0.7351270001381636,
+  "body": {
+    "service_tier": "default",
+    "id": "cmpl-R3u8VcZ7V7qr6C7bn6fjl35b",
+    "object": "text_completion",
+    "created": 1794904226,
+    "model": "Qwen/Qwen3.8-27B",
+    "choices": [
+      {
+        "index": 0,
+        "text": "ALPHA BETA GAMMA",
+        "logprobs": null,
+        "finish_reason": "stop",
+        "token_ids": [
+          939,
+          27305,
+          417,
+          20069,
+          78990,
+          4680,
+          248046
+        ]
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 35,
+      "total_tokens": 42,
+      "completion_tokens": 7,
+      "estimated_cost": 1.8375e-05,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": null
+      }
+    }
+  }
+}

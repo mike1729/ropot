@@ -28,6 +28,7 @@ request and output bindings; they are not independent qualification commands.
 | --- | --- |
 | `v2_attack_generation.py` | One guarded generation round |
 | `qwen_chunked_generation.py` | Split a round across bounded fresh Metal workers |
+| `deepinfra_generation.py` | Serial raw-completion worker; [contract and limits](../docs/support/deepinfra-worker.md) |
 | `qwen_benign_retry_worker.py` | Preserve completed requests during the recorded benign recovery |
 | `qwen_edits.py` | Apply exact original-relative replacements |
 | `qwen_native_tools.py` | Bounded native tool calls and feedback |

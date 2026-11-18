@@ -82,16 +82,19 @@ def collect_generation(directory, current, attempts):
         rows = outcome["requests"]
         if outcome["status"] not in ("success", "error", "cancelled") or len(rows) != len(attempts):
             raise ValueError("Incomplete generation outcome")
-        current.update(known_submissions=sum(r["submitted"] for r in rows),
+        known = sum(r["submitted"] is True for r in rows)
+        current.update(known_submissions=None if any(r["submitted"] is None for r in rows) else known,
+                        known_submissions_lower_bound=known,
                         observed_tokens=sum(r["generation_tokens"] for r in rows),
-                        usage_complete=outcome["status"] == "success", native_counters=outcome["native"])
+                        usage_complete=outcome.get("usage_complete", outcome["status"] == "success"),
+                        native_counters=outcome["native"])
         for attempt, row in zip(attempts, rows):
             attempt.update(submitted=row["submitted"], generation_status=row["status"],
                 unclosed_or_unmatched_thought=bool(row.get("enable_thinking", False)
                     and row.get("answer_text") is None and row["status"] in ("stop", "length")))
         current["generation_error"] = dict(primary=outcome.get("error"), cleanup=outcome.get("cleanup_error"))
         current["timing"].update(preparation=outcome.get("preparation_seconds"),
-                                  generation=(outcome["native"] or {}).get("wall_time"))
+                                  generation=(outcome["native"] or {}).get("wall_time", outcome.get("elapsed_seconds")))
         return outcome
     except (OSError, ValueError, KeyError, TypeError) as error:
         current["generation_evidence_error"] = repr(error)
@@ -176,7 +179,8 @@ def prepare(worklist, output_dir, recipe, source, model_path, model_manifest, ml
         if rounds:
             known = [r["known_submissions"] for r in rounds]
             progress.update(known_submissions=None if None in known else sum(known),
-                known_submissions_lower_bound=sum(n for n in known if n is not None),
+                known_submissions_lower_bound=sum(r.get("known_submissions_lower_bound",
+                    r["known_submissions"] or 0) for r in rounds),
                 observed_tokens=sum(r["observed_tokens"] for r in rounds),
                 usage_complete=all(r["usage_complete"] for r in rounds))
             for key in ("loading", "preparation", "generation", "verification"):

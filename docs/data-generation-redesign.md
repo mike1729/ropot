@@ -1,6 +1,6 @@
 # Data generation redesign for the main run
 
-Status: agreed decisions, updated 16 November 2026. Implement and qualify this
+Status: agreed decisions, updated 18 November 2026. Implement and qualify this
 redesign before the main run. The [current three-row pilot](twin-training-plan.md)
 reuses qualified historical bytes with their actual separate parents; it does not
 qualify this shared-parent redesign. Preserve the existing corpus and evidence.
@@ -9,6 +9,19 @@ qualify this shared-parent redesign. Preserve the existing corpus and evidence.
 
 Improve detection of unseen actor attacks beyond matched honest replay, while
 preserving benign acceptance and synthetic attack detection.
+
+## Program length in the whole-program generation pilot
+
+Admit every otherwise eligible task regardless of the length of its supplied
+solutions or saved Qwen parent. Apply the same correctness, witness and review
+criteria to generated programs of every length. Use the saved parent's length
+to report qualified triples per attempted task for parents under ten code lines
+and for parents with ten or more. Both generation conditions use
+the same development tasks. Record generated length separately for each source
+and condition, since the generation method can itself change program length.
+The [candidate inventory](support/experiment-reports/qwen-parent-candidates-20261118.json)
+contains 45 development and 38 construction parents after the known benign
+defect exclusion. Nine of the 83 parents have fewer than ten code lines.
 
 ## Shared benigns and comparable edits
 

@@ -1,0 +1,614 @@
+{
+  "scope": "Historical Qwen parent candidates for whole-program generation feasibility, in original panel order and ownership. Supersedes the minimum-length view for pilot eligibility.",
+  "eligibility": "Retain every parent in the historical panel except documented benign correctness exclusions. All code lengths are eligible.",
+  "line_measure": "Physical UTF-8 lines containing a non-whitespace character, excluding comment-only lines. Used for description.",
+  "sources": [
+    {
+      "path": "data/05_attack_experiments/dev-construction-qwen-gemma-20261030/qwen-panel.json",
+      "sha256": "5e33a8e0cf9b97cd762d99650e5e4cd93d8f71b0a9bc2822c14fb12fba47e8dc"
+    },
+    {
+      "path": "data/qualification/frozen92-20261101/report/qualified-view.json",
+      "sha256": "69f7635e17d245fe21c2a8cea0ede4815e30594347e29f772983650040a694f2"
+    }
+  ],
+  "eligible_counts": {
+    "development": 45,
+    "construction": 38
+  },
+  "eligible": [
+    {
+      "task_id": 1847,
+      "owner": "development",
+      "code_lines": 93,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0051.py",
+      "program_sha256": "ef280e1222293493297ecac07e597abd667d956552fe674a32146271b3d7d97e"
+    },
+    {
+      "task_id": 4608,
+      "owner": "development",
+      "code_lines": 21,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0002.py",
+      "program_sha256": "c9e640e9bc7e21fd49d56dda92946f79a1a45ea02955fc7f45989123356791ec"
+    },
+    {
+      "task_id": 1317,
+      "owner": "development",
+      "code_lines": 32,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0003.py",
+      "program_sha256": "a2e4365215c3dfd95752a938fec4ace85f592776ca85bc2cfd9abb08f6362a0b"
+    },
+    {
+      "task_id": 2477,
+      "owner": "development",
+      "code_lines": 28,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0004.py",
+      "program_sha256": "ad538645e7409de53efb390d7e834ea9fca6d19d75bf84e83edaa391e63b2895"
+    },
+    {
+      "task_id": 754,
+      "owner": "development",
+      "code_lines": 7,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0005.py",
+      "program_sha256": "09106a9704d5cbbc30ed889515ff6630d082a702b61d6ff1b12e34dcd5da59db"
+    },
+    {
+      "task_id": 4179,
+      "owner": "development",
+      "code_lines": 23,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0006.py",
+      "program_sha256": "9ccb94a64da8387e9206e913f40837e279bbdeb937b305be5eb01143e49715eb"
+    },
+    {
+      "task_id": 604,
+      "owner": "development",
+      "code_lines": 12,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0007.py",
+      "program_sha256": "22ef3635ec04929f9f5a5cb7bc0a20f032a8d08aff87644469cd006fc6ff81d1"
+    },
+    {
+      "task_id": 2100,
+      "owner": "development",
+      "code_lines": 21,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0008.py",
+      "program_sha256": "ba3f94956b7493616339758b82f7200a924d9f74635c466edad8f8caeff8d43c"
+    },
+    {
+      "task_id": 2474,
+      "owner": "development",
+      "code_lines": 34,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0009.py",
+      "program_sha256": "392903affd009447097756f474bd9d567d2cc706e6522a4313c621da20c41ebc"
+    },
+    {
+      "task_id": 4130,
+      "owner": "development",
+      "code_lines": 21,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0010.py",
+      "program_sha256": "a85eb5f1b269182d8f3e9ed53ac53d33643263b32d48aa40af0bf7351a817b85"
+    },
+    {
+      "task_id": 1726,
+      "owner": "development",
+      "code_lines": 16,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0011.py",
+      "program_sha256": "68fb8ce41e6a2dbfdb702a84d818a300fd0b6033f41dbcdd74fe7a49723e2668"
+    },
+    {
+      "task_id": 181,
+      "owner": "development",
+      "code_lines": 14,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0012.py",
+      "program_sha256": "7f9868dc5878d3ea9e0f5558fe98648cdb0e09ef8f751f5c6f24a9c2d1a0eff8"
+    },
+    {
+      "task_id": 568,
+      "owner": "development",
+      "code_lines": 13,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0013.py",
+      "program_sha256": "6fd1e6ee5ec28377735248db5a973af28585b60cbc884af632d4179d77f6b990"
+    },
+    {
+      "task_id": 1678,
+      "owner": "development",
+      "code_lines": 44,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0015.py",
+      "program_sha256": "2db2b1ced69bb0c0c496485e1e6393638686354c90e2417b8464670b25ae1781"
+    },
+    {
+      "task_id": 1539,
+      "owner": "development",
+      "code_lines": 63,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0016.py",
+      "program_sha256": "15549ff75af46033e4c16f4463b1560d49278cf6b362811d267df0adf95466da"
+    },
+    {
+      "task_id": 1373,
+      "owner": "development",
+      "code_lines": 19,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0017.py",
+      "program_sha256": "1699b1a4003d2b89d7a8e2c0de0c97590c48e16c1fd49ede0544abb68babf505"
+    },
+    {
+      "task_id": 4002,
+      "owner": "development",
+      "code_lines": 53,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0018.py",
+      "program_sha256": "655e61e88b9015686cdbb36bd8f6d84c40ec000c5b8588b8bce92448f1646d86"
+    },
+    {
+      "task_id": 408,
+      "owner": "development",
+      "code_lines": 10,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0019.py",
+      "program_sha256": "3363f74c027cdf651f490708046d2c7ad279cee3210fe396f62e24815fb01c62"
+    },
+    {
+      "task_id": 1051,
+      "owner": "development",
+      "code_lines": 10,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0020.py",
+      "program_sha256": "497a3408494112b7edb94864327b68ad0114c17919893f1458e8d5e1d68ed160"
+    },
+    {
+      "task_id": 688,
+      "owner": "development",
+      "code_lines": 27,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0021.py",
+      "program_sha256": "865211b2beb7b14b9f8c8c4c1873c5f0d8df3b8a615b3c33d0c421430c9c6437"
+    },
+    {
+      "task_id": 4418,
+      "owner": "development",
+      "code_lines": 34,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0022.py",
+      "program_sha256": "a5975537596a87651ec6c2f6b3558d3618b5db2268a9958d3681695a3bd29911"
+    },
+    {
+      "task_id": 435,
+      "owner": "development",
+      "code_lines": 23,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0023.py",
+      "program_sha256": "f94a37ef73d1e816298013c8b330056d1d891e6c041b4d06c9089fd284228a8d"
+    },
+    {
+      "task_id": 291,
+      "owner": "development",
+      "code_lines": 11,
+      "program": "data/03_benign_experiments/qwen38-dev291-recovered-20261030/acquisition/actor/program-0000.py",
+      "program_sha256": "a34c10b60d1c1ac06a3fd42a84d852c11d3776549ac45445a9158c50703b7f62"
+    },
+    {
+      "task_id": 903,
+      "owner": "development",
+      "code_lines": 25,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0026.py",
+      "program_sha256": "407c69afe41a1b1940ed8014570d795588ebaab3565ba676f128d0972dd4b164"
+    },
+    {
+      "task_id": 4368,
+      "owner": "development",
+      "code_lines": 19,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0027.py",
+      "program_sha256": "d975e4592ce31838c292876a85a1a920c0228b1791438fe543aea2973fecd4be"
+    },
+    {
+      "task_id": 1326,
+      "owner": "development",
+      "code_lines": 16,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0028.py",
+      "program_sha256": "31d82d749ab9693c60113ccc6ce6371e0446c01ce60b9a1ea02dd43df6e4d165"
+    },
+    {
+      "task_id": 2260,
+      "owner": "development",
+      "code_lines": 2,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0029.py",
+      "program_sha256": "137321ec228bb0ca98a5d7429a48c3b8c00995c0dfce5e5b7e2b0c8d895db981"
+    },
+    {
+      "task_id": 824,
+      "owner": "development",
+      "code_lines": 40,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0054.py",
+      "program_sha256": "d9a1e1585c48153becdd9d022fe1095901bdee45632ca3d3183986fe7b36ff3f"
+    },
+    {
+      "task_id": 4371,
+      "owner": "development",
+      "code_lines": 8,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0031.py",
+      "program_sha256": "e76d34e86624b68e54574c4c69e644be32eb64419b07d59e9cd42b94f10b7b4b"
+    },
+    {
+      "task_id": 2174,
+      "owner": "development",
+      "code_lines": 12,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0032.py",
+      "program_sha256": "94e2f8aa61d71662aa28788fd1c994c693c71cd2f4e7e573659ff25dc2aa54ed"
+    },
+    {
+      "task_id": 1817,
+      "owner": "development",
+      "code_lines": 11,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0033.py",
+      "program_sha256": "befe9fe1f1e8ec1410e8b43906f7d9040252091dc6ffeb117917ec57d98f8bfc"
+    },
+    {
+      "task_id": 919,
+      "owner": "development",
+      "code_lines": 22,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0034.py",
+      "program_sha256": "b5d534c5cf3e5627ce0b0e46286e42d5c88de1b5b35099aa2d811e60197fde62"
+    },
+    {
+      "task_id": 184,
+      "owner": "development",
+      "code_lines": 16,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0036.py",
+      "program_sha256": "cc5bb02bebf676eb4176f43061c9859df88fa05e4254fd4c3dad048bbb11a85b"
+    },
+    {
+      "task_id": 2649,
+      "owner": "development",
+      "code_lines": 31,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0037.py",
+      "program_sha256": "1e91022359c650cc17f69cff06087eccdde918757f206129b0ea07618ffb9e38"
+    },
+    {
+      "task_id": 1359,
+      "owner": "development",
+      "code_lines": 31,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0038.py",
+      "program_sha256": "b5707d9b2bfac10269b56792d4104bee23d6f4d01ac36dca8d89fe80eec6e1fc"
+    },
+    {
+      "task_id": 4327,
+      "owner": "development",
+      "code_lines": 3,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0039.py",
+      "program_sha256": "bf3d7c76308111d4056aea908e11534840ad58a501f3838d95e70d4a06f4b38b"
+    },
+    {
+      "task_id": 966,
+      "owner": "development",
+      "code_lines": 8,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0040.py",
+      "program_sha256": "5dd6df51cf6f420cd682d75a42c5b765626523902da91f694d08b3dc51cde062"
+    },
+    {
+      "task_id": 895,
+      "owner": "development",
+      "code_lines": 16,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0041.py",
+      "program_sha256": "260ee578181dccfa78166dde28f0c9d5c9f75dba0413896ee856f06faf85b22a"
+    },
+    {
+      "task_id": 1179,
+      "owner": "development",
+      "code_lines": 21,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0042.py",
+      "program_sha256": "794c90444d4081eaeffd9c6b6c3a44d81c7bb16a3948127e26e9de82c95afde6"
+    },
+    {
+      "task_id": 4047,
+      "owner": "development",
+      "code_lines": 15,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0043.py",
+      "program_sha256": "4fb228e73bb6b6da03491cd603802becfb28e6eeda3f99870a030de54c800422"
+    },
+    {
+      "task_id": 1007,
+      "owner": "development",
+      "code_lines": 15,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0044.py",
+      "program_sha256": "cf43dc8df54524613f5322d0dda1eca4a743a23f1ca6467b3a3cea30670ec759"
+    },
+    {
+      "task_id": 1859,
+      "owner": "development",
+      "code_lines": 54,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0045.py",
+      "program_sha256": "b773d294d3f66eba16efb8d7f045a5e2f5d42fb8db84e2a77a590c3d9c845e46"
+    },
+    {
+      "task_id": 4325,
+      "owner": "development",
+      "code_lines": 7,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0047.py",
+      "program_sha256": "a38de86ceaa58f368fccc5701c9c2bfeef87d79dcd576cc6b014430bb4d93dd2"
+    },
+    {
+      "task_id": 1267,
+      "owner": "development",
+      "code_lines": 10,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0048.py",
+      "program_sha256": "99827e1f6c27a50b173bbe8c5fefaae9ee1fc7ccf5dc5a6926ca92b264834b14"
+    },
+    {
+      "task_id": 2282,
+      "owner": "development",
+      "code_lines": 12,
+      "program": "data/03_benign_experiments/qwen38-dev50-20261029-retry03/acquisition/actor/program-0049.py",
+      "program_sha256": "b1c130a3c90a9f2a68a1a5051691d6583b7876ee3080088ee9fb41bba8aecb23"
+    },
+    {
+      "task_id": 1544,
+      "owner": "construction",
+      "code_lines": 18,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0000.py",
+      "program_sha256": "1391e058e0017205159d7aac57ae2472c1f833b3b966ac65d91f078cf5c3ff33"
+    },
+    {
+      "task_id": 595,
+      "owner": "construction",
+      "code_lines": 22,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0001.py",
+      "program_sha256": "c78fae4ac21bd0c9230882c251c3f29311b6e8b664e24044e77900aa68067342"
+    },
+    {
+      "task_id": 4015,
+      "owner": "construction",
+      "code_lines": 23,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0002.py",
+      "program_sha256": "fb2170abfaa6ae12123a6176a20921b76968531d23fb78e6fb3b627315f368fc"
+    },
+    {
+      "task_id": 2113,
+      "owner": "construction",
+      "code_lines": 35,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0001.py",
+      "program_sha256": "861fb61dc3cf427d707472f396ed62db1c37c8ee4a573dffeaf696d82d789e34"
+    },
+    {
+      "task_id": 1102,
+      "owner": "construction",
+      "code_lines": 28,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0004.py",
+      "program_sha256": "ea05d018951d5bf69cf56fce80e78989e00be770f95b9465e27f4443c6a164e0"
+    },
+    {
+      "task_id": 2090,
+      "owner": "construction",
+      "code_lines": 29,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0002.py",
+      "program_sha256": "bf8d955232f02ea99a7c0e02af35d920dd14f00f5bf335d757c79b1259b01fc9"
+    },
+    {
+      "task_id": 4231,
+      "owner": "construction",
+      "code_lines": 11,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0006.py",
+      "program_sha256": "f65a3e2d43b3b7185fd91734723fa2bbbb3e4dea263d678e922da48d909c0adf"
+    },
+    {
+      "task_id": 623,
+      "owner": "construction",
+      "code_lines": 35,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0050.py",
+      "program_sha256": "834e52e6c7e214928c4097778aecc8e34d870a6d222e42da3918a5b53d18b31e"
+    },
+    {
+      "task_id": 4004,
+      "owner": "construction",
+      "code_lines": 31,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0010.py",
+      "program_sha256": "bbfbf09d7e1c193bb9c8ae5f6b5bf84a0864db4dd3a38a4f2e065e24a9567330"
+    },
+    {
+      "task_id": 866,
+      "owner": "construction",
+      "code_lines": 31,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0011.py",
+      "program_sha256": "3eb6e392fdb534496b62dce5ec7daf8dc4bad2608528b712aab1ef51f2b8ef1c"
+    },
+    {
+      "task_id": 1559,
+      "owner": "construction",
+      "code_lines": 35,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0068.py",
+      "program_sha256": "a451cc71c01c19d296c7e2ea3d6b5675ee0a10fe6cf220f9ab026146a114aed0"
+    },
+    {
+      "task_id": 4272,
+      "owner": "construction",
+      "code_lines": 12,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0014.py",
+      "program_sha256": "735a19d4f8ec624ddfa47f75e99b59b9b839b1c37a5c05fa2534628b6e82787b"
+    },
+    {
+      "task_id": 842,
+      "owner": "construction",
+      "code_lines": 9,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0015.py",
+      "program_sha256": "75ec5db3731d0859d82e153b35f6dcde1bebec22888b210bd2e3f04ce4b79541"
+    },
+    {
+      "task_id": 1833,
+      "owner": "construction",
+      "code_lines": 20,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0016.py",
+      "program_sha256": "b18c96b0de2575425a0a13633a5459b6a5aff55b4885c23b6b5acda74f913252"
+    },
+    {
+      "task_id": 4688,
+      "owner": "construction",
+      "code_lines": 13,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0003.py",
+      "program_sha256": "9b03f9d056edb6d963bbedd18b19658448d73683f58be9e09d4a1862b3733f38"
+    },
+    {
+      "task_id": 1344,
+      "owner": "construction",
+      "code_lines": 20,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0019.py",
+      "program_sha256": "053c09a0ff4a8e9c85a109182d0b45c3d0ffe4ae9632791bcfd62b2a5cb67755"
+    },
+    {
+      "task_id": 510,
+      "owner": "construction",
+      "code_lines": 17,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0020.py",
+      "program_sha256": "73e6ea70597d56ed1d8c50a5beb543296f44a04d1dcded9f54f17dd52e3dfd0a"
+    },
+    {
+      "task_id": 1924,
+      "owner": "construction",
+      "code_lines": 23,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0023.py",
+      "program_sha256": "60a41cfba921183521b42b280817794a20eb744efcc3aaa751bfffc2439f56d2"
+    },
+    {
+      "task_id": 2334,
+      "owner": "construction",
+      "code_lines": 19,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0005.py",
+      "program_sha256": "5591b27277373aaf78c9dd6486bcc7462f915fd3abf60fc7667b0ed689cb4f29"
+    },
+    {
+      "task_id": 4692,
+      "owner": "construction",
+      "code_lines": 2,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0006.py",
+      "program_sha256": "72b9261843556984f7caa2ec7af903b03eabc794d7e915e7014949c5445de227"
+    },
+    {
+      "task_id": 2376,
+      "owner": "construction",
+      "code_lines": 102,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0007.py",
+      "program_sha256": "76cb5c615058c79ca110cb8d263797a8becab293c56b2a33e27ad8e425baed2b"
+    },
+    {
+      "task_id": 1736,
+      "owner": "construction",
+      "code_lines": 18,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0028.py",
+      "program_sha256": "4da9d795349820ab6f131df3f62389b33e356d4902e0805866e271c43b0b7355"
+    },
+    {
+      "task_id": 2048,
+      "owner": "construction",
+      "code_lines": 31,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0008.py",
+      "program_sha256": "87e4d2e381cc2e850e6c4c08850bb346ccb68dec3ba74c8072a1006e207b0e87"
+    },
+    {
+      "task_id": 4704,
+      "owner": "construction",
+      "code_lines": 19,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0009.py",
+      "program_sha256": "9ae1b095ce661bbb36f10cc0c4075059e03b843b9b77b62d281fea9faa5d1e40"
+    },
+    {
+      "task_id": 334,
+      "owner": "construction",
+      "code_lines": 40,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0031.py",
+      "program_sha256": "aea6689126511e1b09add2d2790a16ddf72d92f56d209cca90bbb149c380064c"
+    },
+    {
+      "task_id": 383,
+      "owner": "construction",
+      "code_lines": 27,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0032.py",
+      "program_sha256": "99dcc6f2d8a8815b5328036e87020da045f58bed6f6adc95799d526b27773e13"
+    },
+    {
+      "task_id": 1672,
+      "owner": "construction",
+      "code_lines": 18,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0034.py",
+      "program_sha256": "044c683da601dae2acfb29b549191c458d4175bdb997f1e41f5465e7e2e5f787"
+    },
+    {
+      "task_id": 4326,
+      "owner": "construction",
+      "code_lines": 2,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0010.py",
+      "program_sha256": "c42585c185ab93f67eec690bdbc5a0eb8c5e7b21f9845f7ade86421a1c8137bd"
+    },
+    {
+      "task_id": 1110,
+      "owner": "construction",
+      "code_lines": 15,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0037.py",
+      "program_sha256": "afc3fada00b378cb62fa28c09827e26de06976fe47f2e5b87a471a0f1d9dbc87"
+    },
+    {
+      "task_id": 768,
+      "owner": "construction",
+      "code_lines": 20,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0038.py",
+      "program_sha256": "baf18975541b2d644635d80b7fdba93e648cb19210e124a67f6a477fff5ab1f6"
+    },
+    {
+      "task_id": 4295,
+      "owner": "construction",
+      "code_lines": 14,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0039.py",
+      "program_sha256": "11114329700d616c4d2588e524d1de1017e766a9c24a66133265a92495a6dd40"
+    },
+    {
+      "task_id": 1818,
+      "owner": "construction",
+      "code_lines": 17,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0041.py",
+      "program_sha256": "ad1e2dff0b2a0e544739aa3ee090669bafa0676c6cbf2874c9474c04c2240c96"
+    },
+    {
+      "task_id": 909,
+      "owner": "construction",
+      "code_lines": 12,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0042.py",
+      "program_sha256": "489503918a1de5b875db2b6a01f3b15b9a39eff5564081aa24e33e111f19c9bb"
+    },
+    {
+      "task_id": 4183,
+      "owner": "construction",
+      "code_lines": 18,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0043.py",
+      "program_sha256": "e177f13061fb5aaec43407e05bcf425c04c0dc124fa8952009fef22195ae076a"
+    },
+    {
+      "task_id": 2152,
+      "owner": "construction",
+      "code_lines": 22,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0011.py",
+      "program_sha256": "954f24ccb2bdf66f6ea3a12f4bd0da478a44e75a176a56ba083c49c65378d3da"
+    },
+    {
+      "task_id": 4201,
+      "owner": "construction",
+      "code_lines": 29,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0047.py",
+      "program_sha256": "70a72cadd922800d0ea45810d54e9daaa2ccfe1a30caa6bd60bf457148089750"
+    },
+    {
+      "task_id": 1407,
+      "owner": "construction",
+      "code_lines": 81,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0065.py",
+      "program_sha256": "c6d6b97065fa2ef9a049df45229557b81a271ea50b128aa6dd6f89abbe94cf77"
+    },
+    {
+      "task_id": 1950,
+      "owner": "construction",
+      "code_lines": 31,
+      "program": "data/03_benign_experiments/qwen38-construction13-recovered-v2-20261030/acquisition/program-0012.py",
+      "program_sha256": "37fd2daa9d5bb6a8ce8091bd3f8837585eb623b303fde8cddbb0ab0d71318baa"
+    }
+  ],
+  "excluded": [
+    {
+      "task_id": 886,
+      "owner": "construction",
+      "code_lines": 41,
+      "program": "data/03_benign_experiments/qwen38-construction50-20261030/acquisition/actor/program-0078.py",
+      "program_sha256": "bf6d65a661058bd1162cc408a169237112763800a860a2e862f4dd612530ac4c",
+      "reasons": [
+        "Demonstrated benign defect"
+      ]
+    }
+  ]
+}

@@ -47,7 +47,10 @@ Preparation validates both families, their context envelopes and the sum of thei
 whole-round reservations before creating output. `launch.json` binds the plan,
 runtime files, tokenizers, source, requirements and limit evidence. It retains
 package versions, prompt lengths and rendered payload hashes. The command prints
-the manifest digest and total reservation for review. Existing destinations fail.
+the manifest digest and total reservation, plus each family's reply cap, socket
+timeout and reservation for review. Review the timeout against the full capped
+generation and queueing time. A failed CPU preflight reports the child's stderr
+with the configured key redacted. Existing destinations fail.
 
 After reviewing the prepared job, export the key in the launcher environment:
 

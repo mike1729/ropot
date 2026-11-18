@@ -28,9 +28,15 @@ print(json.dumps(dict(versions=tokenizer.versions,
 
 def _preflight(specification, python):
     env = dict(os.environ)
-    env.pop('DEEPINFRA_API_KEY', None)
-    result = subprocess.run([python, '-c', PREFLIGHT], input=json.dumps(specification),
-                            text=True, capture_output=True, check=True, cwd=ROOT, env=env)
+    key = env.pop('DEEPINFRA_API_KEY', '')
+    try:
+        result = subprocess.run([python, '-c', PREFLIGHT], input=json.dumps(specification),
+                                text=True, capture_output=True, check=True, cwd=ROOT, env=env)
+    except subprocess.CalledProcessError as error:
+        detail = error.stderr or 'No stderr was captured.'
+        if key:
+            detail = detail.replace(key, '<redacted>')
+        raise RuntimeError(f'Tokenizer preflight failed (exit {error.returncode}):\n{detail.strip()}') from None
     return json.loads(result.stdout)
 
 
@@ -197,8 +203,15 @@ def main():
     prepared = prepare(args.plan, args.output, expected_plan_sha256=args.plan_sha256,
         runtimes=runtimes, generation_python=args.generation_python, max_tokens=caps,
         max_cost_usd=args.max_cost_usd, limits_path=args.limits)
+    review = {}
+    for family, job in prepared['rounds'].items():
+        specification = loop.read(job['round_file'])
+        review[family] = dict(requests=len(specification['requests']),
+            max_tokens=max(r['max_tokens'] for r in specification['requests']),
+            timeout_seconds=specification['runtime']['timeout_seconds'],
+            reserved_max_cost_usd=job['reserved_max_cost_usd'])
     print(json.dumps(dict(launch_sha256=generation.file_hash(args.output / 'launch.json'),
-                          reserved_max_cost_usd=prepared['reserved_max_cost_usd'])))
+                          reserved_max_cost_usd=prepared['reserved_max_cost_usd'], rounds=review)))
     return 0
 
 

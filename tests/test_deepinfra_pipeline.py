@@ -136,6 +136,14 @@ class ProviderPipelineTests(unittest.TestCase):
         self.assertEqual([m["role"] for m in history], ["system", "user", "assistant", "tool"])
         self.assertEqual(history[-2]["tool_calls"][0]["function"]["arguments"], dict(edits=[dict(old="1", new="2")]))
 
+    def test_optional_concurrency_is_pinned_and_forwarded_to_every_round(self):
+        self.runtime["concurrency"] = 2
+        self.runtime_file.write_text(json.dumps(self.runtime))
+        result = self.run_loop()
+        self.assertEqual(result["status"], "completed", result)
+        self.assertEqual([r["runtime"]["concurrency"] for r in self.rounds], [2, 2])
+        self.assertEqual(self.saved("inputs.json")["provider_runtime"]["runtime"]["concurrency"], 2)
+
     def test_real_worker_missing_key_collects_known_zero_submissions(self):
         self.child.side_effect = self.execute_worker
         with mock.patch.dict("os.environ", DEEPINFRA_API_KEY=""), \

@@ -21,7 +21,9 @@ def positive(value, *, zero=False):
 def validate(runtime):
     fields = {'model', 'tokenizer_path', 'tokenizer_sha256', 'timeout_seconds', 'max_total_tokens',
               'input_usd_per_million', 'output_usd_per_million', 'max_cost_usd'}
-    if (not isinstance(runtime, dict) or set(runtime) != fields or runtime['model'] != MODEL
+    if (not isinstance(runtime, dict) or not fields <= set(runtime) or set(runtime) - fields - {'concurrency'}
+            or runtime['model'] != MODEL
+            or type(runtime.get('concurrency', 1)) is not int or not 1 <= runtime.get('concurrency', 1) <= 200
             or type(runtime['max_total_tokens']) is not int or runtime['max_total_tokens'] <= 0
             or not all(positive(runtime[k]) for k in ('timeout_seconds', 'max_cost_usd'))
             or not all(positive(runtime[k], zero=True) for k in ('input_usd_per_million', 'output_usd_per_million'))):

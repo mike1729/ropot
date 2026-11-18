@@ -1,4 +1,5 @@
-"""Serial raw-completion worker; see docs/support/deepinfra-worker.md."""
+"""Bounded raw-completion worker; see docs/support/deepinfra-worker.md."""
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 import importlib
 from importlib.metadata import version
 import json
@@ -149,6 +150,96 @@ def normalize(body, row, tokenizer, cap):
     row['status'] = reason
 
 
+def exchange(payload, key, timeout):
+    """Only network I/O runs in pool threads; evidence and decoding stay with the owner."""
+    started = monotonic()
+    try:
+        status, raw = send(payload, key, timeout)
+        return status, raw, monotonic() - started, None
+    except BaseException as error:
+        return None, None, monotonic() - started, error
+
+
+def generate(rows, payloads, tokenizer, runtime, key, directory, save, persist, result):
+    active, cursor, primary = {}, 0, None
+    limit = runtime.get('concurrency', 1)
+    result.update(concurrency=limit, max_observed_in_flight=0)
+
+    def failed(error, index=None):
+        nonlocal primary
+        if primary is None:
+            primary = error
+            result.update(status='error' if isinstance(error, Exception) else 'cancelled',
+                          error=repr(error).replace(key, '<redacted>'))
+        if index is not None:
+            row = rows[index]
+            row['error'] = repr(error).replace(key, '<redacted>')
+            if row['status'] == 'running':
+                row['status'] = 'error' if isinstance(error, Exception) else 'cancelled'
+
+    with ThreadPoolExecutor(max_workers=limit) as pool:
+        while active or (primary is None and cursor < len(rows)):
+            try:
+                # Settle every ready peer before admitting more work.
+                if primary is None and not any(f.done() for f in active):
+                    while cursor < len(rows) and len(active) < limit:
+                        if any(f.done() for f in active):
+                            break
+                        index, row = cursor, rows[cursor]
+                        save(directory / f'request-{index:04d}.json', payloads[index])
+                        row.update(submitted=None, status='running')
+                        try:
+                            persist()
+                        except BaseException:
+                            row.update(submitted=False, status='not_run')  # No task was submitted.
+                            raise
+                        future = pool.submit(exchange, payloads[index], key, runtime['timeout_seconds'])
+                        active[future] = index
+                        cursor += 1
+                        result['max_observed_in_flight'] = max(result['max_observed_in_flight'], len(active))
+                if not active:
+                    break
+                done = {f for f in active if f.done()} or wait(active, return_when=FIRST_COMPLETED)[0]
+                for future in sorted(done, key=lambda f: active[f]):
+                    index, row = active[future], rows[active[future]]
+                    try:
+                        if future.cancelled():
+                            row.update(submitted=False, status='not_run')
+                            continue
+                        status, raw, elapsed, error = future.result()
+                        row['elapsed_seconds'] = elapsed
+                        if error is not None:
+                            raise error
+                        if status == 200:
+                            row['submitted'] = True
+                        save(directory / f'response-{index:04d}.json', dict(http_status=status,
+                            body=raw, elapsed_seconds=elapsed))
+                        if status != 200:
+                            raise RuntimeError(f'HTTP {status}; submission/usage remains uncertain')
+                        normalize(json.loads(raw), row, tokenizer, payloads[index]['max_tokens'])
+                        (directory / f'reply-{index:04d}.txt').write_text(
+                            row['text'].replace(key, '<redacted>'), encoding='utf-8', newline='')
+                    except BaseException as error:
+                        failed(error, index)
+                    finally:
+                        del active[future]
+                        persist()
+            except BaseException as error:
+                failed(error)
+            if primary is not None:
+                # Cancel only work proven not to have started; collect running peers normally.
+                try:
+                    for future, index in list(active.items()):
+                        if future.cancel():
+                            rows[index].update(submitted=False, status='not_run')
+                            del active[future]
+                    persist()
+                except BaseException as error:
+                    failed(error)
+        if primary is not None:
+            raise primary
+
+
 def run(round_file):
     specification = json.loads(Path(round_file).read_text())
     directory = Path(specification['output_dir'])
@@ -175,7 +266,7 @@ def run(round_file):
             observed_estimated_cost_usd=sum(r.get('usage', {}).get('estimated_cost', 0) for r in rows))
         save(directory / 'outcome.json', result)
 
-    started, current = monotonic(), None
+    started = monotonic()
     try:
         persist()
         save(directory / 'inputs.json', specification)
@@ -196,30 +287,15 @@ def run(round_file):
         rows[:] = prepared
         result.update(preparation_seconds=preparation, planned_max_cost_usd=planned)
         persist()
-        for index, (row, payload) in enumerate(zip(rows, payloads)):
-            current = row
-            save(directory / f'request-{index:04d}.json', payload)
-            row.update(submitted=None, status='running')
-            persist()
-            sent = monotonic()
-            status, raw = send(payload, key, runtime['timeout_seconds'])
-            row['elapsed_seconds'] = monotonic() - sent
-            if status == 200:
-                row['submitted'] = True
-            save(directory / f'response-{index:04d}.json', dict(http_status=status,
-                body=raw, elapsed_seconds=row['elapsed_seconds']))
-            if status != 200:
-                raise RuntimeError(f'HTTP {status}; submission/usage remains uncertain')
-            normalize(json.loads(raw), row, tokenizer, payload['max_tokens'])
-            (directory / f'reply-{index:04d}.txt').write_text(row['text'].replace(key, '<redacted>'), encoding='utf-8', newline='')
-            persist()
+        generate(rows, payloads, tokenizer, runtime, key, directory, save, persist, result)
         result['status'] = 'success'
     except BaseException as error:
         message = repr(error)
         result.update(status='error' if isinstance(error, Exception) else 'cancelled',
                       error=message.replace(key, '<redacted>') if key else message)
-        if current is not None and current['status'] == 'running':
-            current['status'] = result['status']
+        for row in rows:
+            if row['status'] == 'running':
+                row['status'] = result['status']
     finally:
         persist()
     return result

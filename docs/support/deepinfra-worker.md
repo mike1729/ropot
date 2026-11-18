@@ -1,4 +1,4 @@
-# DeepInfra serial worker — first review batch
+# DeepInfra generation worker
 
 Install `requirements-deepinfra.txt` in a separate Python 3.12+ environment.
 Export `DEEPINFRA_API_KEY` in the environment launching the worker. For the
@@ -20,6 +20,7 @@ The JSON has exactly `runtime`, `requests` and `output_dir` (a new directory).
 | `timeout_seconds`, `max_total_tokens` | HTTP socket timeout and prompt+reply envelope |
 | `input_usd_per_million`, `output_usd_per_million` | Explicit uncached rates for planned-work accounting |
 | `max_cost_usd` | Planned ceiling for the entire finite round |
+| `concurrency` (optional) | Maximum outstanding requests, integer 1–200; default 1 |
 
 Pin `config.json`, `tokenizer.json`, `tokenizer_config.json`, `chat_template.jinja`
 and any present `vocab.json`, `merges.txt`, `special_tokens_map.json`,
@@ -58,7 +59,7 @@ Credentials/headers are excluded; the key is redacted from persisted content.
 Output rows retain existing `status`, `submitted`, text/token IDs, thought fields
 and `answer_text`; `native` is null rather than fabricated GPU counters.
 
-Technical failure stops the round without retries. Before preflight, the worker
+Technical failure stops new admission without retries. Before preflight, the worker
 persists one `not_run` / `submitted=False` row per request. Missing credentials,
 package/tokenizer failures and overlong prompts leave complete zero usage and no
 submissions. Malformed JSON, an unusable request list, existing destinations or an
@@ -94,7 +95,7 @@ result = loop.run(
 
 Existing extraction/checker/repair callbacks work unchanged, including native tool
 history. Do not supply local model/manifest/MLX paths, local batching or a driver
-override on this route. The serial worker is fixed; synthetic generation remains
+override on this route. The DeepInfra worker is fixed; synthetic generation remains
 on the existing local route. The coordinator does not need tokenizer packages:
 the explicit child interpreter loads them. Relative tokenizer paths resolve from
 the coordinator's working directory and are frozen as canonical absolute paths.
@@ -119,7 +120,41 @@ committed. Choose and qualify the prompt/feedback/output envelope before live
 acquisition; changing repair eligibility or selection is separate review work.
 
 This configuration binding does not qualify a generation recipe. Historical
-acquisition drivers remain unchanged. Provider qualification, concurrency, recipe
-selection and shared-parent acquisition remain later review work. Served weight
+acquisition drivers remain unchanged. Provider qualification, recipe selection
+and shared-parent acquisition remain later review work. Served weight
 revision, quantization and deterministic replay are unverified. Validation uses
 offline tests and saved responses; no fresh acquisition is launched by this batch.
+
+## Bounded concurrency — third review batch
+
+Set `concurrency` explicitly to opt into parallel HTTP calls. Old runtime files
+retain serial behavior. The worker preflights the entire round before dispatch,
+then admits a stable prefix with at most that many unsettled requests and refills
+available slots. Output rows, filenames, seeds and task associations retain their
+original positions even when responses arrive out of order. Only HTTP calls use
+threads; decoding and evidence writes remain on the owning thread.
+
+Every submission is persisted as unknown before its HTTP task can start. All ready
+responses are collected before refilling. The first observed transport, response
+validation or write failure stops admission. Queued tasks are cancelled where
+possible; proven cancellations remain not run. Running peers are drained and their
+responses/usage retained. Their completion does not turn the failed round into a
+success. Per-row errors supplement the first overall error.
+
+A graceful interrupt also stops admission and drains registered HTTP tasks; it may
+wait for their socket operations. An interruption during task submission can leave
+an unregistered response uncertain; its reservation remains committed. Threads cannot cancel remote generation or
+enforce a hard total deadline. The coordinator's existing second-interrupt kill
+can terminate the child, leaving its persisted in-flight rows uncertain.
+Standalone invocations do not escalate repeated Ctrl-C: they keep draining. Use
+SIGTERM or SIGKILL to terminate a standalone process immediately; remote requests
+may continue. Only the coordinator path provides the second-interrupt escalation.
+`max_observed_in_flight` records the maximum unsettled task count, not GPU batch size.
+The 200-request client ceiling is not an optimal setting or a guarantee against
+provider token/rate limits. A 429 stops admission without retry or automatic tuning.
+The same finite work and spending reservations apply at every concurrency.
+Keep the default concurrency of 1 until a bounded qualification measures a higher
+setting against request and token limits. Any failed request makes the coordinator
+stop the whole round and run: successful peer replies remain saved as evidence,
+but are not verified or admitted, and no further repair round runs. Accepting
+partial rounds would require a separate acquisition-policy change.

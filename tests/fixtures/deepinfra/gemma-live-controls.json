@@ -1,0 +1,162 @@
+{
+  "kind": "gemma-live-controls-v1",
+  "cases": [
+    {
+      "id": "thinking",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-smoke-20261118-01/generation/request-0000.json",
+        "sha256": "88ce3186f55c3757521a5e213d9367963028cb62cda58dbd4aee6e5da08757c5",
+        "raw": "{\"model\": \"google/gemma-4-31B-it:wcache-3\", \"prompt\": [2, 105, 9731, 107, 98, 107, 27447, 506, 15633, 3938, 6518, 236761, 106, 107, 105, 2364, 107, 40654, 607, 7121, 216640, 227697, 179273, 532, 5017, 1663, 236761, 106, 107, 105, 4368, 107], \"stop_token_ids\": [1, 106, 50], \"skip_special_tokens\": false, \"return_tokens_as_token_ids\": true, \"echo\": false, \"seed\": 17, \"temperature\": 0, \"top_p\": 1, \"max_tokens\": 128, \"top_k\": 0}"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-smoke-20261118-01/generation/response-0000.json",
+        "sha256": "aee974986c29853f6e66ad1c5d6e7927eaf4de7403752e32e6ad22c08fa02727",
+        "raw": "{\"http_status\": 200, \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RVqvcvppuR46ku0Y9uyt1Fc8\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998124,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"<|channel>thought\\\\n*   Input: \\\\\\\"Reply with exactly ALPHA BETA GAMMA and nothing else.\\\\\\\"\\\\n    *   Constraint 1: Exactly \\\\\\\"ALPHA BETA GAMMA\\\\\\\".\\\\n    *   Constraint 2: Nothing else.\\\\n\\\\n    *   The user wants a specific string.\\\\n    *   No preamble, no postscript, no punctuation other than what's in the string.\\\\n\\\\n    *   ALPHA BETA GAMMA<channel|>ALPHA BETA GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":32,\\\"total_tokens\\\":120,\\\"completion_tokens\\\":88,\\\"estimated_cost\\\":4.160000000000001e-05,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\", \"elapsed_seconds\": 5.1532939579337835}"
+      }
+    },
+    {
+      "id": "native-history",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-smoke-20261118-01/generation/request-0001.json",
+        "sha256": "93f6d410caa64ef3381c91f1d95331f5c153a57299e920d0c01f71f6b96dce40",
+        "raw": "{\"model\": \"google/gemma-4-31B-it:wcache-3\", \"prompt\": [2, 105, 9731, 107, 10896, 1594, 236779, 524, 1258, 573, 506, 15633, 81766, 236761, 46, 163688, 236787, 2181, 236779, 524, 1258, 236782, 7777, 236787, 52, 48706, 4596, 1908, 208702, 81766, 2342, 506, 167330, 1948, 532, 1594, 1418, 3505, 1624, 236761, 669, 80062, 67360, 496, 8434, 6133, 236772, 14433, 10021, 11269, 236761, 55358, 886, 40137, 12866, 236761, 52, 236764, 19031, 29616, 15921, 29616, 524, 1258, 29616, 7633, 29616, 33686, 12966, 236787, 4530, 236764, 15921, 29616, 1951, 29616, 2084, 236787, 52, 35410, 52, 1263, 947, 29616, 2084, 236787, 52, 35410, 52, 5237, 15979, 24845, 52, 947, 52, 236764, 52, 1951, 52, 1604, 2084, 236787, 52, 60688, 52, 1263, 2084, 236787, 52, 48832, 52, 5237, 15979, 24845, 52, 524, 1258, 52, 1604, 2084, 236787, 52, 60688, 52, 1807, 47, 106, 107, 105, 2364, 107, 30498, 1948, 236787, 1887, 236769, 236770, 769, 14376, 1061, 13762, 1550, 531, 236743, 236778, 236761, 106, 107, 105, 4368, 107, 100, 45518, 107, 9233, 506, 1550, 1651, 39983, 506, 1887, 2246, 236761, 107, 101, 48, 6639, 236787, 2181, 236779, 524, 1258, 236782, 524, 1258, 24845, 236782, 1951, 236787, 52, 236778, 52, 236764, 947, 236787, 52, 236770, 52, 165075, 49, 50, 6275, 236787, 2181, 236779, 524, 1258, 236782, 2394, 236787, 52, 182391, 236787, 2056, 23612, 506, 4133, 1887, 5619, 236761, 52, 236783, 51], \"stop_token_ids\": [1, 106, 50], \"skip_special_tokens\": false, \"return_tokens_as_token_ids\": true, \"echo\": false, \"seed\": 17, \"temperature\": 0.7, \"top_p\": 0.8, \"max_tokens\": 1024, \"top_k\": 20}"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-smoke-20261118-01/generation/response-0001.json",
+        "sha256": "6548278bbdd1c260d5788e56e000132d71aac2e10eb744625764295773e0be89",
+        "raw": "{\"http_status\": 200, \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RIOxLgr2WlkyrtK3H37itU2b\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998121,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"<|channel>thought\\\\n<channel|><|tool_call>call:test_edits{edits:[{new:<|\\\\\\\"|>print(2)<|\\\\\\\"|>,old:<|\\\\\\\"|>print(1)<|\\\\\\\"|>}]}<tool_call|>\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":213,\\\"total_tokens\\\":249,\\\"completion_tokens\\\":36,\\\"estimated_cost\\\":5.700000000000001e-05,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\", \"elapsed_seconds\": 2.3704105829820037}"
+      }
+    },
+    {
+      "id": "return-token-ids",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-01/00-request.json",
+        "sha256": "cdece95f7fb97f6a0e7f79f05de293276b029d4a92a1a97e2bbd3828dbd9cccb",
+        "raw": "{\n  \"name\": \"return-token-ids\",\n  \"payload\": {\n    \"model\": \"google/gemma-4-31B-it:wcache-3\",\n    \"prompt\": [\n      2,\n      105,\n      9731,\n      107,\n      27447,\n      506,\n      15633,\n      3938,\n      6518,\n      236761,\n      106,\n      107,\n      105,\n      2364,\n      107,\n      40654,\n      607,\n      7121,\n      216640,\n      227697,\n      179273,\n      532,\n      5017,\n      1663,\n      236761,\n      106,\n      107,\n      105,\n      4368,\n      107,\n      100,\n      45518,\n      107,\n      101\n    ],\n    \"stop_token_ids\": [\n      1,\n      106,\n      50\n    ],\n    \"skip_special_tokens\": false,\n    \"return_tokens_as_token_ids\": true,\n    \"echo\": false,\n    \"seed\": 17,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"max_tokens\": 16,\n    \"top_k\": 0,\n    \"return_token_ids\": true\n  }\n}\n"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-01/00-response.json",
+        "sha256": "3c59f10b1d2af0742bd999c968c68dd6a9b2726e2b973dc2b481a3d06da6ebba",
+        "raw": "{\n  \"http_status\": 200,\n  \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RjYXWjVO9HmguwrlwIuAAsyt\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998757,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"ALPHA BETA GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":34,\\\"total_tokens\\\":38,\\\"completion_tokens\\\":4,\\\"estimated_cost\\\":8.400000000000001e-06,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\",\n  \"elapsed_seconds\": 5.409459333866835\n}\n"
+      }
+    },
+    {
+      "id": "logprob-token-ids",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-01/01-request.json",
+        "sha256": "c795f1b3f1fb41094581a5a529942c4283961c32fd3c34efcb74bbec3380e419",
+        "raw": "{\n  \"name\": \"logprob-token-ids\",\n  \"payload\": {\n    \"model\": \"google/gemma-4-31B-it:wcache-3\",\n    \"prompt\": [\n      2,\n      105,\n      9731,\n      107,\n      27447,\n      506,\n      15633,\n      3938,\n      6518,\n      236761,\n      106,\n      107,\n      105,\n      2364,\n      107,\n      40654,\n      607,\n      7121,\n      216640,\n      227697,\n      179273,\n      532,\n      5017,\n      1663,\n      236761,\n      106,\n      107,\n      105,\n      4368,\n      107,\n      100,\n      45518,\n      107,\n      101\n    ],\n    \"stop_token_ids\": [\n      1,\n      106,\n      50\n    ],\n    \"skip_special_tokens\": false,\n    \"return_tokens_as_token_ids\": true,\n    \"echo\": false,\n    \"seed\": 17,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"max_tokens\": 16,\n    \"top_k\": 0,\n    \"logprobs\": 1\n  }\n}\n"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-01/01-response.json",
+        "sha256": "5b098c02fb047f6ea4a48022e3a28eca0fa475d9bc285249ef2ca4a554887dc7",
+        "raw": "{\n  \"http_status\": 200,\n  \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RX1P33TRyizEiCA1GTXrvLXc\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998757,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"ALPHA BETA GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":34,\\\"total_tokens\\\":38,\\\"completion_tokens\\\":4,\\\"estimated_cost\\\":8.400000000000001e-06,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\",\n  \"elapsed_seconds\": 0.9401905830018222\n}\n"
+      }
+    },
+    {
+      "id": "echo",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/00-request.json",
+        "sha256": "8a808a791536b90f3be9bcdf696c5269c15d85f9341246c7edb8216db44607a5",
+        "raw": "{\n  \"name\": \"echo\",\n  \"path\": \"/v1/openai/completions\",\n  \"payload\": {\n    \"model\": \"google/gemma-4-31B-it:wcache-3\",\n    \"prompt\": [\n      2,\n      105,\n      9731,\n      107,\n      27447,\n      506,\n      15633,\n      3938,\n      6518,\n      236761,\n      106,\n      107,\n      105,\n      2364,\n      107,\n      40654,\n      607,\n      7121,\n      216640,\n      227697,\n      179273,\n      532,\n      5017,\n      1663,\n      236761,\n      106,\n      107,\n      105,\n      4368,\n      107,\n      100,\n      45518,\n      107,\n      101\n    ],\n    \"stop_token_ids\": [\n      1,\n      106,\n      50\n    ],\n    \"skip_special_tokens\": false,\n    \"return_tokens_as_token_ids\": true,\n    \"echo\": true,\n    \"seed\": 17,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"max_tokens\": 16,\n    \"top_k\": 0\n  }\n}\n"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/00-response.json",
+        "sha256": "c624bed46679e32bfb654e37e6c258a3ff5a64c46885f99badbfe3d20ac950ff",
+        "raw": "{\n  \"http_status\": 200,\n  \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-R4ObgcoBJ2CnGsbi9Vc6lRRt\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998955,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"<bos><|turn>system\\\\nFollow the requested output format.<turn|>\\\\n<|turn>user\\\\nReply with exactly ALPHA BETA GAMMA and nothing else.<turn|>\\\\n<|turn>model\\\\n<|channel>thought\\\\n<channel|>ALPHA BETA GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":34,\\\"total_tokens\\\":38,\\\"completion_tokens\\\":4,\\\"estimated_cost\\\":8.400000000000001e-06,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\",\n  \"elapsed_seconds\": 1.3519030422903597\n}\n"
+      }
+    },
+    {
+      "id": "stream",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/01-request.json",
+        "sha256": "36e79c9a333eb5c4ce7775bc2359693873f59f56f58787717512a798de7e532a",
+        "raw": "{\n  \"name\": \"stream\",\n  \"path\": \"/v1/openai/completions\",\n  \"payload\": {\n    \"model\": \"google/gemma-4-31B-it:wcache-3\",\n    \"prompt\": [\n      2,\n      105,\n      9731,\n      107,\n      27447,\n      506,\n      15633,\n      3938,\n      6518,\n      236761,\n      106,\n      107,\n      105,\n      2364,\n      107,\n      40654,\n      607,\n      7121,\n      216640,\n      227697,\n      179273,\n      532,\n      5017,\n      1663,\n      236761,\n      106,\n      107,\n      105,\n      4368,\n      107,\n      100,\n      45518,\n      107,\n      101\n    ],\n    \"stop_token_ids\": [\n      1,\n      106,\n      50\n    ],\n    \"skip_special_tokens\": false,\n    \"return_tokens_as_token_ids\": true,\n    \"echo\": false,\n    \"seed\": 17,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"max_tokens\": 16,\n    \"top_k\": 0,\n    \"stream\": true,\n    \"stream_options\": {\n      \"include_usage\": true\n    }\n  }\n}\n"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/01-response.json",
+        "sha256": "025c5fdeb88a2441ae04c3b9744b9e82b60c3e6bb219e2a7b467b244a7ef194a",
+        "raw": "{\n  \"http_status\": 200,\n  \"body\": \"data: {\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RpjUpZWeopJ52QpHhtbwYstc\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998956,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"ALPHA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":null,\\\"token_ids\\\":null}],\\\"usage\\\":null}\\r\\n\\r\\ndata: {\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RpjUpZWeopJ52QpHhtbwYstc\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998956,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\" BETA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":null,\\\"token_ids\\\":null}],\\\"usage\\\":null}\\r\\n\\r\\ndata: {\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RpjUpZWeopJ52QpHhtbwYstc\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998956,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\" GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":null,\\\"token_ids\\\":null}],\\\"usage\\\":null}\\r\\n\\r\\ndata: {\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RpjUpZWeopJ52QpHhtbwYstc\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998956,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":null}],\\\"usage\\\":null}\\r\\n\\r\\ndata: {\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RpjUpZWeopJ52QpHhtbwYstc\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794998956,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[],\\\"usage\\\":{\\\"prompt_tokens\\\":34,\\\"total_tokens\\\":38,\\\"completion_tokens\\\":4,\\\"estimated_cost\\\":8.400000000000001e-6,\\\"prompt_tokens_details\\\":null}}\\r\\n\\r\\ndata: [DONE]\\r\\n\\r\\n\",\n  \"elapsed_seconds\": 1.0797519171610475\n}\n"
+      }
+    },
+    {
+      "id": "combined-flags",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/02-request.json",
+        "sha256": "93b23cf63cf912ad84336fd2e1be796afe13e94e5dd37084047904166e96e4f6",
+        "raw": "{\n  \"name\": \"combined-flags\",\n  \"path\": \"/v1/openai/completions\",\n  \"payload\": {\n    \"model\": \"google/gemma-4-31B-it:wcache-3\",\n    \"prompt\": [\n      2,\n      105,\n      9731,\n      107,\n      27447,\n      506,\n      15633,\n      3938,\n      6518,\n      236761,\n      106,\n      107,\n      105,\n      2364,\n      107,\n      40654,\n      607,\n      7121,\n      216640,\n      227697,\n      179273,\n      532,\n      5017,\n      1663,\n      236761,\n      106,\n      107,\n      105,\n      4368,\n      107,\n      100,\n      45518,\n      107,\n      101\n    ],\n    \"stop_token_ids\": [\n      1,\n      106,\n      50\n    ],\n    \"skip_special_tokens\": false,\n    \"return_tokens_as_token_ids\": true,\n    \"echo\": false,\n    \"seed\": 17,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"max_tokens\": 16,\n    \"top_k\": 0,\n    \"return_token_ids\": true,\n    \"logprobs\": 1\n  }\n}\n"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/02-response.json",
+        "sha256": "650b6f8fae30eedd33e1c18e478cb40a5a020305a2a2588ea69caae2b71bcd58",
+        "raw": "{\n  \"http_status\": 200,\n  \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RhtqfvDIXnn0ZF2yCX5Nerdo\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794999083,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"ALPHA BETA GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":34,\\\"total_tokens\\\":38,\\\"completion_tokens\\\":4,\\\"estimated_cost\\\":8.400000000000001e-06,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\",\n  \"elapsed_seconds\": 1.12410470796749\n}\n"
+      }
+    },
+    {
+      "id": "canonical-route",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/03-request.json",
+        "sha256": "47dfb73201e54a26832c7ec7ccfae5569ba641e17ff729da402fb64d89735e89",
+        "raw": "{\n  \"name\": \"canonical-route\",\n  \"path\": \"/v1/completions\",\n  \"payload\": {\n    \"model\": \"google/gemma-4-31B-it:wcache-3\",\n    \"prompt\": [\n      2,\n      105,\n      9731,\n      107,\n      27447,\n      506,\n      15633,\n      3938,\n      6518,\n      236761,\n      106,\n      107,\n      105,\n      2364,\n      107,\n      40654,\n      607,\n      7121,\n      216640,\n      227697,\n      179273,\n      532,\n      5017,\n      1663,\n      236761,\n      106,\n      107,\n      105,\n      4368,\n      107,\n      100,\n      45518,\n      107,\n      101\n    ],\n    \"stop_token_ids\": [\n      1,\n      106,\n      50\n    ],\n    \"skip_special_tokens\": false,\n    \"return_tokens_as_token_ids\": true,\n    \"echo\": false,\n    \"seed\": 17,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"max_tokens\": 16,\n    \"top_k\": 0,\n    \"return_token_ids\": true,\n    \"logprobs\": 1\n  }\n}\n"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-02/03-response.json",
+        "sha256": "2fc56089d473f22376ed658ae9f303e658d02904f5c52e4942d9534843d13b6c",
+        "raw": "{\n  \"http_status\": 200,\n  \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RJszQerdzIXfpalYe8XFnu6P\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794999084,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"ALPHA BETA GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":34,\\\"total_tokens\\\":38,\\\"completion_tokens\\\":4,\\\"estimated_cost\\\":8.400000000000001e-06,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\",\n  \"elapsed_seconds\": 1.0315373339690268\n}\n"
+      }
+    },
+    {
+      "id": "raw-string-input",
+      "mode": "transport",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-03/request.json",
+        "sha256": "e2bb90ecfcc35f8048bc1674e6657dd05b7a020b7f4cbb1ec9bf1fb697ddbc40",
+        "raw": "{\n  \"name\": \"raw-string-input\",\n  \"payload\": {\n    \"model\": \"google/gemma-4-31B-it:wcache-3\",\n    \"prompt\": \"<bos><|turn>system\\nFollow the requested output format.<turn|>\\n<|turn>user\\nReply with exactly ALPHA BETA GAMMA and nothing else.<turn|>\\n<|turn>model\\n<|channel>thought\\n<channel|>\",\n    \"stop_token_ids\": [\n      1,\n      106,\n      50\n    ],\n    \"skip_special_tokens\": false,\n    \"return_tokens_as_token_ids\": true,\n    \"echo\": false,\n    \"seed\": 17,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"max_tokens\": 16,\n    \"top_k\": 0,\n    \"return_token_ids\": true,\n    \"logprobs\": 1\n  }\n}\n"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-token-probes-20261118-03/response.json",
+        "sha256": "0f1b78b5c0df7f46fd3ba271cd0eff09d4a8b9dd31ba8091cb968b78859fa9e0",
+        "raw": "{\n  \"http_status\": 200,\n  \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-RttuVFcV7Xy9h5LDm8huc3hg\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1794999231,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"ALPHA BETA GAMMA\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":34,\\\"total_tokens\\\":38,\\\"completion_tokens\\\":4,\\\"estimated_cost\\\":8.400000000000001e-06,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\",\n  \"elapsed_seconds\": 1.3934470829553902\n}\n"
+      }
+    },
+    {
+      "id": "native-pipeline",
+      "mode": "pipeline",
+      "request": {
+        "source_path": "data/monitor_training/deepinfra-gemma-native-text-20261118-01/run/generation-0000/request-0000.json",
+        "sha256": "c61cd8d25997a3ccbd3f536b9f4aa0af6720ff30a9e024dba3a45455243ecb27",
+        "raw": "{\"model\": \"google/gemma-4-31B-it:wcache-3\", \"prompt\": [2, 105, 9731, 107, 10896, 1594, 236779, 524, 1258, 236761, 9657, 7121, 886, 11363, 5904, 2246, 2180, 57243, 236761, 46, 163688, 236787, 2181, 236779, 524, 1258, 236782, 7777, 236787, 52, 48706, 4596, 1908, 208702, 81766, 2342, 506, 167330, 1948, 532, 1594, 1418, 3505, 1624, 236761, 669, 80062, 67360, 496, 8434, 6133, 236772, 14433, 10021, 11269, 236761, 55358, 886, 40137, 12866, 236761, 52, 236764, 19031, 29616, 15921, 29616, 524, 1258, 29616, 7633, 29616, 33686, 12966, 236787, 4530, 236764, 15921, 29616, 1951, 29616, 2084, 236787, 52, 35410, 52, 1263, 947, 29616, 2084, 236787, 52, 35410, 52, 5237, 15979, 24845, 52, 947, 52, 236764, 52, 1951, 52, 1604, 2084, 236787, 52, 60688, 52, 1263, 2084, 236787, 52, 48832, 52, 5237, 15979, 24845, 52, 524, 1258, 52, 1604, 2084, 236787, 52, 60688, 52, 1807, 47, 106, 107, 105, 2364, 107, 30498, 1948, 236787, 107, 1995, 236769, 236770, 236768, 107, 9233, 1061, 13762, 1550, 531, 236743, 236778, 684, 23612, 506, 4133, 1887, 5619, 236761, 106, 107, 105, 4368, 107, 100, 45518, 107, 101], \"stop_token_ids\": [1, 106, 50], \"skip_special_tokens\": false, \"return_tokens_as_token_ids\": true, \"echo\": false, \"seed\": 17, \"temperature\": 0, \"top_p\": 1, \"max_tokens\": 256, \"top_k\": 0}"
+      },
+      "response": {
+        "source_path": "data/monitor_training/deepinfra-gemma-native-text-20261118-01/run/generation-0000/response-0000.json",
+        "sha256": "4f31843fc5e1238744f5f98f6a35a4f233e62db8c6df51652e59d7257d05213e",
+        "raw": "{\"http_status\": 200, \"body\": \"{\\\"service_tier\\\":\\\"default\\\",\\\"id\\\":\\\"cmpl-R42c6dRLSJbwkAa2AfNmrQAc\\\",\\\"object\\\":\\\"text_completion\\\",\\\"created\\\":1795000015,\\\"model\\\":\\\"google/gemma-4-31B-it\\\",\\\"choices\\\":[{\\\"index\\\":0,\\\"text\\\":\\\"<|tool_call>call:test_edits{edits:[{new:<|\\\\\\\"|>print(2)<|\\\\\\\"|>,old:<|\\\\\\\"|>print(1)<|\\\\\\\"|>}]}<tool_call|>\\\",\\\"logprobs\\\":null,\\\"finish_reason\\\":\\\"stop\\\",\\\"token_ids\\\":[]}],\\\"usage\\\":{\\\"prompt_tokens\\\":168,\\\"total_tokens\\\":200,\\\"completion_tokens\\\":32,\\\"estimated_cost\\\":4.64e-05,\\\"prompt_tokens_details\\\":null,\\\"completion_tokens_details\\\":null}}\", \"elapsed_seconds\": 1.323003957979381}"
+      }
+    }
+  ],
+  "native": {
+    "inputs": {
+      "source_path": "data/monitor_training/deepinfra-gemma-native-text-20261118-01/inputs.json",
+      "sha256": "1c07f3d5d02da427ccd53887a994e767f576eab6223f3ecac854f91f51379a9c",
+      "raw": "{\n  \"worklist\": [\n    [\n      {\n        \"split\": \"train\",\n        \"id\": 0,\n        \"sha256\": \"7760ebccab7c3a66570790c56b1a6f172148b99855c0af33e482ca678d740998\"\n      },\n      {\n        \"question\": \"Print the integer 1.\",\n        \"cases\": [\n          {\n            \"index\": 0,\n            \"input\": \"\",\n            \"answer\": \"1\",\n            \"visible\": true\n          }\n        ]\n      }\n    ]\n  ],\n  \"initial\": [\n    [\n      {\n        \"role\": \"system\",\n        \"content\": \"Use test_edits. Return exactly one native tool call without prose.\"\n      },\n      {\n        \"role\": \"user\",\n        \"content\": \"Original program:\\nprint(1)\\nChange its printed value to 2 by replacing the complete print expression.\"\n      }\n    ]\n  ],\n  \"recipe\": {\n    \"system\": \"Use test_edits. Return exactly one native tool call without prose.\",\n    \"initial\": \"Generate the requested control edit.\",\n    \"base_seed\": 17,\n    \"max_repairs\": 0,\n    \"max_tokens\": 256,\n    \"temperature\": 0,\n    \"top_p\": 1,\n    \"top_k\": 0,\n    \"enable_thinking\": false,\n    \"preserve_thinking\": true,\n    \"tools\": [\n      {\n        \"type\": \"function\",\n        \"function\": {\n          \"name\": \"test_edits\",\n          \"description\": \"Apply related nonoverlapping replacements against the ORIGINAL program and test every shown case. The checker selects a measured wrong-answer witness automatically. Submit one coherent fault.\",\n          \"parameters\": {\n            \"type\": \"object\",\n            \"properties\": {\n              \"edits\": {\n                \"type\": \"array\",\n                \"minItems\": 1,\n                \"items\": {\n                  \"type\": \"object\",\n                  \"properties\": {\n                    \"old\": {\n                      \"type\": \"string\",\n                      \"minLength\": 1\n                    },\n                    \"new\": {\n                      \"type\": \"string\"\n                    }\n                  },\n                  \"required\": [\n                    \"old\",\n                    \"new\"\n                  ],\n                  \"additionalProperties\": false\n                }\n              }\n            },\n            \"required\": [\n              \"edits\"\n            ],\n            \"additionalProperties\": false\n          }\n        }\n      }\n    ]\n  }\n}\n"
+    },
+    "runtime": {
+      "source_path": "data/monitor_training/deepinfra-gemma-native-text-20261118-01/runtime.json",
+      "sha256": "6e43681b15bcba29912e76a2580c71e3c786b860b16aa5013253af6859609a08",
+      "raw": "{\n  \"model\": \"google/gemma-4-31B-it:wcache-3\",\n  \"tokenizer_path\": \"/Users/michal/Workspace/models/mlx-community/gemma-4-31b-it-8bit\",\n  \"tokenizer_sha256\": {\n    \"config.json\": \"febbc7b54e70d69323a07d043434d43247d49ae37cf3b35f6649acc75d9f4c04\",\n    \"tokenizer.json\": \"cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f\",\n    \"tokenizer_config.json\": \"080d9e1aff284e2f6043889cd05367966f7c7b80e025fbc0b06745e218158656\",\n    \"chat_template.jinja\": \"36e3a42e5cf14cd0020e72d92e1fdd9970f59b82170e421f0cbe1bb42bead3f0\"\n  },\n  \"timeout_seconds\": 300,\n  \"max_total_tokens\": 4096,\n  \"input_usd_per_million\": 0.4,\n  \"output_usd_per_million\": 0.8,\n  \"max_cost_usd\": 0.00185,\n  \"concurrency\": 1,\n  \"output_protocol\": \"gemma_native_text\"\n}\n"
+    },
+    "scope": {
+      "source_path": "data/monitor_training/deepinfra-gemma-native-text-20261118-01/scope.json",
+      "sha256": "36a8d296583ab29bb91f419ee2ab8928c5e948eb5b3f2032a8a73eab135bf7df",
+      "raw": "{\n  \"kind\": \"final-live-Gemma-native-text-pipeline-check\",\n  \"status\": \"completed\",\n  \"authorization\": \"User approves all tests below $0.01; enforce combined Gemma budget.\",\n  \"max_api_calls\": 1,\n  \"max_output_tokens\": 256,\n  \"max_cost_usd\": 0.00185,\n  \"combined_ceiling_usd\": 0.01,\n  \"prior_test_cost_usd\": 0.00015740000000000003,\n  \"whole_run_max_cost_usd\": 0.0018432000000000001,\n  \"model\": \"google/gemma-4-31B-it:wcache-3\",\n  \"output_protocol\": \"gemma_native_text\",\n  \"source\": \"synthetic\",\n  \"fixture\": true,\n  \"scope\": \"Toy print(1)\\u2192print(2) fault: actual native extractor and correctness verifier should reject the incorrect output; no corpus admission, repair or retries.\",\n  \"source_files\": {\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/generation_loop.py\": \"74c293a3bc614e4247480aed1ba8d5affa62c952f1c92bb916aea2e7ac18c014\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/local_generation.py\": \"c9241491aaed4b3be4ce6ea2fd8e5ca4e6a61599fade30d2eb771a23fe9878f8\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/study_tasks.py\": \"7297044b9769c2bb56c3e122f652a5abdb88c388a5eaeb6e78730e3b5ec62b53\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/verification.py\": \"05fd144dfbd9ec014faea1cef09de44a557e92f0e97fac13e3a190bcf2ffb25d\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/inspect_runner.py\": \"a63e3bb328989834aa0ea1d81a480e00fd1cbab5b31daac53e1a4288f37661e3\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/artifacts.py\": \"0a6c5b2f5b3f82e2655fbbc809a44c3ed90a71d948bb44d163ce22e87d172a38\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/paths.py\": \"661731b3bd13f6fabe68b982927dea4a5927de67cd57c41bf5e749eba8c206f5\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage01/screen.py\": \"90e258e3805ba5faf20b64e4cebc3f273d15f0b43d25bfb3d55ac2f7bb386da6\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage02/cohort.py\": \"1f23ecc534a065074b3e3f0977741f01b17b7aa7e898f009755e3959ed51f28f\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/repair_feedback.py\": \"9e6c42f91a236bca56231f2fa170a9010ac8a3b7e555f0ad57dd4c5f60979e33\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/programs.py\": \"6459c977e74c456c9bc19687a87de8d93fbb88aaed0712b5fa8dd14474d5c64f\",\n    \"/Users/michal/Workspace/ropot/scripts/deepinfra_generation.py\": \"b42be336c71951696a4e96dca94d53764e76d7df8939defa55f41925e1dff907\",\n    \"/Users/michal/Workspace/ropot/src/data-pipeline/stage03/deepinfra_runtime.py\": \"ceee13a206df6e5bac878b0daa69e87b67655a521066d1ed3b0d4cbaf45f7361\",\n    \"/Users/michal/Workspace/ropot/scripts/native_multi_edit.py\": \"b6c6a21a449f8ba6e6e72978dd2e9ab1081661b38fa6685f474a58742a646e12\",\n    \"/Users/michal/Workspace/ropot/scripts/qwen_native_tools.py\": \"2b9c0feb37e3b6542f54b60983ccf238cf4921a5a3d38f5a93394321a7c5468d\",\n    \"/Users/michal/Workspace/ropot/scripts/qwen_edits.py\": \"f271c7693e137b886ede89e8fd6fef2f0800ad0e5f4476007c887499a54ba3b5\",\n    \"/Users/michal/Workspace/ropot/data/monitor_training/deepinfra-gemma-native-text-20261118-01/runtime.json\": \"6e43681b15bcba29912e76a2580c71e3c786b860b16aa5013253af6859609a08\",\n    \"/Users/michal/Workspace/ropot/data/monitor_training/deepinfra-gemma-native-text-20261118-01/inputs.json\": \"1c07f3d5d02da427ccd53887a994e767f576eab6223f3ecac854f91f51379a9c\"\n  },\n  \"completed_utc\": \"2026-11-18T11:09:22.703620+00:00\",\n  \"api_calls\": 1,\n  \"observed_estimated_cost_usd\": 4.64e-05\n}\n"
+    }
+  }
+}

@@ -13,7 +13,7 @@ import urllib.request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 g = importlib.import_module('src.data-pipeline.stage03.local_generation')
 r = importlib.import_module('src.data-pipeline.stage03.deepinfra_runtime')
-MODEL, EOS, TOKENIZER_FILES, positive = r.MODEL, r.EOS, r.TOKENIZER_FILES, r.positive
+MODEL, EOS, GEMMA_MODEL, TOKENIZER_FILES, positive = r.MODEL, r.EOS, r.GEMMA_MODEL, r.TOKENIZER_FILES, r.positive
 
 
 def check_versions():
@@ -28,21 +28,29 @@ def check_versions():
 class Tokenizer:
     """Expose the existing rendering/thought-parser protocol without importing MLX."""
     has_thinking = True
-    eos_token_ids = EOS
-    think_start_tokens, think_end_tokens = (248068,), (248069,)
-
-    def __init__(self, inner, versions=None):
+    def __init__(self, inner, versions=None, *, profile=None):
         self.inner = inner
+        self.profile = r.model_profile(MODEL) if profile is None else profile
+        self.eos_token_ids = self.profile['eos_token_ids']
+        self.think_start_tokens, self.think_end_tokens = self.profile['think_start_tokens'], self.profile['think_end_tokens']
         self.versions = check_versions() if versions is None else versions
 
     def apply_chat_template(self, messages, **options):
         return self.inner.apply_chat_template(messages, return_dict=False, **options)
 
     def rfind_think_start(self, tokens):
-        return max((i for i, token in enumerate(tokens) if token == self.think_start_tokens[0]), default=-1)
+        return self.rfind(tokens, self.think_start_tokens)
 
     def rfind_think_end(self, tokens):
-        return max((i for i, token in enumerate(tokens) if token == self.think_end_tokens[0]), default=-1)
+        return self.rfind(tokens, self.think_end_tokens)
+
+    @staticmethod
+    def rfind(tokens, sequence):
+        return next((i for i in range(len(tokens) - len(sequence), -1, -1)
+                     if tokens[i:i + len(sequence)] == list(sequence)), -1)
+
+    def convert_ids_to_tokens(self, token):
+        return self.inner.convert_ids_to_tokens(token)
 
     @property
     def detokenizer(self):
@@ -66,13 +74,15 @@ def load_tokenizer(runtime):
     root = Path(runtime['tokenizer_path'])
     inner = AutoTokenizer.from_pretrained(root, local_files_only=True, trust_remote_code=False)
     config = json.loads((root / 'config.json').read_text())
-    eos = config.get('text_config', config)['eos_token_id']
+    profile = r.model_profile(runtime.get('model', MODEL))
+    eos = config.get('eos_token_id', config.get('text_config', {}).get('eos_token_id'))
     eos = eos if isinstance(eos, list) else [eos]
-    if (set(eos + [inner.eos_token_id]) != set(EOS)
-            or inner.encode('<think>', add_special_tokens=False) != [248068]
-            or inner.encode('</think>', add_special_tokens=False) != [248069]):
-        raise ValueError('Tokenizer boundaries differ from the supported actor')
-    return Tokenizer(inner, versions)
+    if (config.get('model_type') not in profile['model_types']
+            or set(eos + [inner.eos_token_id]) != set(profile['eos_token_ids'])
+            or inner.encode(profile['think_start_text'], add_special_tokens=False) != list(profile['think_start_tokens'])
+            or inner.encode(profile['think_end_text'], add_special_tokens=False) != list(profile['think_end_tokens'])):
+        raise ValueError('Tokenizer family or boundaries differ from the supported model')
+    return Tokenizer(inner, versions, profile=profile)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -94,6 +104,7 @@ def send(payload, key, timeout):
 def prepare(specification, *, tokenizer=None):
     runtime, requests = specification['runtime'], specification['requests']
     r.validate(runtime)
+    profile = r.model_profile(runtime['model'])
     if (set(specification) != {'runtime', 'requests', 'output_dir'}
             or not isinstance(requests, list) or not requests):
         raise ValueError('Require an explicit pinned runtime and finite ordered requests')
@@ -114,6 +125,8 @@ def prepare(specification, *, tokenizer=None):
                 or type(request.get('enable_thinking', False)) is not bool
                 or 'top_k' in request and (type(request['top_k']) is not int or request['top_k'] < 0)):
             raise ValueError('Invalid generation request; parameters cannot be silently dropped')
+        if profile['source'] == 'synthetic' and ('reasoning_effort' in request or request.get('preserve_thinking') is False):
+            raise ValueError('Gemma uses boolean thinking and its native tool-history retention policy')
         row = g.render(tokenizer, request['messages'], **{k: request[k] for k in
             ('enable_thinking', 'reasoning_effort', 'tools', 'preserve_thinking') if k in request})
         if (row['prompt_tokens'] > request.get('max_prompt_tokens', runtime['max_total_tokens'])
@@ -121,28 +134,70 @@ def prepare(specification, *, tokenizer=None):
             raise ValueError('Prompt exceeds the configured token envelope')
         planned += (row['prompt_tokens'] * runtime['input_usd_per_million']
                     + request['max_tokens'] * runtime['output_usd_per_million']) / 1e6
-        payloads.append(dict(model=MODEL, prompt=row['prompt_ids'], stop_token_ids=list(EOS),
+        payloads.append(dict(model=runtime['model'], prompt=row['prompt_ids'], stop_token_ids=list(profile['eos_token_ids']),
             skip_special_tokens=False, return_tokens_as_token_ids=True, echo=False, **{k: request[k] for k in
             ('seed', 'temperature', 'top_p', 'max_tokens', 'top_k') if k in request}))
         row.update(status='not_run', submitted=False, text='', tokens=[], answer_text=None,
-                   generation_tokens=0, finish_reason=None, elapsed_seconds=None)
+                   generation_tokens=0, finish_reason=None, elapsed_seconds=None,
+                   output_protocol=runtime.get('output_protocol', 'token_ids'))
         rows.append(row)
     if planned > runtime['max_cost_usd']:
         raise ValueError('Round exceeds the planned uncached spending ceiling')
     return tokenizer, rows, payloads, planned, monotonic() - started
 
 
+def split_gemma_text(row, tokenizer):
+    """Explicit native framing, never an inferred generated-token sequence."""
+    opening, closing = '<|channel>thought', '<channel|>'
+    text = row['text']
+    opened = tokenizer.rfind_think_start(row['prompt_ids']) > tokenizer.rfind_think_end(row['prompt_ids'])
+    row.update(tokens=None, token_ids_source='unavailable', answer_text=None, reasoning_token_count=None)
+    metrics = dict(status='unavailable', framing='malformed', reasoning_tokens=None, answer_tokens=None)
+    row['thought_metrics'] = metrics
+    if opened or text.startswith(opening):
+        content = text if opened else text[len(opening):]
+        if not opened and content and not content.startswith(('\n', '\r\n', closing)):
+            return
+        if '<|channel>' in content or content.count(closing) > 1:
+            return
+        if closing not in content:
+            metrics.update(framing='unclosed', reasoning_characters=len(content), answer_characters=0)
+            return
+        reasoning, answer = content.split(closing, 1)
+        if not row['enable_thinking'] and reasoning.strip():
+            metrics['framing'] = 'unexpected_thought'
+            return
+        row.update(reasoning_content=reasoning, answer_text=answer)
+        metrics.update(framing='closed', reasoning_characters=len(reasoning), answer_characters=len(answer))
+    elif '<|channel>' not in text and closing not in text:
+        row['answer_text'] = text
+        metrics.update(framing='absent', reasoning_characters=0, answer_characters=len(text))
+
+
 def normalize(body, row, tokenizer, cap):
-    choice, usage = body['choices'][0], body['usage']
-    tokens, reason = choice['token_ids'], choice['finish_reason']
-    if (len(body['choices']) != 1 or choice['index'] != 0 or reason not in ('stop', 'length')
-            or not isinstance(tokens, list) or not all(type(t) is int and t >= 0 for t in tokens)
-            or len(tokens) > cap or type(usage['completion_tokens']) is not int
-            or usage['completion_tokens'] != len(tokens) or usage['prompt_tokens'] != row['prompt_tokens']
+    usage = body['usage']
+    if (any(type(usage[k]) is not int or usage[k] < 0 for k in ('prompt_tokens', 'completion_tokens'))
             or not positive(usage['estimated_cost'], zero=True)):
+        raise ValueError('Malformed provider usage')
+    # Billing evidence remains valid even when token IDs or completion text are unusable.
+    row.update(generation_tokens=usage['completion_tokens'], usage=usage)
+    choice = body['choices'][0]
+    tokens, reason = choice.get('token_ids'), choice['finish_reason']
+    if (len(body['choices']) != 1 or choice['index'] != 0 or reason not in ('stop', 'length')
+            or not isinstance(choice['text'], str) or usage['completion_tokens'] > cap
+            or usage['prompt_tokens'] != row['prompt_tokens']):
         raise ValueError('Malformed completion or inconsistent usage')
-    row.update(tokens=tokens, generation_tokens=len(tokens), finish_reason=reason, usage=usage)
-    text = g.decode_tokens(tokenizer, tokens, set(EOS))
+    if row.get('output_protocol') == 'gemma_native_text' and (tokens is None or tokens == []):
+        if set(tokenizer.eos_token_ids) != set(r.model_profile(GEMMA_MODEL)['eos_token_ids']):
+            raise ValueError('Native-text framing requires the Gemma tokenizer')
+        row.update(text=choice['text'], finish_reason=reason, status=reason)
+        split_gemma_text(row, tokenizer)
+        return
+    if (not isinstance(tokens, list) or not all(type(t) is int and t >= 0 for t in tokens)
+            or usage['completion_tokens'] != len(tokens)):
+        raise ValueError('Missing or inconsistent original token IDs')
+    row.update(tokens=tokens, token_ids_source='provider', finish_reason=reason)
+    text = g.decode_tokens(tokenizer, tokens, set(tokenizer.eos_token_ids))
     if choice['text'] != text:
         raise ValueError('Provider text differs from local token decoding')
     row['text'] = text
@@ -279,6 +334,8 @@ def run(round_file):
             raise ValueError('Set DEEPINFRA_API_KEY in the coordinator/worker environment')
         runtime = specification['runtime']
         r.validate(runtime)
+        profile = r.model_profile(runtime['model'])
+        metadata.update(provider_model=runtime['model'], provider_quantization=profile['quantization'])
         loading = monotonic()
         tokenizer = load_tokenizer(runtime)
         metadata.update(load_seconds=monotonic() - loading, versions=getattr(tokenizer, 'versions', {}))

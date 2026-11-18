@@ -1,0 +1,199 @@
+{
+  "kind": "gemma-live-compatibility",
+  "status": "blocked_missing_token_ids",
+  "model": "google/gemma-4-31B-it:wcache-3",
+  "provider_reported_quantization": "fp8",
+  "new_api_calls": 2,
+  "max_cost_usd": 0.01,
+  "observed_estimated_cost_usd": 9.860000000000001e-05,
+  "audited_usage_complete": true,
+  "generation_trace_complete": false,
+  "adapter_acceptance": false,
+  "corpus_admission": false,
+  "main_recipe_qualified": false,
+  "responses": [
+    {
+      "http_status": 200,
+      "service_tier": "default",
+      "finish_reason": "stop",
+      "token_ids_count": 0,
+      "usage": {
+        "prompt_tokens": 32,
+        "total_tokens": 120,
+        "completion_tokens": 88,
+        "estimated_cost": 4.160000000000001e-05,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "http_status": 200,
+      "service_tier": "default",
+      "finish_reason": "stop",
+      "token_ids_count": 0,
+      "usage": {
+        "prompt_tokens": 213,
+        "total_tokens": 249,
+        "completion_tokens": 36,
+        "estimated_cost": 5.700000000000001e-05,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    }
+  ],
+  "notes": [
+    "Original worker outcome is retained unchanged; it understated known cost before the independent-usage collection fix.",
+    "No retokenized text has been substituted for original generated IDs.",
+    "User subsequently authorized all tests below $0.01. Seven additional distinct small protocol controls were sent; none exposed original IDs or logprobs."
+  ],
+  "total_gemma_test_calls": 9,
+  "total_gemma_test_estimated_cost_usd": 0.00015740000000000003,
+  "test_ceiling_usd": 0.01,
+  "all_test_usage_complete": true,
+  "text_only_diagnostics": {
+    "neutral_final_text_matches": true,
+    "native_call_parsed": true,
+    "applied_program_sha256": "fc92339e2c864d8fc1782834ede5e96beb34e096745cdb559c3a8bb67fbfae7c",
+    "sandbox_status": "passed"
+  },
+  "protocol_probes": [
+    {
+      "receipt": "deepinfra-gemma-smoke-20261118-01/generation/response-0000.json",
+      "sha256": "aee974986c29853f6e66ad1c5d6e7927eaf4de7403752e32e6ad22c08fa02727",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 32,
+        "total_tokens": 120,
+        "completion_tokens": 88,
+        "estimated_cost": 4.160000000000001e-05,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-smoke-20261118-01/generation/response-0001.json",
+      "sha256": "6548278bbdd1c260d5788e56e000132d71aac2e10eb744625764295773e0be89",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 213,
+        "total_tokens": 249,
+        "completion_tokens": 36,
+        "estimated_cost": 5.700000000000001e-05,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-token-probes-20261118-01/00-response.json",
+      "sha256": "3c59f10b1d2af0742bd999c968c68dd6a9b2726e2b973dc2b481a3d06da6ebba",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 34,
+        "total_tokens": 38,
+        "completion_tokens": 4,
+        "estimated_cost": 8.400000000000001e-06,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-token-probes-20261118-01/01-response.json",
+      "sha256": "5b098c02fb047f6ea4a48022e3a28eca0fa475d9bc285249ef2ca4a554887dc7",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 34,
+        "total_tokens": 38,
+        "completion_tokens": 4,
+        "estimated_cost": 8.400000000000001e-06,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-token-probes-20261118-02/00-response.json",
+      "sha256": "c624bed46679e32bfb654e37e6c258a3ff5a64c46885f99badbfe3d20ac950ff",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 34,
+        "total_tokens": 38,
+        "completion_tokens": 4,
+        "estimated_cost": 8.400000000000001e-06,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-token-probes-20261118-02/01-response.json",
+      "sha256": "025c5fdeb88a2441ae04c3b9744b9e82b60c3e6bb219e2a7b467b244a7ef194a",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 34,
+        "total_tokens": 38,
+        "completion_tokens": 4,
+        "estimated_cost": 8.400000000000001e-06,
+        "prompt_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-token-probes-20261118-02/02-response.json",
+      "sha256": "650b6f8fae30eedd33e1c18e478cb40a5a020305a2a2588ea69caae2b71bcd58",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 34,
+        "total_tokens": 38,
+        "completion_tokens": 4,
+        "estimated_cost": 8.400000000000001e-06,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-token-probes-20261118-02/03-response.json",
+      "sha256": "2fc56089d473f22376ed658ae9f303e658d02904f5c52e4942d9534843d13b6c",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 34,
+        "total_tokens": 38,
+        "completion_tokens": 4,
+        "estimated_cost": 8.400000000000001e-06,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    },
+    {
+      "receipt": "deepinfra-gemma-token-probes-20261118-03/response.json",
+      "sha256": "0f1b78b5c0df7f46fd3ba271cd0eff09d4a8b9dd31ba8091cb968b78859fa9e0",
+      "http_status": 200,
+      "returned_token_ids": 0,
+      "logprobs_present": false,
+      "usage": {
+        "prompt_tokens": 34,
+        "total_tokens": 38,
+        "completion_tokens": 4,
+        "estimated_cost": 8.400000000000001e-06,
+        "prompt_tokens_details": null,
+        "completion_tokens_details": null
+      }
+    }
+  ],
+  "public_model_metadata_sha256": "ff4eaf7af691ad180fe47185a59541d4dd26e71b24ec56de5af109a304ba9bc9",
+  "scope": "Strict original-token protocol investigation; subsequent approved native-text validation is recorded separately.",
+  "followup_report": "deepinfra-gemma-native-text-20261118.json",
+  "followup_status": "passed_native_text"
+}

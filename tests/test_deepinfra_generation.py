@@ -319,7 +319,8 @@ class RecordedCompatibilityTests(unittest.TestCase):
     def test_recorded_output_retains_raw_eos_but_excludes_decoded_eos_marker(self):
         pieces = {939: "AL", 27305: "PHA", 417: " B", 20069: "ETA", 78990: " GAM", 4680: "MA",
                   248046: "<|im_end|>", 248044: "<|endoftext|>"}
-        inner = SimpleNamespace(decode=lambda tokens, **kwargs: "".join(pieces[t] for t in tokens))
+        inner = SimpleNamespace(decode=lambda tokens, **kwargs: "".join(pieces[t] for t in tokens),
+                                convert_ids_to_tokens=pieces.__getitem__)
         with mock.patch.object(d, "version", side_effect=VERSIONS.__getitem__):
             tokenizer = d.Tokenizer(inner)
         for eos in (248046, 248044):
@@ -343,7 +344,7 @@ class TokenizerTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         for name in d.TOKENIZER_FILES[:4]:
-            (self.root / name).write_text(json.dumps(dict(text_config=dict(eos_token_id=248044)))
+            (self.root / name).write_text(json.dumps(dict(model_type='qwen3_5', text_config=dict(eos_token_id=248044)))
                                          if name == "config.json" else "{}")
         self.runtime = dict(tokenizer_path=str(self.root), tokenizer_sha256={
             name: b.generation.file_hash(self.root / name) for name in d.TOKENIZER_FILES[:4]})

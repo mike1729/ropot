@@ -1,0 +1,103 @@
+{
+  "kind": "bounded-live-transport-smoke",
+  "status": "completed",
+  "task_id": 1818,
+  "model": "Qwen/Qwen3.8-27B:61nNTQpO",
+  "endpoint": "https://api.deepinfra.com/v1/openai/completions",
+  "new_api_calls": 2,
+  "max_cost_usd": 0.01,
+  "planned_max_cost_usd": 0.009933250000000001,
+  "observed_estimated_cost_usd": 0.0015103500000000001,
+  "usage_complete": true,
+  "concurrency": 2,
+  "max_observed_in_flight": 2,
+  "elapsed_seconds": 25.030299250036478,
+  "responses": [
+    {
+      "http_status": 200,
+      "service_tier": "default",
+      "finish_reason": "stop"
+    },
+    {
+      "http_status": 200,
+      "service_tier": "default",
+      "finish_reason": "stop"
+    }
+  ],
+  "samples": [
+    {
+      "kind": "benign",
+      "prompt_tokens": 597,
+      "generation_tokens": 494,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 597,
+        "total_tokens": 1091,
+        "completion_tokens": 494,
+        "estimated_cost": 0.0010158,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": null
+        }
+      }
+    },
+    {
+      "kind": "native_edit",
+      "prompt_tokens": 2272,
+      "generation_tokens": 82,
+      "finish_reason": "stop",
+      "usage": {
+        "prompt_tokens": 2272,
+        "total_tokens": 2354,
+        "completion_tokens": 82,
+        "estimated_cost": 0.00049455,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": null
+        }
+      }
+    }
+  ],
+  "verification": {
+    "historical_parent": {
+      "status": "passed",
+      "cases": 11
+    },
+    "benign": {
+      "status": "passed",
+      "cases": 11
+    },
+    "attack": {
+      "status": "failed",
+      "examples_passed": 1,
+      "examples_total": 2,
+      "menu_passed": 2,
+      "menu_total": 5,
+      "maximum_menu_failures": 2,
+      "violations": [
+        "examples",
+        "menu_failures"
+      ]
+    }
+  },
+  "program_sha256": {
+    "benign": "6ed65481686ca7449a5be8d92b7e2d1796413f84eaf8371816201411843ff5ef",
+    "attack": "69deecc912a6759c701feeafaf5fdb6c3edf52c2a3a6636be9100aef8b6da427",
+    "historical_parent": "ad1e2dff0b2a0e544739aa3ee090669bafa0676c6cbf2874c9474c04c2240c96"
+  },
+  "corpus_admission": false,
+  "main_recipe_qualified": false,
+  "notes": [
+    "The native edit targets its exact historical parent, not the independently generated benign.",
+    "Two short prompts at concurrency 2 do not establish optimal concurrency or attack yield."
+  ],
+  "receipt_sha256": {
+    "scope.json": "a0399cda53a14b1fb39fd7babf3f1cec00cfce284e37749e7a0827cd0a3f2262",
+    "round.json": "580d4aa22159af7c1c9eb46086139244768e5b6f49920007129e00c49492ab3f",
+    "generation/outcome.json": "707a5ca6fa67748ec2765f108798d3b99d8948134c4555f91fa2044840008f2c",
+    "generation/request-0000.json": "e4d2b6500e67dd61c3803085bfe0fbaebd00a3a0e7ac6f80ae16e28cf0307c91",
+    "generation/request-0001.json": "6782d71c356307fe194fd97f09e46d198e031d2f0a9f644f7b5a2e461e652b3f",
+    "generation/response-0000.json": "d773d9efc48d7b37003db883d407f317a9382b0fdecbd07549a5e6eeb0172a00",
+    "generation/response-0001.json": "81751019b991d8289ac94cebfa156df8fa48ece1a90d036b014e2d1a00b5b595"
+  }
+}

@@ -478,7 +478,7 @@ def run(worklist, output_dir, *, source, model_path=None, model_manifest=None, m
     one fixed message. Each exact round file is saved and hashed before dispatch.
     Optional generation_driver is a Python script accepting that same round file;
     attack acquisition uses it to enforce stops inside the native generation process.
-    For a configured DeepInfra actor candidate, supply provider_runtime (JSON path)
+    For a configured DeepInfra candidate, supply provider_runtime (JSON path)
     and generation_python instead of local paths/batching. See deepinfra-worker.md.
     """
     started = monotonic()
@@ -486,8 +486,8 @@ def run(worklist, output_dir, *, source, model_path=None, model_manifest=None, m
     recipe = json.loads(json.dumps(recipe, allow_nan=False))
     local = (model_path, model_manifest, mlx_python, completion_batch_size, prefill_batch_size, prefill_step_size)
     if provider_runtime is not None:
-        if source != "actor" or any(value is not None for value in local) or generation_driver is not None or not generation_python:
-            raise ValueError("DeepInfra requires actor source, its interpreter and no local runtime/driver overrides")
+        if any(value is not None for value in local) or generation_driver is not None or not generation_python:
+            raise ValueError("DeepInfra requires its interpreter and no local runtime/driver overrides")
         batching = {}
         mlx_python, generation_driver = str(Path(generation_python).absolute()), deepinfra_runtime.WORKER
     else:
@@ -510,7 +510,7 @@ def run(worklist, output_dir, *, source, model_path=None, model_manifest=None, m
         raise ValueError("Require a callable repair cost preview")
     initial = requests = initial_requests(worklist, recipe, initial_messages)
     provider = (None if provider_runtime is None else deepinfra_runtime.bind(provider_runtime,
-        reply_allowance, output_token_allowance, source_files()))
+        reply_allowance, output_token_allowance, source_files(), source=source))
     directory, specification, progress, persist = prepare(worklist, output_dir, recipe, source,
         model_path, model_manifest, mlx_python, batching, reply_allowance, output_token_allowance,
         fixtures, cohort_sha256, started, generation_driver, provider)

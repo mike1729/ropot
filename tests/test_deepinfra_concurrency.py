@@ -20,6 +20,7 @@ class ConcurrencyTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.tokenizer = ThinkingTokenizer("qwen")
+        self.tokenizer.eos_token_ids = d.EOS
         self.tokenizer.pieces = self.tokenizer.pieces.copy()
         self.tokenizer.pieces.update({100+i: f"print({i})\n" for i in range(5)})
         self.tokenizer.pieces[248046] = "<|im_end|>"
@@ -222,6 +223,7 @@ class ConcurrencyTests(unittest.TestCase):
             "from scripts import deepinfra_generation as d\n"
             "from tests.test_thinking_generation import ThinkingTokenizer\n"
             "tokenizer=ThinkingTokenizer('qwen')\n"
+            "tokenizer.eos_token_ids=d.EOS\n"
             "tokenizer.pieces=tokenizer.pieces.copy()\n"
             "tokenizer.pieces.update({100+i:f'print({i})\\n' for i in range(5)})\n"
             "tokenizer.pieces[248046]='<|im_end|>'\n"

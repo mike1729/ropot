@@ -15,12 +15,13 @@ The JSON has exactly `runtime`, `requests` and `output_dir` (a new directory).
 
 | Field | Meaning |
 | --- | --- |
-| `model` | `Qwen/Qwen3.8-27B:61nNTQpO` |
+| `model` | Pinned Qwen actor or [Gemma synthetic candidate](deepinfra-gemma.md) |
 | `tokenizer_path`, `tokenizer_sha256` | Local tokenizer directory and filename→SHA256 bindings |
 | `timeout_seconds`, `max_total_tokens` | HTTP socket timeout and prompt+reply envelope |
 | `input_usd_per_million`, `output_usd_per_million` | Explicit uncached rates for planned-work accounting |
 | `max_cost_usd` | Planned ceiling for the entire finite round |
 | `concurrency` (optional) | Maximum outstanding requests, integer 1–200; default 1 |
+| `output_protocol` (optional) | `token_ids` by default; explicit `gemma_native_text` permits Gemma's text-only replies |
 
 Pin `config.json`, `tokenizer.json`, `tokenizer_config.json`, `chat_template.jinja`
 and any present `vocab.json`, `merges.txt`, `special_tokens_map.json`,
@@ -95,8 +96,8 @@ result = loop.run(
 
 Existing extraction/checker/repair callbacks work unchanged, including native tool
 history. Do not supply local model/manifest/MLX paths, local batching or a driver
-override on this route. The DeepInfra worker is fixed; synthetic generation remains
-on the existing local route. The coordinator does not need tokenizer packages:
+override on this route. The DeepInfra worker is fixed; its pinned model must match
+the actor/synthetic source. The coordinator does not need tokenizer packages:
 the explicit child interpreter loads them. Relative tokenizer paths resolve from
 the coordinator's working directory and are frozen as canonical absolute paths.
 
@@ -153,6 +154,8 @@ may continue. Only the coordinator path provides the second-interrupt escalation
 The 200-request client ceiling is not an optimal setting or a guarantee against
 provider token/rate limits. A 429 stops admission without retry or automatic tuning.
 The same finite work and spending reservations apply at every concurrency.
+The [integration check](deepinfra-qualification.md) records offline replay results
+and the approved bounded live smoke results.
 Keep the default concurrency of 1 until a bounded qualification measures a higher
 setting against request and token limits. Any failed request makes the coordinator
 stop the whole round and run: successful peer replies remain saved as evidence,

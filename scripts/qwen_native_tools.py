@@ -147,7 +147,7 @@ class Extractor(qwen_edits.Extractor):
         self.thinking_repairs = set()
 
     def observe(self, row, attempt):
-        self.tokens[attempt['position']] += row.get('generation_tokens', len(row['tokens']))
+        self.tokens[attempt['position']] += row['generation_tokens'] if 'generation_tokens' in row else len(row['tokens'])
         attempt.update(cumulative_output_tokens=self.tokens[attempt['position']],
                        thinking=bool(row.get('enable_thinking')), hit_output_cap=row['status'] == 'length',
                        empty_reply=not row['text'].strip())

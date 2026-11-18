@@ -2,6 +2,7 @@
 
 from contextlib import nullcontext
 import math
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -68,6 +69,11 @@ def log_softmax(tensor, dim):
 
 
 class MonitorTrainingRuntimeTests(unittest.TestCase):
+    def setUp(self):
+        environment = mock.patch.dict(os.environ, CUBLAS_WORKSPACE_CONFIG=":4096:8")
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def contract(self):
         return dict(numerical_base="bnb-int8-bf16", attention="sdpa", seed=17,
                     max_new_tokens=3, max_total_tokens=100, terminator_id=9,
@@ -80,7 +86,7 @@ class MonitorTrainingRuntimeTests(unittest.TestCase):
             log_softmax=log_softmax,
             version=SimpleNamespace(cuda="fixture-cuda"),
             backends=SimpleNamespace(cuda=SimpleNamespace(matmul=SimpleNamespace(allow_tf32=True)),
-                                     cudnn=SimpleNamespace(allow_tf32=True, benchmark=True)),
+                                     cudnn=SimpleNamespace(allow_tf32=True, benchmark=True, deterministic=False)),
         )
         torch.cuda.is_available.return_value = True
         torch.cuda.is_bf16_supported.return_value = True
@@ -108,6 +114,14 @@ class MonitorTrainingRuntimeTests(unittest.TestCase):
     def test_loader_freezes_local_cuda_quantization_and_clears_checkpoint_stops(self):
         modules, model, transforms = self.fixture_modules()
         tokenizer = Tokenizer()
+
+        def load_model(*args, **kwargs):
+            transforms.set_seed.assert_called_once_with(17, deterministic=True)
+            self.assertTrue(modules["torch"].backends.cudnn.deterministic)
+            self.assertFalse(modules["torch"].backends.cudnn.benchmark)
+            return model
+
+        transforms.AutoModelForCausalLM.from_pretrained.side_effect = load_model
         with mock.patch.object(runtime, "import_module", side_effect=modules.__getitem__):
             adapter = runtime.NvidiaRuntime("/pinned/base", self.contract(), tokenizer=tokenizer)
         self.assertIs(adapter.tokenizer, tokenizer)
@@ -129,7 +143,20 @@ class MonitorTrainingRuntimeTests(unittest.TestCase):
         self.assertNotIn("top_k", generation)
         self.assertIs(model.generation_config, adapter.generation_config)
         self.assertFalse(modules["torch"].backends.cuda.matmul.allow_tf32)
+        self.assertFalse(modules["torch"].backends.cudnn.allow_tf32)
         model.eval.assert_called_once()
+
+    def test_workspace_configuration_is_required_before_loading_cuda_stack(self):
+        for value in (None, "", ":16:8"):
+            with self.subTest(value=value), mock.patch.dict(os.environ):
+                if value is None:
+                    os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
+                else:
+                    os.environ["CUBLAS_WORKSPACE_CONFIG"] = value
+                with mock.patch.object(runtime, "import_module") as load:
+                    with self.assertRaisesRegex(RuntimeError, "CUBLAS_WORKSPACE_CONFIG=:4096:8.*before starting Python"):
+                        runtime.NvidiaRuntime("/base", self.contract(), tokenizer=Tokenizer())
+                load.assert_not_called()
 
     def test_gpu_and_cuda_mismatches_fail_before_model_load(self):
         for field in ("cuda_version", "gpu_name"):
@@ -226,7 +253,7 @@ class MonitorTrainingRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Nonfinite"):
             adapter.log_likelihood([0], [1, 2])
 
-    def test_metadata_records_actual_tf32_flags(self):
+    def test_metadata_records_actual_determinism_flags_and_workspace(self):
         modules, model, transforms = self.fixture_modules()
         torch = modules["torch"]
         with mock.patch.object(runtime, "import_module", side_effect=modules.__getitem__):
@@ -241,6 +268,9 @@ class MonitorTrainingRuntimeTests(unittest.TestCase):
         result = adapter.metadata()
         self.assertTrue(result["determinism"]["matmul_tf32"])
         self.assertFalse(result["determinism"]["cudnn_tf32"])
+        self.assertFalse(result["determinism"]["algorithms"])
+        self.assertFalse(result["determinism"]["cudnn_deterministic"])
+        self.assertEqual(result["determinism"]["cublas_workspace_config"], ":4096:8")
         self.assertEqual(result["quantization"], transforms.BitsAndBytesConfig.return_value.to_dict.return_value)
 
 

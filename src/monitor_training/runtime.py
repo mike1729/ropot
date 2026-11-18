@@ -9,6 +9,7 @@ pinning and Renderer. This adapter does not qualify checkpoint compatibility.
 from collections import Counter
 from importlib import import_module
 import math
+import os
 
 
 def decode_completion(tokenizer, input_ids, output_ids, *, terminator_id, max_new_tokens):
@@ -45,6 +46,8 @@ class NvidiaRuntime:
     """One CUDA device, upstream BF16 modules and bitsandbytes LLM.int8 weights."""
 
     def __init__(self, model_root, contract, *, tokenizer):
+        if os.environ.get("CUBLAS_WORKSPACE_CONFIG") != ":4096:8":
+            raise RuntimeError("Set CUBLAS_WORKSPACE_CONFIG=:4096:8 before starting Python for deterministic CUDA")
         self.contract = contract
         self.torch = torch = import_module("torch")
         transformers = import_module("transformers")
@@ -56,11 +59,12 @@ class NvidiaRuntime:
             raise ValueError("CUDA/GPU differs from the frozen recipe")
         if not torch.cuda.is_bf16_supported():
             raise RuntimeError("Inference requires a BF16-capable NVIDIA CUDA device")
-        transformers.set_seed(17)
+        transformers.set_seed(17, deterministic=True)
         # TF32 must not silently change the nonquantized computations.
         torch.backends.cuda.matmul.allow_tf32 = False
         torch.backends.cudnn.allow_tf32 = False
         torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = True
         self.tokenizer = tokenizer
         quantization = transformers.BitsAndBytesConfig(load_in_8bit=True)
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
@@ -128,6 +132,7 @@ class NvidiaRuntime:
             peak_reserved_bytes=torch.cuda.max_memory_reserved(0),
             cudnn=torch.backends.cudnn.version(),
             determinism=dict(algorithms=torch.are_deterministic_algorithms_enabled(),
+                             cublas_workspace_config=os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
                              cudnn_deterministic=torch.backends.cudnn.deterministic,
                              cudnn_benchmark=torch.backends.cudnn.benchmark,
                              matmul_tf32=torch.backends.cuda.matmul.allow_tf32,

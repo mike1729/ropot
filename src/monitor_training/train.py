@@ -262,6 +262,7 @@ def train(prepared_root, export_root, model_root, inference_path, settings_path,
             prepared = _prepare_training(prepared_root, export_root, model_root, contract, settings, output,
                                          expected_prepared_sha256=expected_prepared_sha256,
                                          group="shared_honest" if shared_run is None else "twin_continuation")
+            torch.cuda.set_device(0)
             torch.cuda.reset_peak_memory_stats(0)
             memory_started = True
             resources.check_budget()

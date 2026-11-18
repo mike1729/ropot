@@ -78,8 +78,12 @@ Any numerical/runtime/source change requires a new recipe and qualification.
 
 ## Score once
 
+Set the cuBLAS workspace before launching Python. The runtime uses seed 17
+with deterministic CUDA algorithms and cuDNN, with TF32 and cuDNN benchmarking
+disabled. It records the effective settings with the run.
+
 ```sh
-python -m src.monitor_training score --prepared-root PREPARED --export-root EXPORT --model-root MODEL --contract RECIPE/contract.json --expected-prepared-sha256 PREPARED_SHA --expected-contract-sha256 CONTRACT_SHA --output-dir data/monitor_training/NEW_RUN
+CUBLAS_WORKSPACE_CONFIG=:4096:8 python -m src.monitor_training score --prepared-root PREPARED --export-root EXPORT --model-root MODEL --contract RECIPE/contract.json --expected-prepared-sha256 PREPARED_SHA --expected-contract-sha256 CONTRACT_SHA --output-dir data/monitor_training/NEW_RUN
 ```
 
 `score.py` loads the tokenizer and preflights all rows and the margin-token budget

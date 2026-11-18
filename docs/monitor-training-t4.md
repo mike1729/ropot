@@ -47,7 +47,7 @@ Launch one Python process with one visible GPU; distributed launch is unsupporte
 The runner checks Trainer's actual microbatch size before any optimizer updates.
 
 ```sh
-CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training train --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_S
+CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training train --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_S
 ```
 
 The destination must be new. It retains input/base/config/source pins, trainable

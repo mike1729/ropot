@@ -176,7 +176,7 @@ class TwinTrainingTests(unittest.TestCase):
                     now[0] = 121  # First selected reload finished; the next load must not start.
 
             stack.enter_context(mock.patch.object(torch.cuda, "empty_cache", side_effect=cleanup))
-            for method in ("reset_peak_memory_stats", "synchronize"):
+            for method in ("set_device", "reset_peak_memory_stats", "synchronize"):
                 stack.enter_context(mock.patch.object(torch.cuda, method))
             for method in ("max_memory_allocated", "max_memory_reserved", "memory_reserved"):
                 stack.enter_context(mock.patch.object(torch.cuda, method, return_value=1000))

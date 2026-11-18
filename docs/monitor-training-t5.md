@@ -28,7 +28,7 @@ Launch one Python process with one visible GPU; distributed launch is unsupporte
 The runner checks Trainer's actual microbatch size before any optimizer updates.
 
 ```sh
-CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training train-twins --shared-run data/monitor_training/SELECTED_S --expected-shared-sha256 S_SUMMARY_SHA --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TWIN_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_TWINS
+CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training train-twins --shared-run data/monitor_training/SELECTED_S --expected-shared-sha256 S_SUMMARY_SHA --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TWIN_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_TWINS
 ```
 
 Use a new destination and explicit numeric budgets, including `max_fit_tokens`.

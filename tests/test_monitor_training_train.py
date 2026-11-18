@@ -47,7 +47,8 @@ class SharedTrainingTests(unittest.TestCase):
         contract = dict(max_total_tokens=512, max_new_tokens=4, terminator_id=2,
                         budgets=dict(max_margin_tokens=100000, max_wall_seconds=120,
                                      max_cost_usd=1, gpu_hourly_usd=1))
-        observed = dict(step=0, batches=[], models=[], trainers=[], generations=[], likelihoods=[])
+        observed = dict(step=0, batches=[], models=[], trainers=[], generations=[], likelihoods=[],
+                        cuda=mock.Mock())
 
         class CpuRuntime:
             def __init__(self, model_root, contract, *, tokenizer):
@@ -117,8 +118,8 @@ class SharedTrainingTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(pinning, "load_tokenizer", return_value=tokenizer))
             load = stack.enter_context(mock.patch.object(train.prepare, "load_prepared", return_value=groups))
             stack.enter_context(mock.patch.object(training, "build_trainer", side_effect=observed_build))
-            for method in ("empty_cache", "reset_peak_memory_stats", "synchronize"):
-                stack.enter_context(mock.patch.object(torch.cuda, method))
+            for method in ("empty_cache", "set_device", "reset_peak_memory_stats", "synchronize"):
+                observed["cuda"].attach_mock(stack.enter_context(mock.patch.object(torch.cuda, method)), method)
             for method in ("max_memory_allocated", "max_memory_reserved", "memory_reserved"):
                 stack.enter_context(mock.patch.object(torch.cuda, method, return_value=1000))
             stack.enter_context(mock.patch.object(torch.cuda, "mem_get_info", return_value=(1000000, 2000000)))
@@ -167,6 +168,8 @@ class SharedTrainingTests(unittest.TestCase):
         config["training_args"]["dataloader_drop_last"] = True
         result, observed = self.run_training(recipe=config)
         self.assertEqual(result["status"], "passed", result["error"])
+        self.assertEqual(observed["cuda"].mock_calls[:2],
+                         [mock.call.set_device(0), mock.call.reset_peak_memory_stats(0)])
         self.assert_trajectory(result, observed, 1, [1])
         self.assertEqual(len(observed["models"]), 2)
         selected = result["selected"]

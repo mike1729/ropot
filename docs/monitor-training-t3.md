@@ -42,7 +42,7 @@ the settings once and saves the effective configuration in its run directory's
 and numerical-base pins remain required:
 
 ```sh
-CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training smoke --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_SMOKE
+CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=0 python -m src.monitor_training smoke --prepared-root PREPARED --export-root EXPORT --model-root MODEL --inference-contract RECIPE/contract.json --settings TRAINING_SETTINGS.json --expected-prepared-sha256 PREPARED_SHA --expected-inference-sha256 INFERENCE_SHA --output-dir data/monitor_training/NEW_SMOKE
 ```
 
 Smoke opens only shared-honest rows. Its first example repeats a masked public

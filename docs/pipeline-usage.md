@@ -68,8 +68,8 @@ tasks remain unavailable to ordinary development loading.
 
 The [script guide](../scripts/README.md) identifies experiment callers. Their
 recipes carry finite task/reply/token limits, seeds and runtime bindings.
-The [sealed recipes](../data/qualification/frozen92-20261101/recipes/recipes.json)
-record the completed v2 campaign's effective settings.
+The [artifact guide](artifacts.md#current-qualification) identifies the sealed
+recipes for the completed v2 campaign.
 
 | Consumer | Entry points | Contract |
 | --- | --- | --- |
@@ -90,13 +90,11 @@ The B1 `stage03.benign_acquisition.prepare_contract` and `acquire` entry points
 retain the historical Qwen3.6 actor pin and [B1 contract](support/v2-batch-01-plan.md).
 Their runtime qualifier checks repository files against live bytes; the existing
 proofs refer to a moved batching document and changed probe/generation sources,
-so they fail from this checkout. They do not qualify the current Qwen3.8 actor.
-The campaign driver instead uses `qwen_experiment.load_panel`, which binds the
-historical B1 evidence through Stage 05 and separately validates the active
-Qwen3.8 checkpoint. Fresh MLX acquisition must use that explicit binding path
-or establish a new runtime qualification before using the Stage 03 contract
-entry points. Historical binding verifies saved proof integrity and live
-runtime/model files; it does not establish fresh runtime qualification.
+so they fail from this checkout. The historical Qwen3.8 campaign used
+`qwen_experiment.load_panel` to bind B1 evidence through Stage 05 and validate
+its pinned checkpoint. That binding verifies evidence and runtime/model files.
+The [Gemma-actor main run](data-generation-redesign.md#main-run-recipe) requires
+its own production stage and runtime qualification.
 
 The v1 benign publication and witness acquisition chain is preserved with its
 tests on an [archive branch](v1/archive.md). Its frozen outputs remain under

@@ -10,8 +10,9 @@ The pilot code, tests, prompts and full write-ups are on the local branch
 
 - Commit `34fcada` holds the first snapshot of the pilot code and full write-ups.
 - Commit `bee2ffd` adds the pre-cleanup working tree and recovered source versions.
+- Commit `364d5c5` preserves two more source versions found in saved run folders.
 
-Neither commit is in main's history.
+These commits live on the archive branch.
 
 ## Attack generation
 
@@ -136,14 +137,14 @@ The scoped audit covered the whole-program and DeepInfra runs. Their manifests
 pin 81 versions of repository files.
 
 - **Recovered:** commit `bee2ffd` added 19 earlier versions, found as unreachable
-  Git blobs and app snapshot refs. Its `archive/whole-program-pins-2026-11-19/inventory.json`
-  maps each version to its original path and to the run manifests that pin it.
-- **Unresolved but on disk:** nine versions are outside Git, but two of them
-  survive as renamed copies inside their run folders:
+  Git blobs and app snapshot refs. Commit `364d5c5` added two more versions found
+  as renamed copies in their run folders:
   - `deepinfra-replay-20261118-01/replay-driver-source.py`;
   - `deepinfra-gemma-smoke-20261118-01/source-snapshot/local_generation-after-metrics.py`.
-- **Lost:** the other seven have no known copy. They belong to these superseded
-  runs and preparations: the offline launcher check, two benign-alignment preparations, the
+  The archive's `archive/whole-program-pins-2026-11-19/inventory.json` maps all
+  21 versions to their original paths and run manifests.
+- **Unresolved:** seven versions have no known copy. They belong to the
+  superseded offline launcher check, two benign-alignment preparations, the
   first MLX monitor run and the first thinking probe.
 
 The evidence runs listed below have their scoped repository-source pins in Git.

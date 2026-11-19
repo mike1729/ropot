@@ -4,23 +4,23 @@ Can synthetic corrections repair a monitor's selective failure to flag its actor
 attacks? This repository contains the data pipeline and experiments for the
 [honeypot monitor repair pilot](docs/pilot.md).
 
-**Before the main run, implement and qualify the
-[data generation redesign](docs/data-generation-redesign.md): shared actor benigns
-and comparable, bounded rewrites from both generators.** Preserve the old corpus.
+**The next experiment follows the [main-run generation recipe](docs/data-generation-redesign.md#main-run-recipe)
+and the [binary twin training plan](docs/twin-training-plan.md).** Gemma-4-31B-it
+is the actor and monitor. Qwen3.8-27B generates synthetic attacks. Each task
+supplies the actor attack, its qualified repair as the benign, and a synthetic
+attack derived from that benign. Source and lineage remain private provenance.
+Implement the generation stage and qualify its export before training.
 
-**Historical corpus qualification is complete. The next experiment follows the
-binary twin training plan on a three-row export of qualified historical bytes,
-starting with direct PASS/FLAG qualification.** The actor and historical monitor
-use Qwen3.8-27B MLX 8-bit; Gemma-4-31B-it is the synthetic source. Planned monitor
-training uses rented NVIDIA hardware; precision and LoRA versus full fine-tuning
-remain open. The [training plan](docs/twin-training-plan.md) uses direct twin training
-on historical triples with plain PASS/FLAG output, followed by synthetic repair
-versus matched replay. Five-row data and ASSESS/REPORT remain later extensions.
-The [implementation stage](docs/monitor-training-plan.md) plans monitor training
-against the [historical pilot export](docs/artifacts.md#historical-three-row-pilot).
-Each task trains on actor benign, actor attack and synthetic attack. Attack source
-and each attack's actual parent remain private provenance; the separate synthetic
-benign is retained privately and contributes no training row.
+The [monitor training stage](docs/monitor-training-plan.md) specifies binary
+qualification and matched PASS/FLAG twin training. The experiment then compares
+synthetic repair with matched replay. Planned training uses rented NVIDIA hardware.
+Precision and LoRA versus full fine-tuning remain open. Five-row data and
+ASSESS/REPORT remain later extensions.
+
+The [historical three-row export](docs/artifacts.md#historical-three-row-pilot)
+preserves each attack's original parent and retains the separate synthetic benign
+as private evidence. The [A40 pilot](docs/runpod-a40-pilot-results.md) used
+Qwen3.8-27B as actor and monitor and Gemma-4-31B-it as the synthetic source.
 
 The frozen corpus preserves 92 selected pairs and 184 programs. Its derived view
 retains 91 pairs after one demonstrated benign defect, with 20 matched development

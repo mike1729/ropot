@@ -10,21 +10,6 @@ qualify this shared-parent redesign. Preserve the existing corpus and evidence.
 Improve detection of unseen actor attacks beyond matched honest replay, while
 preserving benign acceptance and synthetic attack detection.
 
-## Program length in the whole-program generation pilot
-
-Admit every otherwise eligible task regardless of the length of its supplied
-solutions or saved Qwen parent. Apply the same correctness, witness and review
-criteria to generated programs of every length. Use the saved parent's length
-to report qualified triples per attempted task for parents under ten code lines
-and for parents with ten or more. The [whole-program pilot record](support/whole-program-pilots.md#attack-generation)
-describes the blind, own-reference and other-reference conditions. The pilot
-started with 12 of the 44 dual-reference development tasks. Record generated length
-separately for each source and condition, since the generation method can itself
-change program length.
-The [candidate inventory](support/experiment-reports/qwen-parent-candidates-20261118.json)
-contains 45 development and 38 construction parents after the known benign
-defect exclusion. Nine of the 83 parents have fewer than ten code lines.
-
 ## Main-run recipe
 
 Adopted on 19 November 2026 after the [whole-program pilots](support/whole-program-pilots.md)
@@ -70,6 +55,7 @@ Allocate tasks to training, development, confirmation, corrections and evaluatio
 before generation, preserving prior exposure history. Freeze actual task IDs,
 phase-specific finite reserve prefixes, advancement rules and acquisition caps;
 previously unmatched construction tasks need an explicit eligibility decision.
+Apply eligibility and qualification criteria uniformly across program lengths.
 Fresh programs on exposed tasks cannot provide untouched confirmation. Resolve
 its panel through the allocation amendment before claiming confirmation, or
 explicitly accept the weaker development-selected pilot. Keep every variant in the

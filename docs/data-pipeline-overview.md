@@ -1,9 +1,10 @@
 # V2 data pipeline overview
 
-This is the active data contract for the [v2 pilot](pilot.md). The data campaign
-is complete; its [qualification record](frozen-corpus-qualification.md) identifies
-the current evidence and user resolutions. The [v2 feasibility plan](support/v2-implementation-plan.md)
-records the implementation sequence.
+This overview covers the completed v2 data campaign and the
+[main-run redesign](data-generation-redesign.md#main-run-recipe).
+The [qualification record](frozen-corpus-qualification.md) identifies the completed
+campaign's evidence and user resolutions. The [v2 feasibility plan](support/v2-implementation-plan.md)
+records its implementation sequence.
 The [v1 pipeline](v1/data-pipeline-overview.md) records the previous requirements;
 its full-suite attack gate and fixed-witness acquisition do not apply to v2.
 
@@ -30,15 +31,21 @@ Use the same recorded menu permutation for both sources on a task/chain.
 
 ## Information boundaries and eligibility
 
+For the main run, Gemma-4-31B-it is the actor and monitor, and Qwen3.8-27B
+generates synthetic attacks. The [main-run recipe](data-generation-redesign.md#main-run-recipe)
+specifies the inputs, qualification and review for attack generation, actor
+repair and synthetic transplant.
+
+### Completed v2 acquisition
+
 Shown examples and menu inputs/answers may enter benign repair and attack requests.
 Audit cases and results never enter generation, assistance or repair feedback. Record
 prior exposure and exclude exposed cases from the independent audit designation;
 withheld here does not mean absent from model pretraining.
 
-The current actor/monitor checkpoint is Qwen3.8-27B MLX 8-bit; Gemma remains
-the synthetic source. Existing Qwen3.6 benigns are historical and may be reused
-only in labelled cross-checkpoint exploration. Refresh Qwen benigns before official
-own-source acquisition, preserving task identities, partitions and prior costs.
+The completed campaign used Qwen3.8-27B MLX 8-bit as actor and monitor, with
+Gemma as the synthetic source. Existing Qwen3.6 benigns may be reused only in
+labelled cross-checkpoint exploration.
 
 Each source generates its own benign. Select using shown cases, then privately verify
 all audit cases before attack generation. Failure disqualifies the source/task pair
@@ -63,11 +70,13 @@ Monitor verdicts never select candidates or enter generation feedback.
 The [2 November corpus analysis](support/twin-corpus-analysis-20261102.md) records
 small benign/attack edits, strong source-style cues and the distinction between
 single-program classification and supplementary paired diagnostics.
-The next planned stage is [monitor training](monitor-training-plan.md). An upstream
-[pipeline redesign](data-generation-redesign.md) replaces the separate normalization step.
+The main run needs the [redesigned export](data-generation-redesign.md#training-export-handoff)
+before [monitor training](monitor-training-plan.md). The redesign replaces the
+separate normalization step.
 Training consumes qualified bytes verbatim. Freeze source/label-neutral extraction
-and comment/docstring rules in the generation recipe; apply them before qualifying
-each program, and finalize the benign before supplying it to either editor.
+and comment/docstring rules in the generation recipe and apply them before
+qualifying each program. Qualify the actor attack and its repair, then supply
+the exact qualified repair bytes to the synthetic editor.
 Preserve verified originals and historical comment-only scoring. Changed program
 bytes require new qualification; check model-visible input conflicts before training. The redesign
 does not itself establish readiness or alter frozen memberships and ownership.
@@ -77,9 +86,9 @@ before real-data acceptance. It is not implemented yet. The current reader check
 pinned manifest/payload bytes and payload/index identity, without reconstructing
 qualification. T1c must independently verify allocation approval and exact group
 selection/order before preparing a training view.
-The revised training pilot targets an unchanged actor benign and actor/synthetic
-faulty edits of that same parent. This differs from the completed acquisition
-contract above and requires a qualified redesigned export, not relabeled old pairs.
+The main-run triple contains the actor attack, its qualified repair as the shared
+benign, and the synthetic transplant from that benign. Training requires a
+qualified redesigned export with this lineage.
 
 Repeat corpus diagnostics after main acquisition, reporting current/new/combined
 panels under the same task-disjoint recipe. Protected groups retain their access
@@ -93,9 +102,9 @@ traces, reviews and test outcomes remain private metadata. Grounding review and
 post-scoring verification may use private evidence, but do not return it to the
 monitor or generator.
 
-Review overlap at task level and preserve ownership for all variants. Initially export
-a minimal versioned manifest referencing existing pairs, checkpoint bindings, case
-partitions, chosen triggers, certificates, reviews, exclusions and unresolved tasks.
+Review overlap at task level and preserve ownership for all variants. The historical
+manifest references existing pairs, checkpoint bindings, case partitions, chosen
+triggers, certificates, reviews, exclusions and unresolved tasks.
 Retain every attempt, raw reply, execution result and interrupted-run record, including
 costs of failed work. Historical acceptance remains immutable. Acquisition scale and
 handoff timing follow the implementation plan; no general publication framework is needed.

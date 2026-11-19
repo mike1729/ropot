@@ -1,11 +1,10 @@
 # Documentation
 
-The data campaign is complete. Start with the
-[qualification and adjudication record](frozen-corpus-qualification.md) for the
-current corpus, then the [pilot](pilot.md) for the small twin experiment's goals.
-The binary twin training plan specifies the next experiment; the
-[monitor training stage](monitor-training-plan.md) details implementation after
-the planned upstream redesign. Its binary interface and runtime need qualification.
+The [main-run recipe](data-generation-redesign.md#main-run-recipe) and
+[binary twin training plan](twin-training-plan.md) define the next experiment.
+The [monitor training stage](monitor-training-plan.md) details export and runtime
+qualification. The [frozen-corpus record](frozen-corpus-qualification.md) and
+[A40 pilot results](runpod-a40-pilot-results.md) document the historical evidence.
 
 ## Current contracts and entry points
 

@@ -1,8 +1,8 @@
 # Data generation redesign for the main run
 
-Status: agreed decisions, updated 18 November 2026. Implement and qualify this
-redesign before the main run. The [current three-row pilot](twin-training-plan.md)
-reuses qualified historical bytes with their actual separate parents; it does not
+Status: agreed decisions, updated 19 November 2026 with the main-run recipe.
+Implement and qualify this redesign before the main run. The [historical three-row pilot](twin-training-plan.md)
+reused qualified historical bytes with their actual separate parents; it does not
 qualify this shared-parent redesign. Preserve the existing corpus and evidence.
 
 ## Objective
@@ -16,34 +16,53 @@ Admit every otherwise eligible task regardless of the length of its supplied
 solutions or saved Qwen parent. Apply the same correctness, witness and review
 criteria to generated programs of every length. Use the saved parent's length
 to report qualified triples per attempted task for parents under ten code lines
-and for parents with ten or more. The [whole-program generation pilot](whole-program-generation-pilot.md)
-compares blind, own-reference and other-reference conditions on the same 44
-dual-reference development tasks, starting with 12. Record generated length
+and for parents with ten or more. The [whole-program pilot record](support/whole-program-pilots.md#attack-generation)
+describes the blind, own-reference and other-reference conditions. The pilot
+started with 12 of the 44 dual-reference development tasks. Record generated length
 separately for each source and condition, since the generation method can itself
 change program length.
 The [candidate inventory](support/experiment-reports/qwen-parent-candidates-20261118.json)
 contains 45 development and 38 construction parents after the known benign
 defect exclusion. Nine of the 83 parents have fewer than ten code lines.
 
-## Shared benigns and comparable edits
+## Main-run recipe
 
-- Only the actor generates base solutions. Qualify each benign before giving
-  the exact same program to both attack generators.
-- Both the actor and synthetic generator independently introduce faults through
-  larger, bounded rewrites. Neither sees the other's output.
-- Assign the same rewrite condition to both generators on each task: the same
-  designated expression, block or function, permitted edit-size range, interface
-  requirements and restrictions on changes outside that region.
-- Measure edit size with one frozen diff rule. Use the same fault-family
-  allocation, instructions, task information, test visibility, tools, and
-  generation and feedback budgets across generators.
-- Apply the same qualification and candidate-selection rules. Require a valid
-  counterexample demonstrating a wrong answer, and cover diverse fault
-  mechanisms. Retain failed attempts and report actual edit sizes and yields
-  separately by generator and rewrite condition.
-- Compare generators within matched rewrite conditions on development tasks,
-  then choose and freeze a common condition for the main run. Exact scope,
-  size bounds and budgets remain to be determined through that development work.
+Adopted on 19 November 2026 after the [whole-program pilots](support/whole-program-pilots.md)
+on confirmation32. Their record also explains why Gemma-4-31B-it is the actor and
+Qwen3.8-27B the synthetic generator.
+This recipe replaces the earlier matched-rewrite design, in which the actor wrote
+each benign first and both generators rewrote a designated region of it.
+
+1. **Attacks.** Each generator writes one complete faulty program per task in a
+   fresh context, from the statement and examples alone, with a named witness
+   input. Certify each against both qualified references, and review it using
+   the shared fault-family vocabulary.
+2. **Actor benign.** The actor repairs its own approved attack. The repair must
+   pass the examples, menu and audit cases and print the correct output on the
+   attack's witness. Automatically accept repairs of up to three changed lines
+   when no added literal matches the shown witness input. Larger edits and
+   witness-literal matches require review. The accepted repair is the task's benign.
+3. **Synthetic attack.** The synthetic generator edits that benign to carry the
+   mistake from its own approved attack. The prompt contains the earlier
+   synthetic program. It includes its witness and explanation when the witness
+   is distinct from the frozen menu and audit inputs after whitespace normalization.
+   The actor attack stays private to qualification and review.
+   Limit the edit to three changed lines, certify it as an attack, and review
+   whether it reproduces or adapts the donor's mistake. Review flags added
+   literals that also appear in a shown donor witness or the proposed witness.
+4. **Duplicates.** Reject a synthetic attack that equals the actor's attack,
+   prints the same output on every frozen case and both witnesses, or repeats its
+   mechanism at review. A duplicate ends the task's synthetic attempts.
+5. **Attempts.** Allow up to three attempts per repair and per transplant, each
+   with a fresh seed. Retain every attempt and its failure reason.
+
+Keep each edit local to its fault. Measure changed lines against the benign with
+the frozen line-diff rule. Classify edit type using token changes with comments and
+layout omitted. An edit that only adds tokens is an insertion, one that only removes
+tokens is a deletion, and any other edit is a replacement. Report yields, edit
+sizes and edit types separately by generator. The archived pilot code holds the
+exact prompts, limits and review vocabulary; freeze them with the generation
+recipe before main-run acquisition.
 
 ## Data separation and twin targets
 
@@ -83,17 +102,20 @@ candidate/reserve order. The recipe is retained provenance; consumers do not ope
 or revalidate it. Branch targets are derived by the consumer, never factual relabeling.
 
 Freeze source/label-neutral code extraction and comment/docstring handling in the
-generation recipe before generation. Reject model-visible explanations of faults
-or source identity. Finalize the benign, qualify it, then give those exact bytes to
-both editors. Finalize each attack before qualifying it. Export the qualified UTF-8
+generation recipe before generation. Keep fault explanations and source identity
+out of monitor inputs. Finalize and qualify the actor's attack, then its repair. Give
+the qualified benign bytes to the synthetic editor. Finalize each attack before
+qualifying it. Export the qualified UTF-8
 bytes verbatim; changing them requires new qualification. Consumers preserve them
 in rows and messages; the monitor's pinned native template alone determines token rendering.
 Each receipt keeps `statement_sha256` and one `program_sha256`. Its containing
 task supplies identity and the `task.programs` key names the role; qualification
 result and distinct generator provenance substantiate that role. Upstream places
 receipts under their qualified task/program; receipts repeat neither ID nor role.
-Attack `parent_input_sha256` binds the exported benign's hash; retain ancestry for
-transformed reuse and exclusions. There is no separate consumer presentation policy.
+The synthetic attack's `parent_input_sha256` binds the exported benign's hash. The
+actor attack has no parent input; the benign's `repair_input_sha256` binds the
+actor attack it repairs. Retain ancestry for transformed reuse and exclusions.
+There is no separate consumer presentation policy.
 
 The redesigned producer is not implemented yet. Construct receipts directly at
 qualification time. Its actual generation/qualification fixture run must prove:
@@ -103,8 +125,9 @@ qualification time. Its actual generation/qualification fixture run must prove:
 3. `program_sha256` identifies the exact qualified bytes written and exported verbatim.
 4. `generator_sha256` identifies the actual checkpoint/runtime used for the benign
    or attack and the appropriate actor/synthetic source.
-5. Every attack's `parent_input_sha256` identifies the exact qualified benign bytes
-   actually passed to both editors.
+5. The synthetic attack's `parent_input_sha256` identifies the exact qualified
+   benign bytes passed to the synthetic editor, and the benign's
+   `repair_input_sha256` identifies the exact actor attack bytes the actor repaired.
 
 A later validator of independently built receipt dictionaries cannot establish
 those guarantees. Evidence integrity, ancestor completeness and the frozen neutral
@@ -148,7 +171,9 @@ features. Qualified original benigns remain part of training and evaluation.
 
 ## Prerequisites for the main run
 
-Implement and validate the shared-benign acquisition and matched rewrite controls.
+Implement and validate the main-run recipe as a pipeline stage. The training
+consumer's ancestry check currently requires a parent input for every attack;
+update it for repair-derived benigns.
 Update the pipeline contract, exported records, allocations and training and repair
 gates for this shared-benign structure before prospective training. Freeze the
 generation recipe after development and qualify the twin and repair workflow on

@@ -14,6 +14,7 @@ contracts and entry points.
 | Benign panels and recovery | [Dev-50 benigns](qwen-dev50-benigns.md), [development recovery](dev12-recovery-cases.md), [construction recovery](construction-case-recovery.md) |
 | Completed queues | [Overnight development](overnight-dev34-monitoring.md), [matched generation](dev-construction-qwen-gemma-queue.md), [matched monitoring](matched-monitor-queue.md) |
 | Sealed qualification | [Phase drivers and audit dispatcher archive](qualification-drivers-archive.md) |
+| Whole-program pilots | [Results, recipe evidence and archive pointers](whole-program-pilots.md) |
 
 ## Superseded proposals
 
